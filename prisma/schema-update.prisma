@@ -1,0 +1,12 @@
+// Agregar al final del schema.prisma
+
+model Version {
+  id        String   @id @default(cuid())
+  songId    String
+  song      Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([songId])
+}
