@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 // Types for metronome configuration
-type SubdivType = 1 | 2 | 3 | 4 // 1x (Negras), 2x (Corcheas), 3x (Tresillos), 4x (Semicorcheas)
+type SubdivType = 1 | 'off-beat' | 2 | 3 | 4 | 6
 type SoundProfile = 'woodblock' | 'sine' | 'cowbell'
 
 const NUMERATORS = [2, 3, 4, 5, 6, 7, 9, 12]
@@ -18,6 +18,7 @@ export function Metronome() {
   // Metronome State
   const [isPlaying, setIsPlaying] = useState(false)
   const [bpm, setBpm] = useState(120)
+  const [bpmInput, setBpmInput] = useState('120')
   const [numerator, setNumerator] = useState(4)
   const [denominator, setDenominator] = useState(4)
   const [subdivision, setSubdivision] = useState<SubdivType>(1)
@@ -50,13 +51,41 @@ export function Metronome() {
   const isMutedRef = useRef(isMuted)
   const soundProfileRef = useRef(soundProfile)
 
+  // Track previous settings for dynamic on-the-fly tempo changes
+  const prevBpmRef = useRef(bpm)
+  const prevSubdivisionRef = useRef<SubdivType>(subdivision)
+  const lastStepTimeRef = useRef(0)
+
   // Update refs when state changes
-  useEffect(() => { bpmRef.current = bpm }, [bpm])
+  useEffect(() => { bpmRef.current = bpm; setBpmInput(bpm.toString()) }, [bpm])
   useEffect(() => { numeratorRef.current = numerator }, [numerator])
   useEffect(() => { subdivisionRef.current = subdivision }, [subdivision])
   useEffect(() => { volumeRef.current = volume }, [volume])
   useEffect(() => { isMutedRef.current = isMuted }, [isMuted])
   useEffect(() => { soundProfileRef.current = soundProfile }, [soundProfile])
+
+  // Synchronize on-the-fly BPM or Subdivision changes immediately
+  useEffect(() => {
+    const ctx = audioContextRef.current
+    if (isPlaying && ctx) {
+      const currentTicks = subdivision === 'off-beat' ? 2 : subdivision
+      const newStepDuration = 60.0 / (bpm * currentTicks)
+      
+      const elapsed = ctx.currentTime - lastStepTimeRef.current
+      const prevTicks = prevSubdivisionRef.current === 'off-beat' ? 2 : prevSubdivisionRef.current
+      const prevStepDuration = 60.0 / (prevBpmRef.current * prevTicks)
+      
+      let fraction = elapsed / prevStepDuration
+      if (isNaN(fraction) || fraction < 0) fraction = 0
+      if (fraction > 0.95) fraction = 0.95 // avoid scheduling in the past
+      
+      const remaining = newStepDuration * (1 - fraction)
+      nextStepTimeRef.current = ctx.currentTime + Math.max(0.01, remaining)
+    }
+    
+    prevBpmRef.current = bpm
+    prevSubdivisionRef.current = subdivision
+  }, [bpm, subdivision, isPlaying])
 
   // Mount check
   useEffect(() => {
@@ -66,7 +95,6 @@ export function Metronome() {
       if (timerIdRef.current) {
         clearTimeout(timerIdRef.current)
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       timeoutsRef.current.forEach((id) => clearTimeout(id))
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close()
@@ -86,7 +114,7 @@ export function Metronome() {
     return audioContextRef.current
   }
 
-  // Audio synthesis helper
+  // Audio synthesis helper with strict frequency and volume hierarchy
   const playClick = (time: number, isAccent: boolean, isSub: boolean) => {
     const ctx = audioContextRef.current
     if (!ctx) return
@@ -100,43 +128,63 @@ export function Metronome() {
     // Calculate specific volumes based on beat priority
     const masterVol = isMutedRef.current ? 0 : volumeRef.current
     let toneVolume = masterVol
-    let frequency = 1000
+    let frequency = 800
     let decayTime = 0.06
 
     if (isAccent) {
-      // Accent (Beat 1)
-      frequency = soundProfileRef.current === 'cowbell' ? 880 : 1200
+      // Accent (Beat 1): High and clear tone
+      frequency = 1000
       toneVolume = masterVol * 1.0
-      decayTime = 0.1
+      decayTime = 0.08
     } else if (!isSub) {
-      // Normal Beats
-      frequency = soundProfileRef.current === 'cowbell' ? 587 : 800
+      // Normal Beats: Medium tone
+      frequency = 800
       toneVolume = masterVol * 0.75
-      decayTime = 0.07
+      decayTime = 0.06
     } else {
-      // Subdivision Beats
-      frequency = soundProfileRef.current === 'cowbell' ? 440 : 600
+      // Subdivision Beats / Off-beat / Sextuplets: Low click
+      frequency = 600
       toneVolume = masterVol * 0.4
       decayTime = 0.04
     }
 
-    osc.frequency.setValueAtTime(frequency, time)
-
     // Apply different audio styles
     if (soundProfileRef.current === 'woodblock') {
-      osc.type = 'triangle' // Warmer woodblock-like sound
+      osc.type = 'triangle' // Warmer triangle wave for woodblock character
+      
+      // Fast pitch slide (pop transient) to emulate a wooden click
+      osc.frequency.setValueAtTime(frequency * 1.6, time)
+      osc.frequency.exponentialRampToValueAtTime(frequency, time + 0.004)
+      
+      // Crisp envelope with immediate attack
+      gainNode.gain.setValueAtTime(0.001, time)
+      gainNode.gain.linearRampToValueAtTime(toneVolume, time + 0.002)
+      gainNode.gain.exponentialRampToValueAtTime(0.001, time + decayTime)
     } else if (soundProfileRef.current === 'sine') {
-      osc.type = 'sine' // Clean electronic beep
+      osc.type = 'sine' // Clean electronic sine wave beep
+      osc.frequency.setValueAtTime(frequency, time)
+      
+      gainNode.gain.setValueAtTime(0.001, time)
+      gainNode.gain.linearRampToValueAtTime(toneVolume, time + 0.002)
+      gainNode.gain.exponentialRampToValueAtTime(0.001, time + decayTime)
     } else {
-      // Cowbell-like simulation using dual oscillator or square wave
+      // Cowbell simulation using a square wave with mixed high metallic ring
       osc.type = 'square' 
-      // Add metallic harmonic ring
+      osc.frequency.setValueAtTime(frequency, time)
+      
+      gainNode.gain.setValueAtTime(0.001, time)
+      gainNode.gain.linearRampToValueAtTime(toneVolume, time + 0.002)
+      gainNode.gain.exponentialRampToValueAtTime(0.001, time + decayTime)
+
       const oscRing = ctx.createOscillator()
       const gainRing = ctx.createGain()
       oscRing.type = 'sine'
       oscRing.frequency.setValueAtTime(frequency * 1.48, time)
-      gainRing.gain.setValueAtTime(toneVolume * 0.3, time)
+      
+      gainRing.gain.setValueAtTime(0.001, time)
+      gainRing.gain.linearRampToValueAtTime(toneVolume * 0.3, time + 0.002)
       gainRing.gain.exponentialRampToValueAtTime(0.001, time + decayTime * 0.8)
+      
       oscRing.connect(gainRing)
       gainRing.connect(ctx.destination)
       oscRing.start(time)
@@ -146,9 +194,6 @@ export function Metronome() {
         gainRing.disconnect()
       }
     }
-
-    gainNode.gain.setValueAtTime(toneVolume, time)
-    gainNode.gain.exponentialRampToValueAtTime(0.001, time + decayTime)
 
     osc.start(time)
     osc.stop(time + decayTime)
@@ -160,49 +205,72 @@ export function Metronome() {
     }
   }
 
-  // Web Audio precise scheduler loop
+  // Web Audio precise scheduler loop with look-ahead
   const scheduler = () => {
     const ctx = audioContextRef.current
     if (!ctx) return
 
-    const scheduleAheadTime = 0.12 // lookahead window (seconds)
+    const scheduleAheadTime = 0.15 // lookahead window (seconds)
     const lookahead = 25.0 // polling frequency (ms)
 
     while (nextStepTimeRef.current < ctx.currentTime + scheduleAheadTime) {
       const step = currentStepRef.current
       const currentSub = subdivisionRef.current
       const currentNum = numeratorRef.current
+      
+      const ticksPerBeat = currentSub === 'off-beat' ? 2 : currentSub
 
       // Calculate indexes
-      const beatInMeasure = Math.floor(step / currentSub) % currentNum
-      const subIndex = step % currentSub
-      const isAccent = beatInMeasure === 0 && subIndex === 0
-      const isSub = subIndex > 0
+      const beatInMeasure = Math.floor(step / ticksPerBeat) % currentNum
+      const subIndex = step % ticksPerBeat
+      
+      // Contratiempo (off-beat) only plays on subIndex === 1 (the 'and')
+      const shouldPlay = currentSub !== 'off-beat' || subIndex === 1
+      
+      if (shouldPlay) {
+        const isAccent = beatInMeasure === 0 && subIndex === 0
+        const isSub = subIndex > 0 || currentSub === 'off-beat'
+        playClick(nextStepTimeRef.current, isAccent, isSub)
+      }
 
-      // Schedule the audio tone
-      playClick(nextStepTimeRef.current, isAccent, isSub)
+      // Save last scheduled time for on-the-fly tempo change reference
+      lastStepTimeRef.current = nextStepTimeRef.current
 
       // Sync UI flash on the thread with setTimeout
       const delayMs = (nextStepTimeRef.current - ctx.currentTime) * 1000
+      
+      const stepDurationMs = (60.0 / (bpmRef.current * ticksPerBeat)) * 1000
+      const flashDuration = Math.min(80, stepDurationMs * 0.4)
+      
+      const tickRate = bpmRef.current * ticksPerBeat
+      const swingOnSubdivision = tickRate <= 240
+
       const timeoutId = setTimeout(() => {
         setActiveBeat(beatInMeasure)
         setActiveSubdivision(subIndex)
-        setIsAccentFlash(isAccent)
+        setIsAccentFlash(beatInMeasure === 0 && subIndex === 0)
         setFlashActive(true)
 
-        // Toggle pendulum on every main beat
-        if (subIndex === 0) {
+        // Toggle pendulum side
+        if (swingOnSubdivision) {
+          setPendulumSide((prev) => (prev === 'left' ? 'right' : 'left'))
+        } else if (subIndex === 0) {
           setPendulumSide((prev) => (prev === 'left' ? 'right' : 'left'))
         }
 
-        const flashTimeout = setTimeout(() => setFlashActive(false), 80)
+        const flashTimeout = setTimeout(() => {
+          setFlashActive(false)
+          timeoutsRef.current.delete(flashTimeout)
+        }, flashDuration)
         timeoutsRef.current.add(flashTimeout)
+        
+        timeoutsRef.current.delete(timeoutId)
       }, Math.max(0, delayMs))
 
       timeoutsRef.current.add(timeoutId)
 
       // Advance scheduler pointers
-      const stepDuration = 60.0 / (bpmRef.current * currentSub)
+      const stepDuration = 60.0 / (bpmRef.current * ticksPerBeat)
       nextStepTimeRef.current += stepDuration
       currentStepRef.current++
     }
@@ -214,13 +282,19 @@ export function Metronome() {
   // Play / Stop Controls
   const togglePlay = () => {
     if (isPlaying) {
-      // Stop metronome
+      // Stop metronome and clear all scheduled tasks
       if (timerIdRef.current) {
         clearTimeout(timerIdRef.current)
         timerIdRef.current = null
       }
       timeoutsRef.current.forEach((id) => clearTimeout(id))
       timeoutsRef.current.clear()
+
+      // Close AudioContext to instantly cut pending audio buffers
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
 
       setIsPlaying(false)
       setActiveBeat(-1)
@@ -232,6 +306,7 @@ export function Metronome() {
       
       // Reset pointers
       nextStepTimeRef.current = ctx.currentTime + 0.05
+      lastStepTimeRef.current = ctx.currentTime
       currentStepRef.current = 0
       setIsPlaying(true)
       
@@ -261,16 +336,20 @@ export function Metronome() {
       const avgInterval = intervals.reduce((sum, val) => sum + val, 0) / intervals.length
       const calculatedBpm = Math.round(60000 / avgInterval)
       
-      // Clamp between 30 and 280 BPM
-      const clampedBpm = Math.max(30, Math.min(280, calculatedBpm))
+      // Clamp between 10 and 280 BPM
+      const clampedBpm = Math.max(10, Math.min(280, calculatedBpm))
       setBpm(clampedBpm)
     }
   }
 
   // Quick adjustment helper
   const adjustBpm = (amount: number) => {
-    setBpm((prev) => Math.max(30, Math.min(280, prev + amount)))
+    setBpm((prev) => Math.max(10, Math.min(280, prev + amount)))
   }
+
+  const ticksCount = subdivision === 'off-beat' ? 2 : subdivision
+  const currentTickRate = bpm * ticksCount
+  const swingDuration = (currentTickRate <= 240) ? 60 / currentTickRate : 60 / bpm
 
   if (!mounted) {
     return (
@@ -310,7 +389,7 @@ export function Metronome() {
             x: isPlaying ? (pendulumSide === 'left' ? '-160px' : '160px') : '0px'
           }}
           transition={{
-            duration: 60 / bpm,
+            duration: isPlaying ? swingDuration : 0.5,
             ease: "easeInOut"
           }}
         />
@@ -333,10 +412,42 @@ export function Metronome() {
             )}
           />
 
-          <div className="text-center select-none">
-            <span className="text-5xl font-black tracking-tight text-gray-900 dark:text-white font-mono">
-              {bpm}
-            </span>
+          <div className="text-center select-none flex flex-col items-center justify-center">
+            {/* Interactive numeric input for keyboard control */}
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={bpmInput}
+              onChange={(e) => {
+                const valStr = e.target.value.replace(/\D/g, '')
+                setBpmInput(valStr)
+                const val = parseInt(valStr)
+                if (!isNaN(val) && val >= 10 && val <= 280) {
+                  setBpm(val)
+                }
+              }}
+              onBlur={() => {
+                const val = parseInt(bpmInput)
+                if (isNaN(val) || val < 10) {
+                  setBpm(10)
+                  setBpmInput('10')
+                } else if (val > 280) {
+                  setBpm(280)
+                  setBpmInput('280')
+                } else {
+                  setBpm(val)
+                  setBpmInput(val.toString())
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
+              className="w-28 text-5xl font-black text-center tracking-tight text-gray-900 dark:text-white font-mono bg-transparent border-b-2 border-transparent hover:border-gray-250 dark:hover:border-gray-700 focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-0 py-0"
+              title="Haz clic para escribir el BPM"
+            />
             <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold mt-1">BPM</p>
           </div>
         </div>
@@ -386,14 +497,14 @@ export function Metronome() {
         <div className="w-full mt-6 px-4">
           <input
             type="range"
-            min="30"
+            min="10"
             max="280"
             value={bpm}
             onChange={(e) => setBpm(parseInt(e.target.value))}
             className="w-full h-1.5 bg-gray-200 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-primary-500 focus:outline-none"
           />
           <div className="flex justify-between text-xs text-gray-400 mt-1 select-none font-medium">
-            <span>30 Adagio</span>
+            <span>10 Largo</span>
             <span>120 Moderato</span>
             <span>280 Prestissimo</span>
           </div>
@@ -438,11 +549,11 @@ export function Metronome() {
                 </motion.div>
 
                 {/* Subdivisions Indicators under the main beat node */}
-                {subdivision > 1 && (
+                {ticksCount > 1 && (
                   <div className="flex gap-1 justify-center">
-                    {Array.from({ length: subdivision }).map((_, subIdx) => {
+                    {Array.from({ length: ticksCount }).map((_, subIdx) => {
                       const isSubActive = isCurrent && activeSubdivision === subIdx && flashActive
-                      const isFirstSub = subIdx === 0 // This is the main beat pulse itself
+                      const isFirstSub = subIdx === 0
                       
                       return (
                         <div
@@ -453,7 +564,9 @@ export function Metronome() {
                               ? isFirstBeat && isFirstSub
                                 ? "bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)] scale-125"
                                 : "bg-primary-500 shadow-[0_0_4px_rgba(139,92,246,0.6)] scale-125"
-                              : "bg-gray-300 dark:bg-gray-750"
+                              : subdivision === 'off-beat' && subIdx === 0
+                                ? "bg-transparent border border-dashed border-gray-400 dark:border-gray-600"
+                                : "bg-gray-300 dark:bg-gray-750"
                           )}
                         />
                       )
@@ -466,7 +579,7 @@ export function Metronome() {
         </div>
       </div>
 
-      <hr className="border-gray-200 dark:border-gray-850 my-6" />
+      <hr className="border-gray-200 dark:border-gray-855 my-6" />
 
       {/* 4. Controls Panel (Selectors & Sound profiles) */}
       <div className="space-y-5">
@@ -481,7 +594,6 @@ export function Metronome() {
               value={numerator}
               onChange={(e) => {
                 setNumerator(parseInt(e.target.value))
-                if (isPlaying) togglePlay() // Reset loop to prevent timing issues
               }}
               className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold cursor-pointer text-gray-700 dark:text-gray-300"
             >
@@ -501,7 +613,6 @@ export function Metronome() {
               value={denominator}
               onChange={(e) => {
                 setDenominator(parseInt(e.target.value))
-                if (isPlaying) togglePlay()
               }}
               className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold cursor-pointer text-gray-700 dark:text-gray-300"
             >
@@ -519,13 +630,15 @@ export function Metronome() {
           <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
             Subdivisiones
           </label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {(
               [
                 { label: 'Negras (1x)', value: 1 },
+                { label: 'Off-beat', value: 'off-beat' },
                 { label: 'Corcheas (2x)', value: 2 },
                 { label: 'Tresillos (3x)', value: 3 },
                 { label: 'Semicorch. (4x)', value: 4 },
+                { label: 'Seisillos (6x)', value: 6 },
               ] as const
             ).map((subOption) => (
               <button
