@@ -20,6 +20,7 @@ model User {
   songs         Song[]
   accounts      Account[]
   sessions      Session[]
+  practiceSessions PracticeSession[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -97,4 +98,26 @@ model Version {
   createdAt DateTime @default(now())
 
   @@index([songId])
+}
+
+enum Instrument {
+  GUITARRA
+  PIANO
+  BAJO
+  BATERIA
+}
+
+model PracticeSession {
+  id           String     @id @default(cuid())
+  userId       String
+  instrument   Instrument
+  duration     Int        // duración en minutos
+  book         String?
+  exerciseType String?
+  scheduledAt  DateTime
+  completed    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
