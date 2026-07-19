@@ -167,16 +167,21 @@ export function WeeklyCalendar({ sessions }: WeeklyCalendarProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-7 divide-x divide-slate-100 dark:divide-slate-800/50">
+      <div className="grid grid-cols-1 md:grid-cols-7 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800/50">
         {weekDays.map((day, idx) => {
           const isToday = new Date().toDateString() === day.toDateString()
           const daySessions = sessions.filter(s => new Date(s.scheduledAt).toDateString() === day.toDateString())
 
           return (
-            <div key={idx} className="min-h-[200px] flex flex-col p-2 gap-2">
-              <div className="text-center mb-2">
-                <p className="text-xs font-semibold text-slate-400 uppercase">{day.toLocaleDateString('es-ES', { weekday: 'short' })}</p>
-                <p className={cn("text-lg font-bold w-8 h-8 mx-auto flex items-center justify-center rounded-full", isToday ? "bg-primary-600 text-white" : "text-slate-700 dark:text-slate-300")}>
+            <div key={idx} className="min-h-[120px] md:min-h-[200px] flex flex-col p-3 md:p-2 gap-2">
+              <div className="flex md:flex-col items-center justify-between md:justify-center mb-2 pb-2 md:pb-0 border-b border-slate-100 dark:border-slate-800/50 md:border-b-0">
+                <p className="text-xs font-semibold text-slate-400 uppercase md:hidden">
+                  {day.toLocaleDateString('es-ES', { weekday: 'long' })}
+                </p>
+                <p className="text-xs font-semibold text-slate-400 uppercase hidden md:block">
+                  {day.toLocaleDateString('es-ES', { weekday: 'short' })}
+                </p>
+                <p className={cn("text-lg font-bold w-8 h-8 flex items-center justify-center rounded-full md:mx-auto", isToday ? "bg-primary-600 text-white" : "text-slate-700 dark:text-slate-300")}>
                   {day.getDate()}
                 </p>
               </div>
