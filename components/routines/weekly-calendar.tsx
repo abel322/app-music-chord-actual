@@ -29,6 +29,63 @@ const INSTRUMENT_COLORS: Record<Instrument, { bg: string, text: string, border: 
   BATERIA: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800' },
 }
 
+interface FormInputsProps {
+  formData: {
+    instrument: Instrument
+    duration: number
+    book?: string
+    exerciseType?: string
+  }
+  setFormData: React.Dispatch<React.SetStateAction<{
+    instrument: Instrument
+    duration: number
+    book?: string
+    exerciseType?: string
+  }>>
+}
+
+function FormInputs({ formData, setFormData }: FormInputsProps) {
+  return (
+    <>
+      <select 
+        value={formData.instrument} 
+        onChange={e => setFormData(prev => ({...prev, instrument: e.target.value as Instrument}))}
+        className="w-full text-xs p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none"
+      >
+        <option value="GUITARRA">Guitarra</option>
+        <option value="PIANO">Piano</option>
+        <option value="BAJO">Bajo</option>
+        <option value="BATERIA">Batería</option>
+      </select>
+      
+      <div className="flex items-center gap-1">
+        <input 
+          type="number" 
+          value={formData.duration} 
+          onChange={e => setFormData(prev => ({...prev, duration: parseInt(e.target.value) || 0}))}
+          className="w-full text-xs p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none"
+          placeholder="Minutos"
+        />
+      </div>
+
+      <input 
+        type="text" 
+        value={formData.book} 
+        onChange={e => setFormData(prev => ({...prev, book: e.target.value}))}
+        className="w-full text-[10px] p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none placeholder:text-slate-400"
+        placeholder="Libro/Método (opcional)"
+      />
+      <input 
+        type="text" 
+        value={formData.exerciseType} 
+        onChange={e => setFormData(prev => ({...prev, exerciseType: e.target.value}))}
+        className="w-full text-[10px] p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none placeholder:text-slate-400"
+        placeholder="Ejercicio (opcional)"
+      />
+    </>
+  )
+}
+
 export function WeeklyCalendar({ sessions }: WeeklyCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isAdding, setIsAdding] = useState<Date | null>(null)
@@ -111,45 +168,7 @@ export function WeeklyCalendar({ sessions }: WeeklyCalendarProps) {
     setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '' })
   }
 
-  const FormInputs = () => (
-    <>
-      <select 
-        value={formData.instrument} 
-        onChange={e => setFormData({...formData, instrument: e.target.value as Instrument})}
-        className="w-full text-xs p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none"
-      >
-        <option value="GUITARRA">Guitarra</option>
-        <option value="PIANO">Piano</option>
-        <option value="BAJO">Bajo</option>
-        <option value="BATERIA">Batería</option>
-      </select>
-      
-      <div className="flex items-center gap-1">
-        <input 
-          type="number" 
-          value={formData.duration} 
-          onChange={e => setFormData({...formData, duration: parseInt(e.target.value) || 0})}
-          className="w-full text-xs p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none"
-          placeholder="Minutos"
-        />
-      </div>
 
-      <input 
-        type="text" 
-        value={formData.book} 
-        onChange={e => setFormData({...formData, book: e.target.value})}
-        className="w-full text-[10px] p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none placeholder:text-slate-400"
-        placeholder="Libro/Método (opcional)"
-      />
-      <input 
-        type="text" 
-        value={formData.exerciseType} 
-        onChange={e => setFormData({...formData, exerciseType: e.target.value})}
-        className="w-full text-[10px] p-1 rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none placeholder:text-slate-400"
-        placeholder="Ejercicio (opcional)"
-      />
-    </>
-  )
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm mb-8">
@@ -191,7 +210,7 @@ export function WeeklyCalendar({ sessions }: WeeklyCalendarProps) {
                   if (editingId === session.id) {
                     return (
                       <div key={session.id} className="p-2 border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 rounded-lg text-xs space-y-2">
-                        <FormInputs />
+                        <FormInputs formData={formData} setFormData={setFormData} />
                         <div className="flex gap-1 pt-1">
                           <Button size="sm" className="w-full h-6 text-[10px]" onClick={submitEdit}>Guardar</Button>
                           <Button size="sm" variant="ghost" className="w-full h-6 text-[10px]" onClick={cancelForm}>Cancel</Button>
@@ -245,7 +264,7 @@ export function WeeklyCalendar({ sessions }: WeeklyCalendarProps) {
 
                 {isAdding?.toDateString() === day.toDateString() ? (
                   <div className="p-2 border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 rounded-lg text-xs space-y-2 mt-auto">
-                    <FormInputs />
+                    <FormInputs formData={formData} setFormData={setFormData} />
                     <div className="flex gap-1 pt-1">
                       <Button size="sm" className="w-full h-6 text-[10px]" onClick={handleCreate}>OK</Button>
                       <Button size="sm" variant="ghost" className="w-full h-6 text-[10px]" onClick={cancelForm}>Cancel</Button>
