@@ -40,7 +40,8 @@ export default async function RoutinesPage() {
     scheduledAt: s.scheduledAt,
     completed: s.completed,
     book: s.book,
-    exerciseType: s.exerciseType
+    exerciseType: s.exerciseType,
+    createdAt: s.createdAt
   }))
 
   return (

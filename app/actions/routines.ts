@@ -34,7 +34,7 @@ export async function createPracticeSession(data: {
   revalidatePath('/dashboard/routines')
 }
 
-export async function togglePracticeSession(id: string, completed: boolean) {
+export async function togglePracticeSession(id: string, completed: boolean, duration?: number) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) throw new Error('No autorizado')
 
@@ -44,9 +44,14 @@ export async function togglePracticeSession(id: string, completed: boolean) {
   const practiceSession = await prisma.practiceSession.findUnique({ where: { id } })
   if (!practiceSession || practiceSession.userId !== user.id) throw new Error('No encontrado o no autorizado')
 
+  const updateData: any = { completed }
+  if (completed && duration !== undefined) {
+    updateData.duration = duration
+  }
+
   await prisma.practiceSession.update({
     where: { id },
-    data: { completed }
+    data: updateData
   })
 
   revalidatePath('/dashboard/routines')
@@ -140,14 +145,30 @@ export async function updateWeeklyRoutine(ids: string[], data: {
   const user = await prisma.user.findUnique({ where: { email: session.user.email } })
   if (!user) throw new Error('Usuario no encontrado')
 
+  // Update uncompleted sessions (duration is updated to the new base/planned duration)
   await prisma.practiceSession.updateMany({
     where: {
       id: { in: ids },
-      userId: user.id
+      userId: user.id,
+      completed: false
     },
     data: {
       instrument: data.instrument,
       duration: data.duration,
+      book: data.book || null,
+      exerciseType: data.exerciseType || null,
+    }
+  })
+
+  // Update completed sessions (retaining their custom recorded duration)
+  await prisma.practiceSession.updateMany({
+    where: {
+      id: { in: ids },
+      userId: user.id,
+      completed: true
+    },
+    data: {
+      instrument: data.instrument,
       book: data.book || null,
       exerciseType: data.exerciseType || null,
     }

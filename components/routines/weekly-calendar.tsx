@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Plus, ChevronLeft, ChevronRight, Check, Trash2, BookOpen, Target, Pencil, Circle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { 
@@ -22,6 +22,7 @@ interface Session {
   completed: boolean
   book?: string | null
   exerciseType?: string | null
+  createdAt?: Date | string
 }
 
 interface WeeklyCalendarProps {
@@ -116,6 +117,44 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
     exerciseType?: string
   }>({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '' })
 
+  const [activePopover, setActivePopover] = useState<{
+    x: number
+    y: number
+    dayDate: Date
+    sessionId?: string
+    instrument: string
+    defaultDuration: number
+    book?: string | null
+    exerciseType?: string | null
+    currentDuration: number
+  } | null>(null)
+
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!activePopover) return
+
+    const handleScroll = () => {
+      setActivePopover(null)
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+    
+    const tableContainer = document.querySelector('.overflow-x-auto')
+    if (tableContainer) {
+      tableContainer.addEventListener('scroll', handleScroll, { passive: true })
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+      if (tableContainer) {
+        tableContainer.removeEventListener('scroll', handleScroll)
+      }
+    }
+  }, [activePopover])
+
   const getStartOfWeek = (date: Date) => {
     const d = new Date(date)
     const day = d.getDay()
@@ -192,22 +231,31 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
   }
 
   const handleCellClick = async (
+    e: React.MouseEvent<HTMLButtonElement>,
     dayDate: Date, 
     existingSession?: Session & { dayIndex: number }, 
     routineDetails?: { instrument: Instrument, duration: number, book?: string, exerciseType?: string }
   ) => {
-    if (existingSession) {
-      await togglePracticeSession(existingSession.id, !existingSession.completed)
-    } else if (routineDetails) {
-      await createPracticeSession({
-        instrument: routineDetails.instrument,
-        duration: routineDetails.duration,
-        scheduledAt: dayDate,
-        book: routineDetails.book,
-        exerciseType: routineDetails.exerciseType,
-        completed: true
-      })
+    if (existingSession?.completed) {
+      await togglePracticeSession(existingSession.id, false)
+      return
     }
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = rect.left + rect.width / 2
+    const y = rect.top
+
+    setActivePopover({
+      x,
+      y,
+      dayDate,
+      sessionId: existingSession?.id,
+      instrument: existingSession?.instrument || routineDetails?.instrument || 'GUITARRA',
+      defaultDuration: existingSession?.duration || routineDetails?.duration || 20,
+      book: existingSession?.book || routineDetails?.book || null,
+      exerciseType: existingSession?.exerciseType || routineDetails?.exerciseType || null,
+      currentDuration: existingSession?.duration || routineDetails?.duration || 20
+    })
   }
 
   // Filter and group sessions
@@ -234,7 +282,9 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
       const day = sDate.getDay()
       const dayIndex = day === 0 ? 6 : day - 1
 
-      const key = `${s.instrument}-${s.duration}-${s.book || ''}-${s.exerciseType || ''}`
+      const createdTime = s.createdAt ? new Date(s.createdAt).getTime() : 0
+      const key = `${s.instrument}-${s.book || ''}-${s.exerciseType || ''}-${createdTime}`
+      
       if (!groups[key]) {
         groups[key] = {
           key,
@@ -248,6 +298,16 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
       }
       groups[key].sessions.push({ ...s, dayIndex })
       groups[key].ids.push(s.id)
+    })
+
+    // Refine group duration to be the planned duration (duration of uncompleted session, or first session if all completed)
+    Object.values(groups).forEach(g => {
+      const uncompletedSession = g.sessions.find(s => !s.completed)
+      if (uncompletedSession) {
+        g.duration = uncompletedSession.duration
+      } else if (g.sessions.length > 0) {
+        g.duration = g.sessions[0].duration
+      }
     })
 
     return Object.values(groups)
@@ -398,7 +458,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                       return (
                         <td key={dayIdx} className="px-3 py-4 text-center whitespace-nowrap">
                           <button
-                            onClick={() => handleCellClick(dayDate, existingSession, {
+                            onClick={(e) => handleCellClick(e, dayDate, existingSession, {
                               instrument: routine.instrument as Instrument,
                               duration: routine.duration,
                               book: routine.book || undefined,
@@ -407,8 +467,13 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                             className="group focus:outline-none transition-transform active:scale-95 mx-auto block"
                           >
                             {existingSession?.completed ? (
-                              <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 hover:bg-emerald-600 transition-all duration-200">
-                                <Check className="w-5 h-5 stroke-[3]" />
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 hover:bg-emerald-600 transition-all duration-200">
+                                  <Check className="w-5 h-5 stroke-[3]" />
+                                </div>
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 opacity-75">
+                                  {existingSession.duration}m
+                                </span>
                               </div>
                             ) : (
                               <div className={cn(
@@ -451,6 +516,117 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
           </tbody>
         </table>
       </div>
+
+      {/* Popover/Modal flotante para registrar práctica con duración real */}
+      {activePopover && (
+        <>
+          {/* Backdrop overlay */}
+          <div 
+            className="fixed inset-0 z-40 bg-slate-950/10 dark:bg-slate-950/20 backdrop-blur-[0.5px]" 
+            onClick={() => setActivePopover(null)} 
+          />
+          
+          <div
+            ref={popoverRef}
+            style={{
+              position: 'fixed',
+              top: `${activePopover.y}px`,
+              left: `${activePopover.x}px`,
+              transform: 'translate(-50%, -100%) translateY(-12px)',
+            }}
+            className="z-50 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3"
+          >
+            {/* Short Title with Instrument */}
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                Sesión de {activePopover.instrument.toLowerCase()}
+              </h4>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                {activePopover.dayDate.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}
+              </span>
+            </div>
+
+            {/* Numeric Input */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                Duración de hoy (min)
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type="number"
+                  min={1}
+                  value={activePopover.currentDuration}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 0
+                    setActivePopover(prev => prev ? { ...prev, currentDuration: val } : null)
+                  }}
+                  className="w-full text-sm font-semibold p-2.5 pr-10 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-slate-900 dark:text-slate-100"
+                />
+                <span className="absolute right-3 text-xs font-semibold text-slate-400">min</span>
+              </div>
+            </div>
+
+            {/* Quick Adjustment Buttons: [-5m], [+5m], [+10m], [+30m] */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { label: '-5m', val: -5 },
+                { label: '+5m', val: 5 },
+                { label: '+10m', val: 10 },
+                { label: '+30m', val: 30 }
+              ].map((btn) => (
+                <button
+                  key={btn.label}
+                  type="button"
+                  onClick={() => {
+                    setActivePopover(prev => {
+                      if (!prev) return null
+                      const newVal = Math.max(1, prev.currentDuration + btn.val)
+                      return { ...prev, currentDuration: newVal }
+                    })
+                  }}
+                  className="text-[11px] font-bold py-1.5 px-2 rounded bg-slate-150 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 transition-colors"
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Action Buttons: Registrar Práctica */}
+            <div className="flex items-center gap-2 mt-1">
+              <Button
+                size="sm"
+                className="flex-1 font-semibold text-xs py-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all"
+                onClick={async () => {
+                  const duration = activePopover.currentDuration || activePopover.defaultDuration
+                  if (activePopover.sessionId) {
+                    await togglePracticeSession(activePopover.sessionId, true, duration)
+                  } else {
+                    await createPracticeSession({
+                      instrument: activePopover.instrument,
+                      duration: duration,
+                      scheduledAt: activePopover.dayDate,
+                      book: activePopover.book || undefined,
+                      exerciseType: activePopover.exerciseType || undefined,
+                      completed: true
+                    })
+                  }
+                  setActivePopover(null)
+                }}
+              >
+                Registrar Práctica
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs font-semibold"
+                onClick={() => setActivePopover(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
