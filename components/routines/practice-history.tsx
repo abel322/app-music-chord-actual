@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, Filter, BookOpen, Target, CheckCircle2, Circle } from 'lucide-react'
+import { Search, Filter, BookOpen, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Session {
@@ -18,9 +18,14 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterInstrument, setFilterInstrument] = useState<string>('TODOS')
 
+  const hasCompletedSessions = useMemo(() => sessions.some(s => s.completed), [sessions])
+
   const filteredSessions = useMemo(() => {
     return sessions
       .filter(s => {
+        // Only show completed sessions
+        if (!s.completed) return false
+
         // Filter by instrument
         if (filterInstrument !== 'TODOS' && s.instrument !== filterInstrument) return false
         
@@ -82,7 +87,6 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
               <th className="px-6 py-4 font-semibold">Duración</th>
               <th className="px-6 py-4 font-semibold">Libro / Método</th>
               <th className="px-6 py-4 font-semibold">Ejercicio</th>
-              <th className="px-6 py-4 font-semibold text-center">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -113,22 +117,14 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
                     </div>
                   ) : <span className="text-slate-300 dark:text-slate-600 italic">-</span>}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
-                  {session.completed ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Completado
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                      <Circle className="w-3.5 h-3.5" /> Pendiente
-                    </span>
-                  )}
-                </td>
               </tr>
             )) : (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                  No se encontraron prácticas que coincidan con los filtros.
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-500 font-medium">
+                  {!hasCompletedSessions 
+                    ? "Aún no has completado ninguna sesión de práctica esta semana. ¡Marca los días en la matriz para registrar tu progreso!"
+                    : "No se encontraron prácticas que coincidan con los filtros."
+                  }
                 </td>
               </tr>
             )}
