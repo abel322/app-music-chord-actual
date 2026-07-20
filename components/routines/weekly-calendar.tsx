@@ -26,6 +26,8 @@ interface Session {
 
 interface WeeklyCalendarProps {
   sessions: Session[]
+  currentDate: Date
+  setCurrentDate: React.Dispatch<React.SetStateAction<Date>>
 }
 
 const INSTRUMENT_COLORS: Record<Instrument, { bg: string, text: string, border: string }> = {
@@ -103,8 +105,7 @@ function FormInputs({ formData, setFormData }: FormInputsProps) {
   )
 }
 
-export function WeeklyCalendar({ sessions }: WeeklyCalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date())
+export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: WeeklyCalendarProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [editingIds, setEditingIds] = useState<string[] | null>(null)
   

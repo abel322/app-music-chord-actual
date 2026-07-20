@@ -2,9 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { WeeklyCalendar } from '@/components/routines/weekly-calendar'
-import { ProgressPanel } from '@/components/routines/progress-panel'
-import { PracticeHistory } from '@/components/routines/practice-history'
+import { RoutinesClient } from '@/components/routines/routines-client'
 import { CalendarDays } from 'lucide-react'
 
 export const metadata = {
@@ -57,13 +55,7 @@ export default async function RoutinesPage() {
         </div>
       </div>
 
-      <ProgressPanel sessions={formattedSessions} />
-      
-      <WeeklyCalendar sessions={formattedSessions} />
-
-      <div className="mt-12">
-        <PracticeHistory sessions={formattedSessions} />
-      </div>
+      <RoutinesClient sessions={formattedSessions} />
     </div>
   )
 }
