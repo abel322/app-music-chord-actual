@@ -3,17 +3,13 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { RecentSongs } from '@/components/dashboard/recent-songs'
-import { Library, Clock, TrendingUp, Flame, BookOpen, Target, Activity } from 'lucide-react'
+import { Library, Clock, TrendingUp, Flame, BookOpen, Target } from 'lucide-react'
+import { HistoricalDistribution } from '@/components/dashboard/historical-distribution'
 import { cn } from '@/lib/utils'
 
 type Instrument = 'GUITARRA' | 'PIANO' | 'BAJO' | 'BATERIA'
 
-const INSTRUMENT_COLORS: Record<Instrument, { bg: string, text: string, border: string, fill: string }> = {
-  GUITARRA: { bg: 'bg-orange-50 dark:bg-orange-950/20', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800', fill: 'from-orange-500 to-amber-500' },
-  PIANO: { bg: 'bg-blue-50 dark:bg-blue-950/20', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800', fill: 'from-blue-500 to-indigo-500' },
-  BAJO: { bg: 'bg-red-50 dark:bg-red-950/20', text: 'text-red-700 dark:text-red-400', border: 'border-red-200 dark:border-red-800', fill: 'from-red-500 to-rose-500' },
-  BATERIA: { bg: 'bg-emerald-50 dark:bg-emerald-950/20', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800', fill: 'from-emerald-500 to-teal-500' },
-}
+
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
@@ -91,12 +87,7 @@ export default async function DashboardPage() {
     }
   })
 
-  const maxInstMins = Math.max(...Object.values(instrumentMinutes), 1)
-  const distribution = instruments.map(inst => ({
-    instrument: inst,
-    minutes: instrumentMinutes[inst],
-    percentage: Math.round((instrumentMinutes[inst] / maxInstMins) * 100)
-  })).sort((a, b) => b.minutes - a.minutes)
+
 
   // 5. Enfoque Técnico (Top 3 Ejercicios/Conceptos)
   const exerciseMins: Record<string, number> = {}
@@ -197,43 +188,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Historical Distribution Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/20 text-purple-600 flex items-center justify-center">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base text-slate-800 dark:text-white">Distribución Histórica</h3>
-              <p className="text-xs text-slate-500">Minutos totales acumulados por instrumento</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {distribution.map(item => {
-              const colors = INSTRUMENT_COLORS[item.instrument as Instrument]
-              const hrs = Math.floor(item.minutes / 60)
-              const mins = item.minutes % 60
-              
-              return (
-                <div key={item.instrument} className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">{item.instrument}</span>
-                    <span className="font-mono text-slate-500 font-bold">{hrs}h {mins}m</span>
-                  </div>
-                  <div className="h-3 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full bg-gradient-to-r rounded-full transition-all duration-1000 ease-out", 
-                        colors.fill
-                      )} 
-                      style={{ width: `${item.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <HistoricalDistribution instrumentMinutes={instrumentMinutes} />
 
         {/* Technical Focus Card */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
