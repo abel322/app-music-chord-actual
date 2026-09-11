@@ -6,13 +6,20 @@ import { z } from 'zod'
 import { parseChords, detectKey } from '@/lib/chord-parser'
 
 const CreateSongSchema = z.object({
-  title: z.string().min(1),
-  artist: z.string().optional(),
-  lyrics: z.string().min(1),
-  content: z.string().optional(),
-  key: z.string().optional(),
-  timeSignature: z.string().optional(),
-  tempo: z.number().optional(),
+  title: z.string().min(1, 'Title is required'),
+  artist: z.string().optional().nullable(),
+  lyrics: z.string().optional().nullable(),
+  content: z.string().optional().nullable(),
+  key: z.string().optional().nullable(),
+  timeSignature: z.string().optional().nullable(),
+  tempo: z.coerce.number().optional().nullable(),
+  youtubeUrl: z.string().optional().nullable(),
+  genre: z.string().optional().nullable(),
+  instruments: z.any().optional().nullable(),
+  sections: z.any().optional().nullable(),
+  chords: z.any().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  isFavorite: z.boolean().optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -54,19 +61,32 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = CreateSongSchema.parse(body)
 
-    const chords = parseChords(data.content || data.lyrics)
-    const detectedKey = detectKey(chords)
+    const rawText = data.content || data.lyrics || ''
+    const parsedChords = rawText ? parseChords(rawText) : []
+    const detectedKey = parsedChords.length > 0 ? detectKey(parsedChords) : 'C'
+
+    const chordsValue = data.chords
+      ? typeof data.chords === 'string'
+        ? data.chords
+        : JSON.stringify(data.chords)
+      : JSON.stringify(parsedChords)
 
     const song = await prisma.song.create({
       data: {
         title: data.title,
         artist: data.artist || '',
-        content: data.content || data.lyrics,
-        lyrics: data.lyrics,
-        chords: JSON.stringify(chords),
-        key: data.key || detectedKey,
+        content: data.content || data.lyrics || '',
+        lyrics: data.lyrics || '',
+        chords: chordsValue,
+        key: data.key || detectedKey || 'C',
         timeSignature: data.timeSignature || '4/4',
-        tempo: data.tempo || 120,
+        tempo: data.tempo ?? 120,
+        youtubeUrl: data.youtubeUrl || null,
+        genre: data.genre || null,
+        instruments: data.instruments !== undefined ? data.instruments : undefined,
+        sections: data.sections !== undefined ? data.sections : undefined,
+        tags: data.tags || [],
+        isFavorite: data.isFavorite ?? false,
         userId: session.user.id,
       },
     })
@@ -76,6 +96,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 })
     }
+    console.error('Error creating song:', error)
     return NextResponse.json({ error: 'Failed to create song' }, { status: 500 })
   }
 }

@@ -9,7 +9,7 @@ interface Song {
   id: string
   title: string
   artist: string | null
-  key: string
+  key: string | null
   updatedAt: Date
 }
 

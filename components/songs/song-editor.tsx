@@ -13,11 +13,15 @@ interface Song {
   id: string
   title: string
   artist: string | null
-  key: string
+  key: string | null
   content: string
   lyrics?: string | null
   timeSignature?: string | null
   tempo?: number | null
+  youtubeUrl?: string | null
+  genre?: string | null
+  instruments?: any
+  sections?: any
 }
 
 interface ParsedSection {
@@ -34,7 +38,7 @@ export function SongEditor({ song }: { song: Song }) {
   const router = useRouter()
   const [title, setTitle] = useState(song.title)
   const [artist, setArtist] = useState(song.artist || '')
-  const [key, setKey] = useState(song.key)
+  const [key, setKey] = useState(song.key || 'C')
   const [content, setContent] = useState(song.content)
   const [timeSignature, setTimeSignature] = useState(song.timeSignature || '4/4')
   const [tempo, setTempo] = useState<number | string>(song.tempo || 120)

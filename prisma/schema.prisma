@@ -64,12 +64,16 @@ model Song {
   id            String    @id @default(cuid())
   title         String
   artist        String?
-  key           String    // Tonalidad original (C, D, E, etc)
-  timeSignature String    @default("4/4") // Compás (4/4, 3/4, 6/8, etc)
-  tempo         Int       @default(120) // Tempo en BPM
-  content       String    @db.Text // Letras con acordes
-  lyrics        String    @db.Text // Solo letras (para búsqueda)
-  chords        String    @db.Text // JSON string con acordes
+  key           String?   // Tonalidad musical (C, Dm, etc)
+  timeSignature String?   @default("4/4") // Compás musical (4/4, 3/4, 6/8, etc)
+  tempo         Int?      @default(120) // Tempo en BPM
+  youtubeUrl    String?   // URL de YouTube o audio de referencia
+  genre         String?   // Género musical detectado
+  instruments   Json?     // Instrumentos detectados (Json)
+  sections      Json?     // Estructura y progresiones de acordes en formato JSON
+  content       String    @default("") @db.Text // Letras con acordes
+  lyrics        String    @default("") @db.Text // Solo letras (para búsqueda)
+  chords        String    @default("") @db.Text // JSON string con acordes
   tags          String[]  @default([])
   isFavorite    Boolean   @default(false)
   userId        String
