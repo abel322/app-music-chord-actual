@@ -61,6 +61,11 @@ export default function NewSongPage() {
   const [metronomeBeat, setMetronomeBeat] = useState(false)
   const [songUrl, setSongUrl] = useState('')
   const [showPlayer, setShowPlayer] = useState(false)
+  const [genre, setGenre] = useState('')
+  const [instruments, setInstruments] = useState<string[]>([])
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [analysisSuccess, setAnalysisSuccess] = useState<string | null>(null)
   const [showTimeSignatureDetector, setShowTimeSignatureDetector] = useState(false)
   const [beatTaps, setBeatTaps] = useState<number[]>([])
   const [detectedBeats, setDetectedBeats] = useState(0)
@@ -397,10 +402,117 @@ export default function NewSongPage() {
   }
 
   const handleLoadSong = async () => {
-    if (songUrl.trim()) {
-      setShowPlayer(true)
-      
-      // Auto-detect song info and time signature (defaulting to 4/4 as standard for most songs if undetectable)
+    if (!songUrl.trim()) return
+
+    setShowPlayer(true)
+    setIsAnalyzing(true)
+    setAnalysisError(null)
+    setAnalysisSuccess(null)
+
+    try {
+      // 1. Llamar al endpoint de análisis con Gemini
+      const response = await fetch('/api/songs/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: songUrl.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al analizar la canción')
+      }
+
+      const songData = data.data
+      if (songData) {
+        if (songData.title) setTitle(songData.title)
+        if (songData.artist) setArtist(songData.artist)
+        if (songData.key) {
+          const matchedKey = keys.find(k => k === songData.key || songData.key.startsWith(k))
+          setKey(matchedKey || songData.key || 'C')
+        }
+        if (songData.timeSignature) setTimeSignature(songData.timeSignature)
+        if (songData.tempo) setTempo(songData.tempo.toString())
+        if (songData.genre) setGenre(songData.genre)
+        if (Array.isArray(songData.instruments)) setInstruments(songData.instruments)
+
+        // Cargar secciones y acordes en la estructura de bloques
+        if (Array.isArray(songData.sections) && songData.sections.length > 0) {
+          const validTypes: SectionType[] = [
+            'intro',
+            'verse',
+            'prechorus',
+            'chorus',
+            'bridge',
+            'instrumental',
+            'solo',
+            'outro',
+          ]
+
+          const parsedSections: Section[] = songData.sections.map(
+            (sec: any, idx: number) => {
+              const rawType = (sec.type || 'verse').toLowerCase().trim()
+              let type: SectionType = 'verse'
+
+              if (validTypes.includes(rawType as SectionType)) {
+                type = rawType as SectionType
+              } else if (rawType.includes('intro')) type = 'intro'
+              else if (rawType.includes('pre') || rawType.includes('pre-coro')) type = 'prechorus'
+              else if (rawType.includes('coro') || rawType.includes('chorus')) type = 'chorus'
+              else if (rawType.includes('puente') || rawType.includes('bridge')) type = 'bridge'
+              else if (rawType.includes('solo')) type = 'solo'
+              else if (rawType.includes('outro') || rawType.includes('final')) type = 'outro'
+              else if (rawType.includes('instrumental')) type = 'instrumental'
+
+              const labelObj = SECTION_TYPES.find((t) => t.value === type)
+              const label = `${labelObj?.label || 'Sección'} ${idx + 1}`
+
+              let chordList: string[] = []
+              if (typeof sec.chords === 'string') {
+                chordList = sec.chords
+                  .split(/[\s,|-]+/)
+                  .map((c: string) => c.trim())
+                  .filter(Boolean)
+              } else if (Array.isArray(sec.chords)) {
+                chordList = sec.chords
+                  .map((c: any) => (typeof c === 'string' ? c : c.chord))
+                  .filter(Boolean)
+              }
+
+              const chords: ChordPosition[] = chordList.map((chord, cIdx) => ({
+                id: `${Date.now()}-${idx}-${cIdx}-${Math.random().toString(36).slice(2, 6)}`,
+                chord,
+                position: cIdx * 10,
+              }))
+
+              return {
+                id: `${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+                type,
+                label,
+                lines: [
+                  {
+                    id: `${Date.now()}-${idx}-line`,
+                    lyrics: typeof sec.lyrics === 'string' ? sec.lyrics : '',
+                    chords,
+                  },
+                ],
+                timeSignature: songData.timeSignature || timeSignature || '4/4',
+              }
+            }
+          )
+
+          setSections(parsedSections)
+        }
+
+        setAnalysisSuccess(
+          `¡Análisis completado con Gemini! Tono: ${songData.key || 'N/A'} • Tempo: ${songData.tempo || 'N/A'} BPM • Género: ${songData.genre || 'N/A'}`
+        )
+      }
+    } catch (err: any) {
+      console.error('Error al analizar canción:', err)
+      setAnalysisError(err.message || 'Error al conectar con la API de análisis.')
+
+      // Fallback a oEmbed tradicional si Gemini falla
       try {
         if (songUrl.includes('spotify.com')) {
           const res = await fetch(`https://open.spotify.com/oembed?url=${songUrl}`)
@@ -430,9 +542,11 @@ export default function NewSongPage() {
           }
           setTimeSignature('4/4')
         }
-      } catch (err) {
-        console.error("Error fetching song info", err)
+      } catch (fallbackErr) {
+        console.warn('Fallback oEmbed error:', fallbackErr)
       }
+    } finally {
+      setIsAnalyzing(false)
     }
   }
 
@@ -852,6 +966,10 @@ export default function NewSongPage() {
           tempo: parseInt(tempo),
           content,
           lyrics: fetchedLyrics || autoExtractedLyrics || 'Sin letra',
+          youtubeUrl: songUrl || undefined,
+          genre: genre || undefined,
+          instruments: instruments.length > 0 ? instruments : undefined,
+          sections: sections.length > 0 ? sections : undefined,
         }),
       })
 
@@ -904,10 +1022,20 @@ export default function NewSongPage() {
               <button
                 type="button"
                 onClick={handleLoadSong}
-                disabled={!songUrl.trim()}
-                className="flex-1 sm:flex-none px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-medium text-sm transition-colors shrink-0"
+                disabled={!songUrl.trim() || isAnalyzing}
+                className="flex-1 sm:flex-none px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 shrink-0"
               >
-                Cargar
+                {isAnalyzing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Analizando canción...</span>
+                  </>
+                ) : (
+                  <span>Cargar y Analizar</span>
+                )}
               </button>
               {showPlayer && (
                 <button
@@ -922,6 +1050,55 @@ export default function NewSongPage() {
               )}
             </div>
           </div>
+
+          {/* Mensajes de feedback de análisis */}
+          {analysisError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300 flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{analysisError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAnalysisError(null)}
+                className="text-red-500 hover:text-red-700 dark:hover:text-red-200"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {analysisSuccess && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-800 dark:text-green-300 flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span>✨</span>
+                <span>{analysisSuccess}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAnalysisSuccess(null)}
+                className="text-green-600 hover:text-green-800 dark:hover:text-green-200"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Etiquetas de género e instrumentos detectados */}
+          {(genre || instruments.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              {genre && (
+                <span className="px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-medium">
+                  🎸 Género: {genre}
+                </span>
+              )}
+              {instruments.length > 0 && (
+                <span className="px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">
+                  🥁 Instrumentos: {instruments.join(', ')}
+                </span>
+              )}
+            </div>
+          )}
 
           {showPlayer && (
             <div className="mt-4">
