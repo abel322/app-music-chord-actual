@@ -57,7 +57,7 @@ export function RoutinesClient({ sessions }: RoutinesClientProps) {
         setCurrentDate={setCurrentDate} 
       />
 
-      <div className="mt-12">
+      <div className="mt-8 sm:mt-12">
         <PracticeHistory sessions={activeWeekSessions} />
       </div>
     </>

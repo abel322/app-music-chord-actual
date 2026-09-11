@@ -45,14 +45,14 @@ export default async function RoutinesPage() {
   }))
 
   return (
-    <div className="max-w-5xl mx-auto py-6">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-2xl flex items-center justify-center text-primary-600 dark:text-primary-400">
-          <CalendarDays className="w-6 h-6" />
+    <div className="w-full max-w-5xl mx-auto py-4 sm:py-6 overflow-x-hidden px-1 sm:px-0">
+      <div className="flex items-center gap-3 mb-6 sm:mb-8">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-100 dark:bg-primary-900/30 rounded-2xl flex items-center justify-center text-primary-600 dark:text-primary-400 shrink-0">
+          <CalendarDays className="w-5 h-5 sm:w-6 sm:h-6" />
         </div>
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Agenda y Programación</h1>
-          <p className="text-slate-500 font-medium">Planifica tus rutinas y haz seguimiento de tu progreso semanal</p>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight truncate">Agenda y Programación</h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium truncate">Planifica tus rutinas y haz seguimiento de tu progreso semanal</p>
         </div>
       </div>
 

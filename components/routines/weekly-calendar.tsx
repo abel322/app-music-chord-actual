@@ -316,30 +316,35 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm mb-8">
       {/* Card Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 gap-4">
-        <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
-          Matriz de Rutinas Semanales
-        </h3>
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-1 border border-slate-200 dark:border-slate-800 rounded-lg p-1 bg-white dark:bg-slate-900">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={prevWeek}><ChevronLeft className="w-4 h-4" /></Button>
-            <span className="text-xs font-semibold px-2 min-w-[130px] text-center text-slate-850 dark:text-slate-200">
-              {startOfWeek.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} - 
-              {weekDays[6].toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}
-            </span>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={nextWeek}><ChevronRight className="w-4 h-4" /></Button>
+      <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <h3 className="font-bold text-base sm:text-lg text-slate-800 dark:text-white flex items-center gap-2">
+            Matriz de Rutinas Semanales
+          </h3>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+            <div className="flex items-center justify-between sm:justify-center border border-slate-200 dark:border-slate-800 rounded-lg p-1 bg-white dark:bg-slate-900 shadow-sm w-full sm:w-auto">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={prevWeek} aria-label="Semana anterior">
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-xs font-semibold px-2 min-w-[120px] text-center text-slate-800 dark:text-slate-200 capitalize">
+                {startOfWeek.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} - {weekDays[6].toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}
+              </span>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={nextWeek} aria-label="Semana siguiente">
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button 
+              size="sm" 
+              onClick={() => {
+                cancelForm()
+                setIsAdding(true)
+              }}
+              className="flex items-center justify-center gap-2 shadow-sm font-semibold h-9 w-full sm:w-auto shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Añadir Rutina</span>
+            </Button>
           </div>
-          <Button 
-            size="sm" 
-            onClick={() => {
-              cancelForm()
-              setIsAdding(true)
-            }}
-            className="flex items-center gap-2 shadow-sm font-semibold"
-          >
-            <Plus className="w-4 h-4" />
-            Añadir Rutina
-          </Button>
         </div>
       </div>
 
@@ -358,24 +363,24 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
       )}
 
       {/* Matrix Table Container */}
-      <div className="overflow-x-auto w-full">
+      <div className="overflow-x-auto w-full scrollbar-thin">
         <table className="w-full text-sm text-left border-collapse">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
               {/* Sticky Left Column Header */}
-              <th className="sticky left-0 bg-slate-50 dark:bg-slate-905 z-20 px-4 py-3 min-w-[280px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-500 uppercase tracking-wider">
+              <th className="sticky left-0 bg-slate-50 dark:bg-zinc-900 z-20 px-3 sm:px-4 py-3 w-[190px] min-w-[190px] max-w-[210px] sm:w-[240px] sm:min-w-[240px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)] border-r border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-500 uppercase tracking-wider">
                 Rutina Base
               </th>
               {/* 7 Days Headers */}
               {weekDays.map((day, idx) => {
                 const isToday = new Date().toDateString() === day.toDateString()
                 return (
-                  <th key={idx} className="px-3 py-3 text-center min-w-[80px] font-bold text-xs text-slate-500 uppercase tracking-wider">
-                    <div className="flex flex-col items-center">
-                      <span>{day.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
+                  <th key={idx} className="px-1 py-3 text-center w-[72px] min-w-[72px] font-bold text-xs text-slate-500 uppercase tracking-wider">
+                    <div className="flex flex-col items-center justify-center">
+                      <span className="text-[10px] sm:text-xs">{day.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
                       <span className={cn(
-                        "text-[11px] w-6 h-6 flex items-center justify-center rounded-full mt-1.5 font-bold", 
-                        isToday ? "bg-primary-600 text-white" : "text-slate-500"
+                        "text-[10px] sm:text-[11px] w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full mt-1 font-bold", 
+                        isToday ? "bg-primary-600 text-white shadow-sm" : "text-slate-500"
                       )}>
                         {day.getDate()}
                       </span>
@@ -383,7 +388,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                   </th>
                 )
               })}
-              <th className="px-4 py-3 text-center min-w-[100px] font-bold text-xs text-slate-500 uppercase tracking-wider">
+              <th className="px-2 sm:px-3 py-3 text-center w-[76px] min-w-[76px] font-bold text-xs text-slate-500 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
@@ -402,7 +407,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                 if (isEditing) {
                   return (
                     <tr key={routine.key} className="bg-primary-50/30 dark:bg-primary-950/10">
-                      <td className="sticky left-0 bg-primary-50/80 dark:bg-primary-950/30 z-10 p-4 min-w-[280px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-800">
+                      <td className="sticky left-0 bg-white dark:bg-zinc-900 z-10 p-3 sm:p-4 w-[190px] min-w-[190px] max-w-[210px] sm:w-[240px] sm:min-w-[240px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)] border-r border-slate-200 dark:border-slate-800">
                         <div className="space-y-3">
                           <FormInputs formData={formData} setFormData={setFormData} />
                           <div className="flex gap-2 pt-1">
@@ -422,29 +427,29 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                 return (
                   <tr key={routine.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                     {/* Sticky Left Column Detail */}
-                    <td className="sticky left-0 bg-white dark:bg-slate-900 z-10 p-4 min-w-[280px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 dark:border-slate-800">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
+                    <td className="sticky left-0 bg-white dark:bg-zinc-900 z-10 p-3 sm:p-4 w-[190px] min-w-[190px] max-w-[210px] sm:w-[240px] sm:min-w-[240px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)] border-r border-slate-200 dark:border-slate-800">
+                      <div className="flex flex-col gap-1.5 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
                           <span className={cn(
-                            "px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider",
+                            "px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold border uppercase tracking-wider truncate max-w-[110px] sm:max-w-[140px]",
                             colors.bg, colors.text, colors.border
                           )}>
                             {routine.instrument}
                           </span>
-                          <span className="text-xs font-bold text-slate-500">{routine.duration}m</span>
+                          <span className="text-[11px] sm:text-xs font-bold text-slate-500 shrink-0">{routine.duration}m</span>
                         </div>
 
                         {routine.book && (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 mt-1" title="Libro/Método">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 mt-0.5 min-w-0" title={routine.book}>
                             <BookOpen className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                            <span className="truncate max-w-[200px]">{routine.book}</span>
+                            <span className="truncate text-[11px] sm:text-xs max-w-[130px] sm:max-w-[180px]">{routine.book}</span>
                           </div>
                         )}
 
                         {routine.exerciseType && (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title="Ejercicio">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 min-w-0" title={routine.exerciseType}>
                             <Target className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                            <span className="truncate max-w-[200px]">{routine.exerciseType}</span>
+                            <span className="truncate text-[11px] sm:text-xs max-w-[130px] sm:max-w-[180px]">{routine.exerciseType}</span>
                           </div>
                         )}
                       </div>
@@ -456,22 +461,24 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                       const existingSession = routine.sessions.find(s => s.dayIndex === dayIdx)
                       
                       return (
-                        <td key={dayIdx} className="px-3 py-4 text-center whitespace-nowrap">
+                        <td key={dayIdx} className="p-1 sm:p-2 text-center whitespace-nowrap w-[72px] min-w-[72px]">
                           <button
+                            type="button"
                             onClick={(e) => handleCellClick(e, dayDate, existingSession, {
                               instrument: routine.instrument as Instrument,
                               duration: routine.duration,
                               book: routine.book || undefined,
                               exerciseType: routine.exerciseType || undefined
                             })}
-                            className="group focus:outline-none transition-transform active:scale-95 mx-auto block"
+                            className="group min-h-[44px] min-w-[44px] flex items-center justify-center mx-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-lg transition-transform active:scale-95"
+                            aria-label={`${existingSession?.completed ? 'Completado' : 'Pendiente'} - ${routine.instrument} - ${dayDate.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}`}
                           >
                             {existingSession?.completed ? (
-                              <div className="flex flex-col items-center gap-1">
+                              <div className="flex flex-col items-center gap-0.5">
                                 <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20 hover:bg-emerald-600 transition-all duration-200">
-                                  <Check className="w-5 h-5 stroke-[3]" />
+                                  <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" />
                                 </div>
-                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 opacity-75">
+                                <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 opacity-80 leading-none">
                                   {existingSession.duration}m
                                 </span>
                               </div>
@@ -480,9 +487,9 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                                 "w-8 h-8 rounded-lg border flex items-center justify-center transition-all duration-200 hover:border-primary-500 hover:bg-slate-50 dark:hover:bg-slate-800",
                                 existingSession
                                   ? "border-slate-300 dark:border-slate-700 text-slate-400 opacity-60"
-                                  : "border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-750 opacity-30 border-dashed"
+                                  : "border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-700 opacity-40 border-dashed"
                               )}>
-                                <Circle className="w-4 h-4 text-slate-300 dark:text-slate-700 group-hover:text-primary-500" />
+                                <Circle className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-primary-500" />
                               </div>
                             )}
                           </button>
@@ -491,19 +498,23 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                     })}
 
                     {/* Action Buttons Column */}
-                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1">
+                    <td className="p-1 sm:p-2 text-center whitespace-nowrap w-[76px] min-w-[76px]">
+                      <div className="flex items-center justify-center gap-0.5 sm:gap-1 min-h-[44px]">
                         <button
+                          type="button"
                           onClick={() => handleEditClick(routine)}
-                          className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                          className="p-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                           title="Editar rutina"
+                          aria-label="Editar rutina"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => deleteWeeklyRoutine(routine.ids)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                           title="Eliminar rutina"
+                          aria-label="Eliminar rutina"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -522,19 +533,26 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
         <>
           {/* Backdrop overlay */}
           <div 
-            className="fixed inset-0 z-40 bg-slate-950/10 dark:bg-slate-950/20 backdrop-blur-[0.5px]" 
+            className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[1px]" 
             onClick={() => setActivePopover(null)} 
           />
           
           <div
             ref={popoverRef}
-            style={{
-              position: 'fixed',
-              top: `${activePopover.y}px`,
-              left: `${activePopover.x}px`,
-              transform: 'translate(-50%, -100%) translateY(-12px)',
-            }}
-            className="z-50 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3"
+            style={
+              typeof window !== 'undefined' && window.innerWidth >= 640 ? {
+                position: 'fixed',
+                top: `${Math.max(16, Math.min(window.innerHeight - 340, activePopover.y))}px`,
+                left: `${Math.max(150, Math.min(window.innerWidth - 150, activePopover.x))}px`,
+                transform: 'translate(-50%, -100%) translateY(-12px)',
+              } : {
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+              }
+            }
+            className="z-50 w-[calc(100vw-32px)] max-w-xs sm:w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3"
           >
             {/* Short Title with Instrument */}
             <div className="flex items-center justify-between">

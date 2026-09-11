@@ -44,14 +44,14 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-      <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+      <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <h3 className="font-bold text-base sm:text-lg text-slate-800 dark:text-white flex items-center gap-2">
           Historial de Prácticas
         </h3>
         
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input 
               type="text" 
               placeholder="Buscar libro o ejercicio..."
@@ -61,7 +61,7 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
             />
           </div>
           
-          <div className="relative w-full sm:w-40 flex items-center">
+          <div className="relative w-full sm:w-40 min-w-0 flex items-center">
             <Filter className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
             <select
               value={filterInstrument}
@@ -78,30 +78,30 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto w-full scrollbar-thin">
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
             <tr>
-              <th className="px-6 py-4 font-semibold">Fecha</th>
-              <th className="px-6 py-4 font-semibold">Instrumento</th>
-              <th className="px-6 py-4 font-semibold">Duración</th>
-              <th className="px-6 py-4 font-semibold">Libro / Método</th>
-              <th className="px-6 py-4 font-semibold">Ejercicio</th>
+              <th className="px-4 sm:px-6 py-3 sm:py-4 font-semibold whitespace-nowrap">Fecha</th>
+              <th className="px-4 sm:px-6 py-3 sm:py-4 font-semibold whitespace-nowrap">Instrumento</th>
+              <th className="px-4 sm:px-6 py-3 sm:py-4 font-semibold whitespace-nowrap">Duración</th>
+              <th className="px-4 sm:px-6 py-3 sm:py-4 font-semibold whitespace-nowrap">Libro / Método</th>
+              <th className="px-4 sm:px-6 py-3 sm:py-4 font-semibold whitespace-nowrap">Ejercicio</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {filteredSessions.length > 0 ? filteredSessions.map(session => (
               <tr key={session.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
                   {new Date(session.scheduledAt).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
+                <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
                   {session.instrument}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-slate-600 dark:text-slate-400">
                   {session.duration} min
                 </td>
-                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-600 dark:text-slate-400">
                   {session.book ? (
                     <div className="flex items-center gap-2">
                       <BookOpen className="w-4 h-4 text-slate-400 shrink-0" />
@@ -109,7 +109,7 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
                     </div>
                   ) : <span className="text-slate-300 dark:text-slate-600 italic">-</span>}
                 </td>
-                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-600 dark:text-slate-400">
                   {session.exerciseType ? (
                     <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-slate-400 shrink-0" />
@@ -120,7 +120,7 @@ export function PracticeHistory({ sessions }: { sessions: Session[] }) {
               </tr>
             )) : (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-500 font-medium">
+                <td colSpan={5} className="px-4 sm:px-6 py-12 text-center text-slate-500 font-medium">
                   {!hasCompletedSessions 
                     ? "Aún no has completado ninguna sesión de práctica esta semana. ¡Marca los días en la matriz para registrar tu progreso!"
                     : "No se encontraron prácticas que coincidan con los filtros."
