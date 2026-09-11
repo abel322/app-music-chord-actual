@@ -377,11 +377,20 @@ export default function NewSongPage() {
       let videoId = ''
       
       if (urlObj.hostname.includes('youtube.com')) {
-        videoId = urlObj.searchParams.get('v') || ''
+        if (urlObj.pathname.startsWith('/shorts/')) {
+          videoId = urlObj.pathname.split('/')[2] || ''
+        } else {
+          videoId = urlObj.searchParams.get('v') || ''
+        }
       } else if (urlObj.hostname.includes('youtu.be')) {
-        videoId = urlObj.pathname.slice(1)
+        videoId = urlObj.pathname.slice(1).split('?')[0] || ''
       }
       
+      if (!videoId) {
+        const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/)
+        if (match) videoId = match[1]
+      }
+
       return videoId ? `https://www.youtube.com/embed/${videoId}` : null
     } catch {
       return null
