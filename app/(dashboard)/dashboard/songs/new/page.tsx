@@ -867,55 +867,60 @@ export default function NewSongPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="w-full max-w-6xl mx-auto space-y-6 overflow-x-hidden px-2 sm:px-4 md:px-0">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <Link href="/dashboard/songs">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver
+          <Button variant="ghost" size="sm" className="-ml-1 sm:ml-0 text-gray-700 dark:text-gray-300">
+            <ArrowLeft className="w-4 h-4 mr-1.5 sm:mr-2" />
+            <span>Volver</span>
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold">Nueva Canción</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+          Nueva Canción
+        </h1>
       </div>
  
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-full">
         {/* Reproductor de Canción */}
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-6 space-y-4">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-4 sm:p-6 space-y-4">
+          <div className="flex items-center gap-2 mb-1">
             <span className="text-2xl">🎵</span>
-            <h2 className="font-semibold text-lg">Reproduce tu Canción</h2>
+            <h2 className="font-semibold text-base sm:text-lg">Reproduce tu Canción</h2>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
             Pega el link de YouTube o Spotify para reproducir la canción mientras trabajas
           </p>
           
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
             <input
               type="text"
               value={songUrl}
               onChange={(e) => setSongUrl(e.target.value)}
               placeholder="https://youtube.com/watch?v=... o https://open.spotify.com/track/..."
-              className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="flex-1 min-w-0 w-full px-3.5 sm:px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
-            <button
-              type="button"
-              onClick={handleLoadSong}
-              disabled={!songUrl.trim()}
-              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
-            >
-              Cargar
-            </button>
-            {showPlayer && (
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => setShowPlayer(false)}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-                title="Cerrar reproductor"
+                onClick={handleLoadSong}
+                disabled={!songUrl.trim()}
+                className="flex-1 sm:flex-none px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white rounded-lg font-medium text-sm transition-colors shrink-0"
               >
-                ✕
+                Cargar
               </button>
-            )}
+              {showPlayer && (
+                <button
+                  type="button"
+                  onClick={() => setShowPlayer(false)}
+                  className="px-3.5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shrink-0 text-sm"
+                  title="Cerrar reproductor"
+                  aria-label="Cerrar reproductor"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {showPlayer && (
@@ -969,8 +974,8 @@ export default function NewSongPage() {
         </div>
 
         {/* Info básica */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-          <h2 className="font-semibold text-lg">Información Básica</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 space-y-4">
+          <h2 className="font-semibold text-base sm:text-lg">Información Básica</h2>
           
           <div className="grid md:grid-cols-2 gap-4">
             <Input
@@ -991,11 +996,11 @@ export default function NewSongPage() {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Compás</label>
-              <div className="flex gap-2 mb-2">
+              <div className="flex flex-col sm:flex-row gap-2 mb-2 w-full">
                 <select
                   value={timeSignature}
                   onChange={(e) => setTimeSignature(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="flex-1 min-w-0 w-full px-3.5 sm:px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   <option value="2/4">2/4</option>
                   <option value="3/4">3/4 (Vals)</option>
@@ -1009,7 +1014,7 @@ export default function NewSongPage() {
                 <button
                   type="button"
                   onClick={() => setShowTimeSignatureDetector(!showTimeSignatureDetector)}
-                  className="px-4 py-2 rounded-lg border border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors font-medium"
+                  className="w-full sm:w-auto px-4 py-2 rounded-lg border border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors font-medium text-sm shrink-0 whitespace-nowrap"
                   title="Detectar compás"
                 >
                   🎼 Detectar
@@ -1152,7 +1157,7 @@ export default function NewSongPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Tempo (BPM)</label>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full">
                 <input
                   type="number"
                   min="40"
@@ -1160,28 +1165,30 @@ export default function NewSongPage() {
                   value={tempo}
                   onChange={(e) => setTempo(e.target.value)}
                   placeholder="120"
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="flex-1 min-w-[90px] px-3.5 sm:px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowTapTempo(!showTapTempo)}
-                  className="px-4 py-2 rounded-lg border border-primary-500 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium"
-                  title="Detectar tempo"
-                >
-                  🎵 Tap
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleMetronome}
-                  className={`px-4 py-2 rounded-lg border transition-all ${
-                    metronomeActive
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-600'
-                      : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                  title="Activar metrónomo"
-                >
-                  {metronomeActive ? '⏸' : '▶️'}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowTapTempo(!showTapTempo)}
+                    className="px-3.5 sm:px-4 py-2 rounded-lg border border-primary-500 text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium text-sm shrink-0 whitespace-nowrap"
+                    title="Detectar tempo"
+                  >
+                    🎵 Tap
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleMetronome}
+                    className={`px-3.5 sm:px-4 py-2 rounded-lg border transition-all text-sm shrink-0 ${
+                      metronomeActive
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-600'
+                        : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                    title="Activar metrónomo"
+                  >
+                    {metronomeActive ? '⏸' : '▶️'}
+                  </button>
+                </div>
               </div>
               
               {/* Metrónomo Visual */}
@@ -1273,8 +1280,8 @@ export default function NewSongPage() {
                   {parseInt(tempo) >= 140 && parseInt(tempo) < 180 && 'Rápido (Vivace)'}
                   {parseInt(tempo) >= 180 && 'Muy rápido (Presto)'}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Presets:</span>
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400 shrink-0">Presets:</span>
                   {[
                     { label: 'Balada', bpm: 70 },
                     { label: 'Pop', bpm: 120 },
@@ -1286,7 +1293,7 @@ export default function NewSongPage() {
                       key={preset.label}
                       type="button"
                       onClick={() => setTempo(preset.bpm.toString())}
-                      className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       {preset.label} ({preset.bpm})
                     </button>
@@ -1298,16 +1305,16 @@ export default function NewSongPage() {
 
           <div>
             <label className="block text-sm font-medium mb-2">Tonalidad</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1.5 sm:gap-2 w-full">
               {keys.map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => handleKeyChange(k)}
-                  className={`px-4 py-2 rounded-lg border transition-all ${
+                  className={`py-2 px-1 rounded-lg border text-sm font-semibold transition-all text-center ${
                     key === k
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-primary-500'
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary-500 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {k}
@@ -1324,9 +1331,12 @@ export default function NewSongPage() {
 
         {/* Secciones */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-lg">Estructura de la Canción</h2>
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-base sm:text-lg">Estructura de la Canción</h2>
+              <p className="text-xs text-gray-500 sm:hidden">Añade partes a tu canción:</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto">
               {SECTION_TYPES.map((type) => (
                 <Button
                   key={type.value}
@@ -1334,8 +1344,9 @@ export default function NewSongPage() {
                   variant="secondary"
                   size="sm"
                   onClick={() => addSection(type.value as SectionType)}
+                  className="px-2.5 py-1 text-xs sm:text-sm font-medium"
                 >
-                  <Plus className="w-4 h-4 mr-1" />
+                  <Plus className="w-3.5 h-3.5 mr-1" />
                   {type.label}
                 </Button>
               ))}
@@ -1343,11 +1354,11 @@ export default function NewSongPage() {
           </div>
 
           {sections.length === 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 sm:p-12 text-center">
+              <p className="text-gray-600 dark:text-gray-400 mb-3 text-sm sm:text-base">
                 Agrega secciones para estructurar tu canción
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-xs sm:text-sm text-gray-500">
                 Ejemplo: Intro → Estrofa → Coro → Estrofa → Coro → Puente → Coro
               </p>
             </div>
@@ -1361,7 +1372,7 @@ export default function NewSongPage() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, section.id)}
               onDragEnd={handleDragEnd}
-              className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4 transition-all ${
+              className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 space-y-4 transition-all ${
                 draggedSectionId === section.id 
                   ? 'opacity-50 scale-95' 
                   : 'opacity-100 scale-100'
@@ -1372,21 +1383,21 @@ export default function NewSongPage() {
               }`}
             >
               {/* Section Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <GripVertical className="w-5 h-5 text-gray-400 cursor-grab active:cursor-grabbing" />
-                  <span className="font-semibold text-lg">{section.label}</span>
+              <div className="flex flex-col xs:flex-row sm:flex-row items-start xs:items-center sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <GripVertical className="w-5 h-5 text-gray-400 cursor-grab active:cursor-grabbing shrink-0" />
+                  <span className="font-semibold text-base sm:text-lg">{section.label}</span>
                   {section.timeSignature && section.timeSignature !== timeSignature && (
-                    <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded">
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded">
                       {section.timeSignature}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 w-full xs:w-auto sm:w-auto justify-end">
                   <select
                     value={section.timeSignature || timeSignature}
                     onChange={(e) => updateSectionTimeSignature(section.id, e.target.value)}
-                    className="px-3 py-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="px-2.5 py-1 text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     title="Compás de esta sección"
                   >
                     <option value="2/4">2/4</option>
@@ -1405,6 +1416,7 @@ export default function NewSongPage() {
                     onClick={() => moveSectionUp(section.id)}
                     disabled={sectionIndex === 0}
                     title="Mover arriba"
+                    className="h-8 w-8 p-0"
                   >
                     <ArrowUp className="w-4 h-4" />
                   </Button>
@@ -1415,6 +1427,7 @@ export default function NewSongPage() {
                     onClick={() => moveSectionDown(section.id)}
                     disabled={sectionIndex === sections.length - 1}
                     title="Mover abajo"
+                    className="h-8 w-8 p-0"
                   >
                     <ArrowDown className="w-4 h-4" />
                   </Button>
@@ -1424,6 +1437,7 @@ export default function NewSongPage() {
                     size="sm"
                     onClick={() => removeSection(section.id)}
                     title="Eliminar sección"
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -1492,7 +1506,7 @@ export default function NewSongPage() {
                       value={line.lyrics}
                       onChange={(e) => updateLine(section.id, line.id, e.target.value)}
                       placeholder="Escribe la letra aquí..."
-                      className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className="flex-1 min-w-0 px-3.5 sm:px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                     {section.lines.length > 1 && (
                       <Button
@@ -1500,6 +1514,7 @@ export default function NewSongPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeLine(section.id, line.id)}
+                        className="shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -1522,13 +1537,19 @@ export default function NewSongPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3">
-          <Link href="/dashboard/songs">
-            <Button variant="secondary" type="button">
+        <div className="w-full flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <Link href="/dashboard/songs" className="w-full sm:w-auto">
+            <Button variant="secondary" type="button" className="w-full sm:w-auto justify-center">
               Cancelar
             </Button>
           </Link>
-          <Button variant="gradient" type="submit" isLoading={isLoading} disabled={sections.length === 0}>
+          <Button
+            variant="gradient"
+            type="submit"
+            isLoading={isLoading}
+            disabled={sections.length === 0}
+            className="w-full sm:w-auto justify-center"
+          >
             <Save className="w-4 h-4 mr-2" />
             Guardar Canción
           </Button>
@@ -1538,20 +1559,20 @@ export default function NewSongPage() {
       {/* Chord Picker Modal */}
       {showChordPicker && selectedLine && (
         <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4"
           onClick={() => {
             setShowChordPicker(false)
             setSelectedLine(null)
           }}
         >
           <div 
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-6xl w-full max-h-[85vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 max-w-6xl w-full max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <div>
-                <h3 className="text-xl font-bold">Seleccionar Acorde</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <h3 className="text-lg sm:text-xl font-bold">Seleccionar Acorde</h3>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   Tonalidad: <span className="font-semibold text-primary-600">{key}</span>
                 </p>
               </div>
@@ -1560,28 +1581,30 @@ export default function NewSongPage() {
                   setShowChordPicker(false)
                   setSelectedLine(null)
                 }}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 hover:text-gray-700 text-2xl p-1"
+                title="Cerrar modal"
+                aria-label="Cerrar modal"
               >
                 ×
               </button>
             </div>
 
             {/* Acordes Diatónicos (En la tonalidad) */}
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-1 w-1 rounded-full bg-green-500"></div>
-                <h4 className="font-semibold text-lg">Acordes de {key} Mayor</h4>
+            <div className="mb-6 sm:mb-8">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500"></div>
+                <h4 className="font-semibold text-base sm:text-lg">Acordes de {key} Mayor</h4>
                 <span className="text-xs text-gray-500">(Diatónicos)</span>
               </div>
-              <div className="grid grid-cols-7 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 sm:gap-3">
                 {diatonicChords.inKey.map((chord) => (
                   <button
                     key={`${chord.root}${chord.type}`}
                     type="button"
                     onClick={() => addChord(selectedLine.sectionId, selectedLine.lineId, `${chord.root}${chord.type}`)}
-                    className="px-4 py-4 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-all font-mono group"
+                    className="px-2.5 sm:px-4 py-3 sm:py-4 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-all font-mono group text-center"
                   >
-                    <div className="font-bold text-lg">{chord.root}{chord.type}</div>
+                    <div className="font-bold text-base sm:text-lg">{chord.root}{chord.type}</div>
                     <div className="text-xs text-green-700 dark:text-green-400 font-semibold">{chord.degree}</div>
                   </button>
                 ))}
@@ -1595,8 +1618,8 @@ export default function NewSongPage() {
                   </summary>
                   <div className="space-y-2">
                     {diatonicChords.inKey.map((chord) => (
-                      <div key={`ext-${chord.root}`} className="flex flex-wrap gap-2 items-center">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-12">
+                      <div key={`ext-${chord.root}`} className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+                        <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 w-10 sm:w-12">
                           {chord.root}:
                         </span>
                         {expandedChordTypes
@@ -1620,19 +1643,19 @@ export default function NewSongPage() {
             </div>
 
             {/* Poliacordes */}
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-1 w-1 rounded-full bg-blue-500"></div>
-                <h4 className="font-semibold text-lg">Poliacordes</h4>
+            <div className="mb-6 sm:mb-8">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+                <h4 className="font-semibold text-base sm:text-lg">Poliacordes</h4>
                 <span className="text-xs text-gray-500">(Acordes sobre bajo diferente)</span>
               </div>
-              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                 {polyChords.map((poly) => (
                   <button
                     key={poly.value}
                     type="button"
                     onClick={() => addChord(selectedLine.sectionId, selectedLine.lineId, poly.value)}
-                    className="px-3 py-2 rounded-lg border-2 border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all font-mono text-sm"
+                    className="px-2.5 sm:px-3 py-2 rounded-lg border-2 border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all font-mono text-xs sm:text-sm text-center"
                     title={poly.description}
                   >
                     <div className="font-bold">{poly.label}</div>
@@ -1641,18 +1664,18 @@ export default function NewSongPage() {
               </div>
               
               {/* Constructor de poliacordes personalizado */}
-              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              <div className="mt-4 p-3.5 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
                   Crear Poliacorde Personalizado
                 </p>
-                <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                <p className="text-xs text-blue-700 dark:text-blue-300 mb-2.5">
                   Formato: Acorde/Bajo (ejemplo: Cmaj7/E, Dm7/G)
                 </p>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="Ej: Cmaj7/E"
-                    className="flex-1 px-3 py-2 rounded border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-800 text-sm"
+                    className="flex-1 min-w-0 px-3 py-2 rounded border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-800 text-sm"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         const input = e.currentTarget
@@ -1672,7 +1695,7 @@ export default function NewSongPage() {
                         input.value = ''
                       }
                     }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm"
+                    className="px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium text-sm shrink-0"
                   >
                     Agregar
                   </button>
@@ -1682,17 +1705,17 @@ export default function NewSongPage() {
 
             {/* Acordes No Diatónicos (Fuera de la tonalidad) */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-1 w-1 rounded-full bg-orange-500"></div>
-                <h4 className="font-semibold text-lg">Otros Acordes</h4>
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="h-1.5 w-1.5 rounded-full bg-orange-500"></div>
+                <h4 className="font-semibold text-base sm:text-lg">Otros Acordes</h4>
                 <span className="text-xs text-gray-500">(Todos los tonos - Modulación / Intercambio Modal)</span>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {CHORD_ROOTS.map((root) => (
                   <details key={root}>
-                    <summary className="cursor-pointer font-semibold mb-2 text-gray-700 dark:text-gray-300 hover:text-primary-600 flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded ${
+                    <summary className="cursor-pointer font-semibold mb-2 text-gray-700 dark:text-gray-300 hover:text-primary-600 flex items-center gap-2 text-sm sm:text-base">
+                      <span className={`px-2 py-0.5 rounded text-xs sm:text-sm ${
                         diatonicChords.inKey.some(c => c.root === root)
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
                           : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
@@ -1702,9 +1725,9 @@ export default function NewSongPage() {
                       {diatonicChords.inKey.some(c => c.root === root) && (
                         <span className="text-xs text-green-600 dark:text-green-400">(En tonalidad)</span>
                       )}
-                      - Ver todos los tipos
+                      <span className="text-xs text-gray-500">- Ver todos los tipos</span>
                     </summary>
-                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 mt-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5 sm:gap-2 mt-2">
                       {expandedChordTypes.map((type) => (
                         <button
                           key={`${root}${type.value}`}
