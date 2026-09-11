@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Save, Trash2, ChevronUp, ChevronDown, Music } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, ChevronUp, ChevronDown, Music, Pencil, X } from 'lucide-react'
 import { transposeChord } from '@/lib/transpose'
 import { getChordDegree, isChordInKey } from '@/lib/music-theory'
 
@@ -36,9 +36,24 @@ export function SongEditor({ song }: { song: Song }) {
   const [artist, setArtist] = useState(song.artist || '')
   const [key, setKey] = useState(song.key)
   const [content, setContent] = useState(song.content)
+  const [timeSignature, setTimeSignature] = useState(song.timeSignature || '4/4')
+  const [tempo, setTempo] = useState<number | string>(song.tempo || 120)
   const [isLoading, setIsLoading] = useState(false)
   const [transpose, setTranspose] = useState(0)
   const [viewMode, setViewMode] = useState<'structured' | 'raw'>('structured')
+  const [isEditing, setIsEditing] = useState(false)
+
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  const toggleEdit = () => {
+    const nextState = !isEditing
+    setIsEditing(nextState)
+    if (nextState) {
+      setTimeout(() => {
+        titleInputRef.current?.focus()
+      }, 100)
+    }
+  }
 
   const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -403,6 +418,16 @@ export function SongEditor({ song }: { song: Song }) {
   const handleSave = async () => {
     setIsLoading(true)
     try {
+      const parsedTempo = typeof tempo === 'string' ? (parseInt(tempo, 10) || 120) : tempo
+      const payload: Record<string, any> = {
+        title,
+        artist,
+        key,
+        content,
+        timeSignature,
+        tempo: parsedTempo,
+      }
+
       // Primero intentar buscar la letra si no existe
       if ((!lyrics || lyrics.trim() === '') && title && artist) {
         try {
@@ -415,38 +440,23 @@ export function SongEditor({ song }: { song: Song }) {
           if (lyricsResponse.ok) {
             const lyricsData = await lyricsResponse.json()
             setLyrics(lyricsData.lyrics)
-            
-            // Guardar con la letra encontrada
-            await fetch(`/api/songs/${song.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title, artist, key, content, lyrics: lyricsData.lyrics }),
-            })
+            payload.lyrics = lyricsData.lyrics
           } else {
-            // Guardar sin letra
-            await fetch(`/api/songs/${song.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title, artist, key, content, lyrics }),
-            })
+            payload.lyrics = lyrics
           }
         } catch (error) {
           console.error('Error buscando letra:', error)
-          // Guardar sin letra si falla la búsqueda
-          await fetch(`/api/songs/${song.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, artist, key, content, lyrics }),
-          })
+          payload.lyrics = lyrics
         }
       } else {
-        // Ya tiene letra, guardar normalmente
-        await fetch(`/api/songs/${song.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, artist, key, content, lyrics }),
-        })
+        payload.lyrics = lyrics
       }
+
+      await fetch(`/api/songs/${song.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
       
       router.refresh()
     } finally {
@@ -461,363 +471,474 @@ export function SongEditor({ song }: { song: Song }) {
     router.push('/dashboard/songs')
   }
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/songs">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver
+  // Componente de Vista Previa reutilizable para modo edición y modo lectura
+  const previewComponent = (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 shadow-sm">
+        {/* Cabecera de la Vista Previa */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-lg text-gray-900 dark:text-white">Vista Previa</h2>
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-700/50 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setViewMode('structured')}
+                className={`px-3 py-1 text-xs rounded-md transition-all ${
+                  viewMode === 'structured'
+                    ? 'bg-primary-600 text-white font-medium shadow-sm'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Estructurada
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('raw')}
+                className={`px-3 py-1 text-xs rounded-md transition-all ${
+                  viewMode === 'raw'
+                    ? 'bg-primary-600 text-white font-medium shadow-sm'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Texto
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Transponer:
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setTranspose(transpose - 1)}
+              title="Bajar medio tono"
+              aria-label="Bajar medio tono"
+              className="h-8 w-8 p-0 flex items-center justify-center"
+            >
+              <ChevronDown className="w-4 h-4" />
             </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">{title}</h1>
-            {artist && <p className="text-gray-600 dark:text-gray-400">{artist}</p>}
+            <span className="text-sm font-mono w-8 text-center font-bold">
+              {transpose > 0 ? `+${transpose}` : transpose}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setTranspose(transpose + 1)}
+              title="Subir medio tono"
+              aria-label="Subir medio tono"
+              className="h-8 w-8 p-0 flex items-center justify-center"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </Button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={handleDelete}>
+        
+        {viewMode === 'structured' ? (
+          <div className="space-y-4">
+            {/* Leyenda de colores armónicos */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Análisis Armónico:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-green-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">Diatónico</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-orange-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">V/X (Dom. Sec.)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-yellow-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">Paso Cromático</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-violet-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">Disminuido</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-purple-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">Modal / Napolitano</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-pink-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">SubV7 (Tritono)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-cyan-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">Aumentado</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded bg-red-500 shrink-0"></div>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">Cromático</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Secciones de la canción */}
+            <div className="space-y-4 max-h-[650px] overflow-y-auto pr-1">
+              {parsedSections.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  Escribe algo en el editor para ver la vista previa...
+                </p>
+              ) : (
+                parsedSections.map((section, sectionIdx) => (
+                  <div
+                    key={sectionIdx}
+                    className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3.5 sm:p-4 border border-gray-200 dark:border-gray-700"
+                  >
+                    {/* Encabezado de sección */}
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+                      <h3 className="font-bold text-base sm:text-lg text-primary-600 dark:text-primary-400">
+                        {section.label}
+                      </h3>
+                      {section.timeSignature && (
+                        <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded">
+                          {section.timeSignature}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Líneas de la sección */}
+                    <div className="space-y-3">
+                      {section.lines.map((line, lineIdx) => (
+                        <div key={lineIdx} className="space-y-1">
+                          {/* Acordes */}
+                          {line.chords.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                              {line.chords.map((chord, chordIdx) => {
+                                const transposedChord = transposeChordWithSemitones(chord, transpose)
+                                const nextChord = chordIdx < line.chords.length - 1 
+                                  ? transposeChordWithSemitones(line.chords[chordIdx + 1], transpose)
+                                  : undefined
+                                const analysis = analyzeChord(transposedChord, nextChord)
+                                const chordStyle = getChordStyle(analysis.function)
+                                const functionLabel = getFunctionLabel(analysis.function)
+                                
+                                return (
+                                  <div
+                                    key={chordIdx}
+                                    className={`inline-flex flex-col items-center px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border ${chordStyle} font-mono transition-all hover:scale-105`}
+                                    title={`${functionLabel}${analysis.degree ? ` - ${analysis.degree}` : ''}`}
+                                  >
+                                    {/* Cifrado funcional (grado) */}
+                                    {analysis.degree && (
+                                      <span className="text-xs font-semibold opacity-75 mb-0.5">
+                                        {analysis.degree}
+                                      </span>
+                                    )}
+                                    {/* Acorde */}
+                                    <span className="font-bold text-sm sm:text-base">
+                                      {transposedChord}
+                                    </span>
+                                    {/* Etiqueta de función */}
+                                    {functionLabel && analysis.function !== 'diatonic' && (
+                                      <span className="text-[10px] font-medium opacity-70 mt-0.5">
+                                        {functionLabel}
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {/* Letra */}
+                          {line.lyrics && (
+                            <p className="text-gray-700 dark:text-gray-300 text-sm sm:text-base pl-1 break-words leading-relaxed">
+                              {line.lyrics}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 sm:p-6 min-h-96 font-mono text-sm whitespace-pre-wrap max-h-[600px] overflow-y-auto">
+            {content || 'Escribe algo en el editor...'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // Formulario del Editor
+  const editorForm = (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-primary-600" />
+            <h2 className="font-semibold text-base sm:text-lg text-gray-900 dark:text-white">Editor de Canción</h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleEdit}
+            title="Ocultar editor"
+            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+          >
+            <X className="w-4 h-4 mr-1" />
+            Ocultar
+          </Button>
+        </div>
+        
+        <Input
+          ref={titleInputRef}
+          label="Título"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Título de la canción"
+        />
+        
+        <Input
+          label="Artista"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+          placeholder="Nombre del artista o banda"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Compás
+            </label>
+            <select
+              value={timeSignature}
+              onChange={(e) => setTimeSignature(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-sm"
+            >
+              <option value="4/4">4/4</option>
+              <option value="3/4">3/4</option>
+              <option value="2/4">2/4</option>
+              <option value="6/8">6/8</option>
+              <option value="9/8">9/8</option>
+              <option value="12/8">12/8</option>
+              <option value="5/4">5/4</option>
+              <option value="7/8">7/8</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Tempo (BPM)
+            </label>
+            <input
+              type="number"
+              min="30"
+              max="300"
+              value={tempo}
+              onChange={(e) => setTempo(e.target.value ? parseInt(e.target.value, 10) : '')}
+              placeholder="120"
+              className="w-full px-3 py-2 rounded-lg border bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 text-sm"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+            Tonalidad
+          </label>
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 max-w-full overflow-x-auto py-1">
+            {keys.map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => handleKeyChange(k)}
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border text-xs sm:text-sm font-medium transition-all shrink-0 ${
+                  key === k
+                    ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary-500'
+                }`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+            💡 Al cambiar la tonalidad, todos los acordes se transpondrán automáticamente
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+            Contenido (Acordes y Letra)
+          </label>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={14}
+            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 font-mono text-sm focus:ring-2 focus:ring-primary-500 resize-y"
+            placeholder="[Intro]&#10;C G Am F&#10;&#10;[Verso 1]&#10;C          G&#10;Letra de la canción..."
+          />
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header Responsive */}
+      <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
+        {/* Contenedor Izquierdo: En móvil es Barra superior + Título abajo; en desktop es Volver + Título lado a lado */}
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:gap-4 min-w-0 flex-1">
+          {/* Fila superior en móvil (< md): Volver a la izquierda y Acciones a la derecha */}
+          <div className="flex items-center justify-between w-full md:w-auto shrink-0">
+            <Link href="/dashboard/songs">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white -ml-2 sm:ml-0"
+                title="Volver a la lista de canciones"
+                aria-label="Volver a la lista de canciones"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1.5 sm:mr-2" />
+                <span>Volver</span>
+              </Button>
+            </Link>
+
+            {/* Grupo de acciones en móvil (< md) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 md:hidden">
+              <Button
+                variant={isEditing ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={toggleEdit}
+                title={isEditing ? 'Cerrar modo edición' : 'Editar canción'}
+                aria-label={isEditing ? 'Cerrar modo edición' : 'Editar canción'}
+                className="px-2.5 py-1.5 text-xs sm:text-sm"
+              >
+                <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" />
+                <span className="hidden xs:inline">{isEditing ? 'Editando' : 'Editar'}</span>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleDelete}
+                title="Eliminar canción"
+                aria-label="Eliminar canción"
+                className="px-2.5 py-1.5 text-xs sm:text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
+              >
+                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" />
+                <span className="hidden xs:inline">Eliminar</span>
+              </Button>
+              <Button
+                variant="gradient"
+                size="sm"
+                onClick={handleSave}
+                isLoading={isLoading}
+                title="Guardar cambios"
+                aria-label="Guardar cambios"
+                className="px-2.5 py-1.5 text-xs sm:text-sm"
+              >
+                <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1.5" />
+                <span className="hidden xs:inline">Guardar</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Título de la canción y Artista (ocupa 100% de ancho en móvil debajo de la barra de navegación) */}
+          <div className="w-full min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white break-words line-clamp-2">
+              {title || 'Sin título'}
+            </h1>
+            {artist && (
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 break-words mt-0.5">
+                {artist}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Grupo de acciones en Desktop (md+) */}
+        <div className="hidden md:flex items-center gap-2 shrink-0">
+          <Button
+            variant={isEditing ? 'primary' : 'secondary'}
+            onClick={toggleEdit}
+            title={isEditing ? 'Ocultar editor' : 'Editar canción'}
+            aria-label={isEditing ? 'Ocultar editor' : 'Editar canción'}
+          >
+            <Pencil className="w-4 h-4 mr-2" />
+            {isEditing ? 'Modo Edición' : 'Editar'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleDelete}
+            title="Eliminar canción"
+            aria-label="Eliminar canción"
+            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
+          >
             <Trash2 className="w-4 h-4 mr-2" />
             Eliminar
           </Button>
-          <Button variant="gradient" onClick={handleSave} isLoading={isLoading}>
+          <Button
+            variant="gradient"
+            onClick={handleSave}
+            isLoading={isLoading}
+            title="Guardar cambios"
+            aria-label="Guardar cambios"
+          >
             <Save className="w-4 h-4 mr-2" />
             Guardar
           </Button>
         </div>
       </div>
 
-      {/* Info Musical */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-4">
-        <div className="flex items-center gap-6 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Music className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Tonalidad:</span>
-            <span className="text-lg font-bold text-blue-600">{key}</span>
+      {/* Info Musical / Metadatos */}
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-3 sm:p-4 overflow-x-auto">
+        <div className="flex items-center gap-3 sm:gap-6 min-w-max sm:min-w-0 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2 shrink-0 bg-white/70 dark:bg-gray-800/70 sm:bg-transparent px-2.5 py-1 sm:p-0 rounded-lg border border-blue-100 dark:border-blue-900/40 sm:border-0 shadow-sm sm:shadow-none">
+            <Music className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+            <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Tonalidad:</span>
+            <span className="text-base sm:text-lg font-bold text-blue-600">{key}</span>
           </div>
-          {song.timeSignature && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Compás:</span>
-              <span className="text-lg font-bold text-purple-600">{song.timeSignature}</span>
+          {timeSignature && (
+            <div className="flex items-center gap-2 shrink-0 bg-white/70 dark:bg-gray-800/70 sm:bg-transparent px-2.5 py-1 sm:p-0 rounded-lg border border-purple-100 dark:border-purple-900/40 sm:border-0 shadow-sm sm:shadow-none">
+              <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Compás:</span>
+              <span className="text-base sm:text-lg font-bold text-purple-600">{timeSignature}</span>
             </div>
           )}
-          {song.tempo && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Tempo:</span>
-              <span className="text-lg font-bold text-green-600">{song.tempo} BPM</span>
+          {tempo && (
+            <div className="flex items-center gap-2 shrink-0 bg-white/70 dark:bg-gray-800/70 sm:bg-transparent px-2.5 py-1 sm:p-0 rounded-lg border border-green-100 dark:border-green-900/40 sm:border-0 shadow-sm sm:shadow-none">
+              <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Tempo:</span>
+              <span className="text-base sm:text-lg font-bold text-green-600">{tempo} BPM</span>
             </div>
           )}
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Editor */}
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-            <h2 className="font-semibold text-lg">Editor</h2>
-            
-            <Input
-              label="Título"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            
-            <Input
-              label="Artista"
-              value={artist}
-              onChange={(e) => setArtist(e.target.value)}
-            />
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Tonalidad</label>
-              <div className="flex flex-wrap gap-2">
-                {keys.map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => handleKeyChange(k)}
-                    className={`px-3 py-1.5 rounded-lg border text-sm transition-all ${
-                      key === k
-                        ? 'bg-primary-600 text-white border-primary-600'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-primary-500'
-                    }`}
-                  >
-                    {k}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                💡 Al cambiar la tonalidad, todos los acordes se transpondrán automáticamente
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Contenido</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full h-96 px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 font-mono text-sm focus:ring-2 focus:ring-primary-500 resize-none"
-              />
-            </div>
-          </div>
+      {/* Cuerpo principal: Formulario Editor y Vista Previa según estado isEditing */}
+      {isEditing ? (
+        <div className="grid lg:grid-cols-2 gap-6 items-start">
+          {editorForm}
+          {previewComponent}
         </div>
-
-        {/* Preview */}
+      ) : (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <h2 className="font-semibold text-lg">Vista Previa</h2>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setViewMode('structured')}
-                    className={`px-3 py-1 text-xs rounded ${
-                      viewMode === 'structured'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    Estructurada
-                  </button>
-                  <button
-                    onClick={() => setViewMode('raw')}
-                    className={`px-3 py-1 text-xs rounded ${
-                      viewMode === 'raw'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    Texto
-                  </button>
-                </div>
+          {/* Banner de Modo Lectura */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3.5 sm:p-4 flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-950/40 text-primary-600 flex items-center justify-center shrink-0">
+                <Music className="w-5 h-5" />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Transponer:
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setTranspose(transpose - 1)}
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-                <span className="text-sm font-mono w-8 text-center">
-                  {transpose > 0 ? `+${transpose}` : transpose}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setTranspose(transpose + 1)}
-                >
-                  <ChevronUp className="w-4 h-4" />
-                </Button>
+              <div>
+                <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white">Modo Lectura Activo</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Estás en vista de acordes y letra. Pulsa 'Editar' para abrir el formulario y realizar cambios.</p>
               </div>
             </div>
-            
-            {viewMode === 'structured' ? (
-              <div className="space-y-4">
-                {/* Leyenda de colores */}
-                <div className="bg-gray-100 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Análisis Armónico:
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-green-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Diatónico</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-orange-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">V/X (Dom. Sec.)</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-yellow-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Paso Cromático</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-violet-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Disminuido</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-purple-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Modal/Napolitano</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-yellow-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Paso Cromático</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-purple-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Modal/Napolitano</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-pink-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">SubV7 (Tritono)</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-indigo-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Disminuido</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-cyan-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Aumentado</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded bg-red-500"></div>
-                      <span className="text-gray-600 dark:text-gray-400">Cromático</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Secciones */}
-                <div className="space-y-6 max-h-[600px] overflow-y-auto">
-                {parsedSections.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    Escribe algo en el editor para ver la vista previa...
-                  </p>
-                ) : (
-                  parsedSections.map((section, sectionIdx) => (
-                    <div
-                      key={sectionIdx}
-                      className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700"
-                    >
-                      {/* Encabezado de sección */}
-                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-300 dark:border-gray-600">
-                        <h3 className="font-bold text-lg text-primary-600">
-                          {section.label}
-                        </h3>
-                        {section.timeSignature && (
-                          <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded">
-                            {section.timeSignature}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Líneas de la sección */}
-                      <div className="space-y-3">
-                        {section.lines.map((line, lineIdx) => (
-                          <div key={lineIdx} className="space-y-1">
-                            {/* Acordes */}
-                            {line.chords.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {line.chords.map((chord, chordIdx) => {
-                                  const transposedChord = transposeChordWithSemitones(chord, transpose)
-                                  const nextChord = chordIdx < line.chords.length - 1 
-                                    ? transposeChordWithSemitones(line.chords[chordIdx + 1], transpose)
-                                    : undefined
-                                  const analysis = analyzeChord(transposedChord, nextChord)
-                                  const chordStyle = getChordStyle(analysis.function)
-                                  const functionLabel = getFunctionLabel(analysis.function)
-                                  
-                                  return (
-                                    <div
-                                      key={chordIdx}
-                                      className={`inline-flex flex-col items-center px-3 py-2 rounded-lg border ${chordStyle} font-mono transition-all hover:scale-105`}
-                                      title={`${functionLabel}${analysis.degree ? ` - ${analysis.degree}` : ''}`}
-                                    >
-                                      {/* Cifrado funcional (grado) */}
-                                      {analysis.degree && (
-                                        <span className="text-xs font-semibold opacity-75 mb-0.5">
-                                          {analysis.degree}
-                                        </span>
-                                      )}
-                                      {/* Acorde */}
-                                      <span className="font-bold text-base">
-                                        {transposedChord}
-                                      </span>
-                                      {/* Etiqueta de función */}
-                                      {functionLabel && analysis.function !== 'diatonic' && (
-                                        <span className="text-[10px] font-medium opacity-70 mt-0.5">
-                                          {functionLabel}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                            {/* Letra */}
-                            {line.lyrics && (
-                              <p className="text-gray-700 dark:text-gray-300 pl-1">
-                                {line.lyrics}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              </div>
-            ) : (
-              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 min-h-96 font-mono text-sm whitespace-pre-wrap max-h-[600px] overflow-y-auto">
-                {content || 'Escribe algo en el editor...'}
-              </div>
-            )}
+            <Button variant="secondary" size="sm" onClick={toggleEdit} className="shrink-0 text-xs sm:text-sm">
+              <Pencil className="w-3.5 h-3.5 mr-1.5" />
+              Editar canción
+            </Button>
           </div>
+
+          {/* Vista Previa en ancho completo */}
+          {previewComponent}
         </div>
-
-        {/* Letra de la cancion - Oculto a petición del usuario */}
-        {/* <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-lg">Letra de la Canción</h2>
-              <Button
-                variant="secondary"
-                size="sm"
-                isLoading={isLoading}
-                onClick={async () => {
-                  if (!title || !artist) {
-                    alert("La canción necesita título y artista para buscar la letra")
-                    return
-                  }
-                  setIsLoading(true)
-                  try {
-                    const res = await fetch("/api/lyrics/search", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ title, artist }),
-                    })
-                    if (res.ok) {
-                      const data = await res.json()
-                      setLyrics(data.lyrics)
-                      await fetch(`/api/songs/${song.id}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ title, artist, key, content, lyrics: data.lyrics }),
-                      })
-                    } else {
-                      alert("No se encontró la letra. Verifica el nombre del artista y la canción.")
-                    }
-                  } catch {
-                    alert("Error al buscar")
-                  } finally {
-                    setIsLoading(false)
-                  }
-                }}
-              >
-                🔍 Buscar Letra
-              </Button>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-[600px] overflow-y-auto">
-              {lyrics && lyrics.trim() ? (
-                <pre className="whitespace-pre-wrap font-sans text-base leading-relaxed text-gray-700 dark:text-gray-300">
-                  {lyrics}
-                </pre>
-              ) : (
-                <div className="text-center py-8 space-y-2">
-                  <p className="text-gray-500">No hay letra disponible</p>
-                  <p className="text-xs text-gray-400">Haz clic en Buscar Letra para encontrarla automáticamente</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div> */}
-      </div>
+      )}
     </div>
   )
 }
