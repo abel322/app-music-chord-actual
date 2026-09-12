@@ -118,8 +118,8 @@ export async function POST(req: NextRequest) {
       authorName = 'No disponible'
     }
 
-    // 3. Llamada REST directa a Gemini 2.5 Flash
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+    // 3. Llamada REST directa a Gemini 3.6 Flash
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`
 
     const promptText = `Eres un experto musical. Analiza este video de YouTube o canción:
 Título: "${cleanTitle}"
