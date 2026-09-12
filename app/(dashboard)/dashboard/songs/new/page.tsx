@@ -49,6 +49,7 @@ export default function NewSongPage() {
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [key, setKey] = useState('C')
+  const [isMinorKey, setIsMinorKey] = useState(false)
   const [timeSignature, setTimeSignature] = useState('4/4')
   const [tempo, setTempo] = useState('120')
   const [sections, setSections] = useState<Section[]>([])
@@ -437,8 +438,37 @@ export default function NewSongPage() {
         if (songData.title) setTitle(songData.title)
         if (songData.artist) setArtist(songData.artist)
         if (songData.key) {
-          const matchedKey = keys.find(k => k === songData.key || songData.key.startsWith(k))
-          setKey(matchedKey || songData.key || 'C')
+          const rawKey = songData.key.toString().trim()
+          const isMinor =
+            songData.isMinor === true ||
+            songData.mode?.toLowerCase().includes('menor') ||
+            songData.mode?.toLowerCase().includes('minor') ||
+            /^[A-G][#b]?m(?!aj)/i.test(rawKey) ||
+            (rawKey.endsWith('m') && !rawKey.toLowerCase().endsWith('maj'))
+
+          setIsMinorKey(isMinor)
+
+          let root = rawKey
+            .replace(/m$/i, '')
+            .replace(/minor$/i, '')
+            .replace(/menor$/i, '')
+            .trim()
+
+          const flatToSharp: Record<string, string> = {
+            Db: 'C#',
+            Eb: 'D#',
+            Gb: 'F#',
+            Ab: 'G#',
+            Bb: 'A#',
+          }
+          if (flatToSharp[root]) {
+            root = flatToSharp[root]
+          }
+
+          const matchedKey =
+            keys.find((k) => k === root) ||
+            keys.find((k) => root.startsWith(k))
+          setKey(matchedKey || 'C')
         }
         if (songData.timeSignature) setTimeSignature(songData.timeSignature)
         if (songData.tempo) setTempo(songData.tempo.toString())
@@ -513,8 +543,9 @@ export default function NewSongPage() {
           setSections(parsedSections)
         }
 
+        const displayKey = isMinorKey ? `${key}m` : key
         setAnalysisSuccess(
-          `¡Análisis completado con Gemini! Tono: ${songData.key || 'N/A'} • Tempo: ${songData.tempo || 'N/A'} BPM • Género: ${songData.genre || 'N/A'}`
+          `¡Análisis completado con Gemini! Tono: ${songData.key || displayKey} • Tempo: ${songData.tempo || 'N/A'} BPM • Género: ${songData.genre || 'N/A'}`
         )
       }
     } catch (err: any) {
@@ -970,7 +1001,7 @@ export default function NewSongPage() {
         body: JSON.stringify({
           title,
           artist,
-          key,
+          key: isMinorKey ? `${key}m` : key,
           timeSignature,
           tempo: parseInt(tempo),
           content,
@@ -1490,7 +1521,27 @@ export default function NewSongPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Tonalidad</label>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Tonalidad</label>
+                {isMinorKey ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-300 dark:border-purple-700 shadow-sm">
+                    Modo Menor ({key}m)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-300 dark:border-blue-700 shadow-sm">
+                    Modo Mayor ({key})
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMinorKey(!isMinorKey)}
+                className="text-xs px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors font-medium"
+              >
+                Cambiar a {isMinorKey ? 'Mayor' : 'Menor'}
+              </button>
+            </div>
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-12 gap-1.5 sm:gap-2 w-full">
               {keys.map((k) => (
                 <button
@@ -1503,7 +1554,7 @@ export default function NewSongPage() {
                       : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-primary-500 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
-                  {k}
+                  {k}{isMinorKey ? 'm' : ''}
                 </button>
               ))}
             </div>

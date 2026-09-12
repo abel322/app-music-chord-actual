@@ -39,6 +39,35 @@ function parseYouTubeVideoId(rawUrl: string): string | null {
   return match ? match[1] : null
 }
 
+/**
+ * Extrae y parsea limpiamente objetos JSON de las respuestas devueltas
+ * por modelos con herramientas de búsqueda (grounding), eliminando delimitadores
+ * markdown (```json ... ```) o texto conversacional.
+ */
+function extractAndParseJson(rawText: string): any {
+  let cleaned = (rawText || '').trim()
+
+  // 1. Extraer bloque markdown ```json ... ``` si existe
+  const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    cleaned = codeBlockMatch[1].trim()
+  } else {
+    cleaned = cleaned
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim()
+  }
+
+  // 2. Extraer desde la primera '{' hasta la última '}'
+  const firstBrace = cleaned.indexOf('{')
+  const lastBrace = cleaned.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1)
+  }
+
+  return JSON.parse(cleaned)
+}
+
 export async function POST(req: NextRequest) {
   try {
     // 1. Verificación de la API Key en el entorno del servidor
@@ -118,40 +147,70 @@ export async function POST(req: NextRequest) {
       authorName = 'No disponible'
     }
 
-    // 3. Llamada REST directa a Gemini 3.6 Flash
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`
-
-    const promptText = `Eres un experto musical. Analiza este video de YouTube o canción:
+    // 3. Prompt musical riguroso con indicación de búsqueda web
+    const promptText = `Actúa como un transcriptor y analista musical profesional.
+Busca en la web la información armónica y métrica exacta de la canción en fuentes musicales reconocidas (LaCuerda, CifraClub, Chordify, SongBPM, MultiTracks, Ultimate-Guitar):
 Título: "${cleanTitle}"
-Canal: "${authorName}"
-URL: "${normalizedUrl}"
+Artista / Canal: "${authorName}"
+URL de referencia: "${normalizedUrl}"
 
-Devuelve ÚNICAMENTE un objeto JSON válido (sin formato Markdown, sin comillas triples) con esta estructura exacta:
+Requisitos estrictos de búsqueda y análisis:
+1. BPM / Tempo: Busca el tempo real de la grabación original o versión en vivo indicada (diferencia con precisión temas rápidos/upbeat de 120-135 BPM de baladas lentas de 65-75 BPM).
+2. Tonalidad: Determina la tonalidad real distinguiendo explícitamente entre tonalidad Mayor y Menor (por ejemplo: "Em" si el centro tonal es Mi menor, "Am", "F#m", "Dm", "C", "G").
+3. Compás: Indica el compás exacto (ej. "4/4 (Común)", "3/4", "6/8").
+4. Estructura y Progresiones: Transcribe la secuencia real de secciones de la canción (Intro, Estrofa, Pre-Coro, Coro, Puente, Outro) con sus acordes exactos respetando la tonalidad encontrada.
+
+Devuelve ÚNICAMENTE un objeto JSON válido (sin formato Markdown adicional, sin explicaciones ni comillas triples) con esta estructura exacta:
 {
-  "title": "Nombre de la canción",
-  "artist": "Artista",
-  "key": "G",
-  "timeSignature": "4/4",
-  "tempo": 120,
-  "genre": "Género",
-  "instruments": ["Batería", "Bajo", "Piano"],
+  "title": "${cleanTitle}",
+  "artist": "${authorName}",
+  "key": "Em",
+  "timeSignature": "4/4 (Común)",
+  "tempo": 128,
+  "genre": "Género musical",
+  "instruments": ["Batería", "Bajo", "Guitarras", "Teclados"],
   "sections": [
-    { "type": "intro", "chords": "G - Em - C - D" },
-    { "type": "verse", "chords": "G - Em - C - D" },
-    { "type": "chorus", "chords": "C - D - G - Em" }
+    { "type": "Intro 1", "chords": "Em - C - G - D" },
+    { "type": "Estrofa 1", "chords": "Em - C - G - D" },
+    { "type": "Coro 1", "chords": "C - D - G - Em" }
   ]
 }`
 
-    const googleRes = await fetch(endpoint, {
+    // 4. Llamada REST directa con Google Search Grounding
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`
+
+    let googleRes = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: promptText }] }],
+        tools: [{ googleSearch: {} }],
         generationConfig: {
           responseMimeType: 'application/json',
         },
       }),
     })
+
+    // Si la API de Google rechaza responseMimeType al usarse junto a herramientas de búsqueda (error 400),
+    // reintentar automáticamente con Google Search activo sin el campo generationConfig.
+    if (!googleRes.ok && googleRes.status === 400) {
+      const errClone = await googleRes.clone().text().catch(() => '')
+      if (
+        errClone.includes('response_mime_type') ||
+        errClone.includes('responseMimeType') ||
+        errClone.includes('tool') ||
+        errClone.includes('generation_config')
+      ) {
+        googleRes = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            tools: [{ googleSearch: {} }],
+          }),
+        })
+      }
+    }
 
     if (!googleRes.ok) {
       const errorDetails = await googleRes.text()
@@ -163,32 +222,46 @@ Devuelve ÚNICAMENTE un objeto JSON válido (sin formato Markdown, sin comillas 
     }
 
     const data = await googleRes.json()
-    const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!rawJson) {
+    const parts = data.candidates?.[0]?.content?.parts || []
+    let rawText = ''
+    for (const part of parts) {
+      if (part.text) {
+        rawText += part.text + '\n'
+      }
+    }
+
+    if (!rawText.trim()) {
       return NextResponse.json(
-        { error: 'Google no devolvió contenido en la respuesta' },
+        { error: 'Google no devolvió contenido de texto en la respuesta' },
         { status: 500 }
       )
     }
 
-    let cleanedJson = rawJson.trim()
-    if (cleanedJson.startsWith('```')) {
-      cleanedJson = cleanedJson
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '')
-        .trim()
-    }
-    const firstBrace = cleanedJson.indexOf('{')
-    const lastBrace = cleanedJson.lastIndexOf('}')
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
-      cleanedJson = cleanedJson.substring(firstBrace, lastBrace + 1)
-    }
+    const parsedAnalysis = extractAndParseJson(rawText)
 
-    const parsedAnalysis = JSON.parse(cleanedJson)
+    // Determinar con precisión la tonalidad raíz y el modo (Mayor / Menor)
+    const rawKey = (parsedAnalysis.key || 'C').toString().trim()
+    const isMinor =
+      parsedAnalysis.mode?.toLowerCase().includes('menor') ||
+      parsedAnalysis.mode?.toLowerCase().includes('minor') ||
+      /^[A-G][#b]?m(?!aj)/i.test(rawKey) ||
+      (rawKey.endsWith('m') && !rawKey.toLowerCase().endsWith('maj'))
+
+    const rootKey = rawKey.replace(/m$/i, '').replace(/minor$/i, '').replace(/menor$/i, '').trim()
 
     return NextResponse.json({
       ...parsedAnalysis,
-      data: parsedAnalysis,
+      key: rawKey,
+      rootKey: rootKey || 'C',
+      mode: isMinor ? 'Menor' : 'Mayor',
+      isMinor,
+      data: {
+        ...parsedAnalysis,
+        key: rawKey,
+        rootKey: rootKey || 'C',
+        mode: isMinor ? 'Menor' : 'Mayor',
+        isMinor,
+      },
       success: true,
       rawOembed: { title: cleanTitle, author: authorName, videoId: ytVideoId },
     })
