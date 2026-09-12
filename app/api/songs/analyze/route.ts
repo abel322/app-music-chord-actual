@@ -41,47 +41,237 @@ function parseYouTubeVideoId(rawUrl: string): string | null {
 }
 
 /**
- * Función auxiliar para invocar Gemini probando gemini-1.5-flash primero,
- * con fallback limpio a gemini-1.5-pro o gemini-2.0-flash si retorna 404.
+ * Limpia y parsea de forma segura respuestas JSON devueltas por modelos LLM,
+ * soportando bloques markdown con o sin etiquetas (```json ... ```),
+ * espacios en blanco o texto periférico.
+ */
+function cleanJsonResponse(rawText: string): any {
+  let cleaned = rawText.trim()
+
+  // Extraer contenido de bloques markdown si existen
+  const markdownMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  if (markdownMatch && markdownMatch[1]) {
+    cleaned = markdownMatch[1].trim()
+  } else {
+    // Si empieza o termina con comillas invertidas
+    cleaned = cleaned
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim()
+  }
+
+  // Aislar el primer { y el último } si hay texto alrededor
+  const firstBrace = cleaned.indexOf('{')
+  const lastBrace = cleaned.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1)
+  }
+
+  return JSON.parse(cleaned)
+}
+
+/**
+ * Determina si un error corresponde a un modelo no encontrado (404)
+ * o funcionalidad no soportada en la versión de la API utilizada.
+ */
+function isNotFoundError(err: any): boolean {
+  const status =
+    err?.status ||
+    err?.statusCode ||
+    (typeof err?.message === 'string' && err.message.includes('404') ? 404 : null)
+
+  const msg = (err?.message || '').toLowerCase()
+  return (
+    status === 404 ||
+    msg.includes('404') ||
+    msg.includes('not found') ||
+    msg.includes('not supported') ||
+    msg.includes('unsupported') ||
+    msg.includes('is not found')
+  )
+}
+
+/**
+ * Llamada HTTP directa vía REST a Google Generative Language API.
+ * Infalible en entornos serverless como Vercel si el SDK arroja 404 en v1beta.
+ */
+async function callGeminiRest(
+  apiKey: string,
+  modelName: string,
+  prompt: string,
+  apiVersion: 'v1beta' | 'v1' = 'v1beta'
+): Promise<string> {
+  const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`
+
+  const isLegacyModel = modelName === 'gemini-pro'
+  const body: Record<string, any> = {
+    contents: [{ parts: [{ text: prompt }] }],
+  }
+
+  // Modelos Gemini 1.5 y superiores soportan responseMimeType: 'application/json'
+  if (!isLegacyModel) {
+    body.generationConfig = {
+      responseMimeType: 'application/json',
+    }
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    let parsedMessage = errorText
+    try {
+      const errorJson = JSON.parse(errorText)
+      parsedMessage = errorJson?.error?.message || errorText
+    } catch {
+      // Usar texto plano
+    }
+
+    const err: any = new Error(
+      `REST Gemini error (${apiVersion}/${modelName}) [${response.status}]: ${parsedMessage}`
+    )
+    err.status = response.status
+    throw err
+  }
+
+  const data = await response.json()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) {
+    throw new Error(`Respuesta vacía de Gemini vía REST (${apiVersion}/${modelName})`)
+  }
+
+  return text
+}
+
+/**
+ * Ejecuta el análisis musical probando una lista prioritaria de modelos con fallback:
+ * 1. gemini-1.5-flash
+ * 2. gemini-1.5-flash-latest
+ * 3. gemini-1.5-pro
+ * 4. gemini-2.0-flash
+ * 5. gemini-pro
+ *
+ * Para cada modelo se prueba primero el SDK oficial (@google/generative-ai).
+ * Si el SDK arroja 404 o incompatibilidad, se activa el fallback REST directo
+ * (v1beta y luego v1) antes de pasar al siguiente modelo de la lista.
  */
 async function runGeminiAnalysis(
+  apiKey: string,
   genAI: GoogleGenerativeAI,
   prompt: string,
-  generationConfig: any
+  baseGenerationConfig: any
 ) {
-  // Modelos limpios sin prefijo "models/"
-  const candidateModels = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash']
+  const candidateModels = [
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash',
+    'gemini-pro',
+  ]
+
   let lastError: any = null
 
   for (const modelName of candidateModels) {
+    const isLegacy = modelName === 'gemini-pro'
+
+    // 1. Intentar primero con SDK oficial
     try {
+      // Para gemini-pro no enviamos responseSchema/responseMimeType en SDK para evitar 400
+      const modelConfig = isLegacy ? {} : baseGenerationConfig
+
       const model = genAI.getGenerativeModel({
         model: modelName,
-        generationConfig,
+        generationConfig: modelConfig,
       })
 
       const result = await model.generateContent(prompt)
       const responseText = result.response.text()
       if (responseText) {
-        return { data: JSON.parse(responseText), modelUsed: modelName }
+        const parsed = cleanJsonResponse(responseText)
+        return { data: parsed, modelUsed: `${modelName} (SDK)` }
       }
-    } catch (err: any) {
-      lastError = err
-      const isNotFound =
-        err?.status === 404 ||
-        err?.message?.includes('404') ||
-        err?.message?.includes('not found') ||
-        err?.message?.includes('is not supported')
+    } catch (sdkErr: any) {
+      lastError = sdkErr
 
-      if (isNotFound) {
-        console.warn(`Modelo ${modelName} retornó 404. Intentando fallback...`)
-        continue
+      // Si es error de autenticación o cuota, no seguir probando modelos ciegamente
+      const isAuthOrQuota =
+        sdkErr?.status === 401 ||
+        sdkErr?.status === 403 ||
+        sdkErr?.status === 429 ||
+        sdkErr?.message?.includes('API_KEY_INVALID') ||
+        sdkErr?.message?.includes('API key not valid') ||
+        sdkErr?.message?.includes('RESOURCE_EXHAUSTED')
+
+      if (isAuthOrQuota) {
+        throw sdkErr
       }
-      // Si el error es de autenticación, cuota o sintaxis, lanzar inmediatamente
-      throw err
+
+      console.warn(
+        `[Gemini SDK] Modelo ${modelName} falló (${sdkErr?.status || sdkErr?.message}). Intentando fallback REST v1beta...`
+      )
+    }
+
+    // 2. Fallback REST directo (v1beta)
+    try {
+      const restTextV1Beta = await callGeminiRest(
+        apiKey,
+        modelName,
+        prompt,
+        'v1beta'
+      )
+      const parsed = cleanJsonResponse(restTextV1Beta)
+      return { data: parsed, modelUsed: `${modelName} (REST v1beta)` }
+    } catch (restErr: any) {
+      lastError = restErr
+
+      const isAuthOrQuota =
+        restErr?.status === 401 ||
+        restErr?.status === 403 ||
+        restErr?.status === 429 ||
+        restErr?.message?.includes('API_KEY_INVALID') ||
+        restErr?.message?.includes('API key not valid') ||
+        restErr?.message?.includes('RESOURCE_EXHAUSTED')
+
+      if (isAuthOrQuota) {
+        throw restErr
+      }
+
+      console.warn(
+        `[Gemini REST v1beta] Modelo ${modelName} falló (${restErr?.status || restErr?.message}). Intentando REST v1...`
+      )
+    }
+
+    // 3. Fallback REST directo (v1)
+    try {
+      const restTextV1 = await callGeminiRest(apiKey, modelName, prompt, 'v1')
+      const parsed = cleanJsonResponse(restTextV1)
+      return { data: parsed, modelUsed: `${modelName} (REST v1)` }
+    } catch (restV1Err: any) {
+      lastError = restV1Err
+
+      const isAuthOrQuota =
+        restV1Err?.status === 401 ||
+        restV1Err?.status === 403 ||
+        restV1Err?.status === 429 ||
+        restV1Err?.message?.includes('API_KEY_INVALID') ||
+        restV1Err?.message?.includes('API key not valid') ||
+        restV1Err?.message?.includes('RESOURCE_EXHAUSTED')
+
+      if (isAuthOrQuota) {
+        throw restV1Err
+      }
+
+      console.warn(
+        `[Gemini REST v1] Modelo ${modelName} no disponible. Probando siguiente candidato...`
+      )
     }
   }
 
+  // Si se agotaron todos los modelos candidatos sin éxito
   throw lastError
 }
 
@@ -249,10 +439,25 @@ Instrucciones:
 4. Determina el tempo en BPM como un número entero ("tempo", ej. 120).
 5. Detecta el género musical ("genre").
 6. Enumera los instrumentos musicales principales presentes en la canción ("instruments").
-7. Desglosa la estructura completa de la canción en secciones ("sections"). Para cada sección incluye "type" ('intro', 'verse', 'prechorus', 'chorus', 'bridge', 'instrumental', 'solo', 'outro') y la progresión armónica correspondiente ("chords", con acordes válidos separados por espacio, por ejemplo: "C G Am F").`
+7. Desglosa la estructura completa de la canción en secciones ("sections"). Para cada sección incluye "type" ('intro', 'verse', 'prechorus', 'chorus', 'bridge', 'instrumental', 'solo', 'outro') y la progresión armónica correspondiente ("chords", con acordes válidos separados por espacio, por ejemplo: "C G Am F").
 
-    // 4. Ejecutar análisis con fallback de modelos
+RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON ESTA ESTRUCTURA EXACTA (sin markdown adicional, sin texto previo ni explicaciones):
+{
+  "title": "string",
+  "artist": "string",
+  "key": "C",
+  "timeSignature": "4/4",
+  "tempo": 120,
+  "genre": "string",
+  "instruments": ["string"],
+  "sections": [
+    { "type": "intro", "chords": "C G Am F" }
+  ]
+}`
+
+    // 4. Ejecutar análisis con fallback de modelos y REST directa
     const { data: analysisData, modelUsed } = await runGeminiAnalysis(
+      cleanApiKey,
       genAI,
       prompt,
       generationConfig
@@ -284,7 +489,7 @@ Instrucciones:
       return NextResponse.json(
         {
           error:
-            'Error 404: El modelo de Gemini no fue encontrado o tu API key no tiene acceso al servicio v1beta. Verifica que tu clave de Gemini esté activa en Google AI Studio.',
+            'Error 404: Ninguno de los modelos de Gemini candidatos (gemini-1.5-flash, gemini-1.5-flash-latest, gemini-1.5-pro, gemini-pro) fue encontrado o está activo para tu API key en Google AI Studio (se probaron vía SDK y REST v1beta/v1). Verifica que la API Generative Language esté habilitada en tu proyecto de Google Cloud.',
         },
         { status: 404 }
       )
