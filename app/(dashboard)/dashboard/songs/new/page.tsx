@@ -432,7 +432,7 @@ export default function NewSongPage() {
         throw new Error(data.error || 'Error al analizar la canción')
       }
 
-      const songData = data.data
+      const songData = data.data || data
       if (songData) {
         if (songData.title) setTitle(songData.title)
         if (songData.artist) setArtist(songData.artist)
