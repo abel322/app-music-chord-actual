@@ -103,22 +103,15 @@ async function callGeminiRest(
 ): Promise<string> {
   const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`
 
-  const isLegacyModel = modelName === 'gemini-pro'
-  const body: Record<string, any> = {
-    contents: [{ parts: [{ text: prompt }] }],
-  }
-
-  // Modelos Gemini 1.5 y superiores soportan responseMimeType: 'application/json'
-  if (!isLegacyModel) {
-    body.generationConfig = {
-      responseMimeType: 'application/json',
-    }
-  }
-
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    }),
   })
 
   if (!response.ok) {
@@ -148,16 +141,12 @@ async function callGeminiRest(
 }
 
 /**
- * Ejecuta el análisis musical probando una lista prioritaria de modelos con fallback:
- * 1. gemini-1.5-flash
- * 2. gemini-1.5-flash-latest
- * 3. gemini-1.5-pro
- * 4. gemini-2.0-flash
- * 5. gemini-pro
+ * Ejecuta el análisis musical utilizando gemini-2.5-flash directamente,
+ * con fallback secundario a gemini-2.5-pro si es necesario.
  *
- * Para cada modelo se prueba primero el SDK oficial (@google/generative-ai).
- * Si el SDK arroja 404 o incompatibilidad, se activa el fallback REST directo
- * (v1beta y luego v1) antes de pasar al siguiente modelo de la lista.
+ * Para cada modelo se intenta primero el SDK oficial (@google/generative-ai).
+ * Si arroja 404 o incompatibilidad, se activa el fallback REST directo
+ * (v1beta y luego v1).
  */
 async function runGeminiAnalysis(
   apiKey: string,
@@ -165,27 +154,16 @@ async function runGeminiAnalysis(
   prompt: string,
   baseGenerationConfig: any
 ) {
-  const candidateModels = [
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-pro',
-    'gemini-2.0-flash',
-    'gemini-pro',
-  ]
+  const candidateModels = ['gemini-2.5-flash', 'gemini-2.5-pro']
 
   let lastError: any = null
 
   for (const modelName of candidateModels) {
-    const isLegacy = modelName === 'gemini-pro'
-
     // 1. Intentar primero con SDK oficial
     try {
-      // Para gemini-pro no enviamos responseSchema/responseMimeType en SDK para evitar 400
-      const modelConfig = isLegacy ? {} : baseGenerationConfig
-
       const model = genAI.getGenerativeModel({
         model: modelName,
-        generationConfig: modelConfig,
+        generationConfig: baseGenerationConfig,
       })
 
       const result = await model.generateContent(prompt)
@@ -271,7 +249,7 @@ async function runGeminiAnalysis(
     }
   }
 
-  // Si se agotaron todos los modelos candidatos sin éxito
+  // Si se agotaron los modelos candidatos sin éxito
   throw lastError
 }
 
@@ -489,7 +467,7 @@ RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON ESTA ESTRUCTURA EXACTA (s
       return NextResponse.json(
         {
           error:
-            'Error 404: Ninguno de los modelos de Gemini candidatos (gemini-1.5-flash, gemini-1.5-flash-latest, gemini-1.5-pro, gemini-pro) fue encontrado o está activo para tu API key en Google AI Studio (se probaron vía SDK y REST v1beta/v1). Verifica que la API Generative Language esté habilitada en tu proyecto de Google Cloud.',
+            'Error 404: El modelo de Gemini (gemini-2.5-flash / gemini-2.5-pro) no fue encontrado o no está activo para tu API key en Google AI Studio (se probaron vía SDK y REST v1beta/v1). Verifica que la API Generative Language esté habilitada en tu proyecto de Google Cloud.',
         },
         { status: 404 }
       )
