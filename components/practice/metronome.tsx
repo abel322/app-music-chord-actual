@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 // Types for metronome configuration
-type SubdivType = 1 | 'off-beat' | 2 | 3 | 4 | 6 | 8
+type SubdivType = 1 | 'off-beat' | 2 | 3 | 4 | 6 | 8 | 'galopa-inversa' | 'galopa' | 'sincopa'
 type SoundProfile = 'woodblock' | 'sine' | 'cowbell'
 
 const NUMERATORS = [2, 3, 4, 5, 6, 7, 9, 12]
@@ -140,6 +140,9 @@ export function Metronome() {
   const [isPolyrhythmActive, setIsPolyrhythmActive] = useState(false)
   const [rhythmB, setRhythmB] = useState(3)
 
+  // Subdivision Tabs
+  const [subdivisionTab, setSubdivisionTab] = useState<'regulares' | 'patrones'>('regulares')
+
   // Counter State
   const [totalClicks, setTotalClicks] = useState(0)
   const [totalMeasures, setTotalMeasures] = useState(0)
@@ -199,11 +202,11 @@ export function Metronome() {
   useEffect(() => {
     const ctx = audioContextRef.current
     if (isPlaying && ctx) {
-      const currentTicks = subdivision === 'off-beat' ? 2 : subdivision
+      const currentTicks = (typeof subdivision === 'string' && subdivision !== 'off-beat') ? 4 : (subdivision === 'off-beat' ? 2 : subdivision)
       const newStepDuration = 60.0 / (bpm * currentTicks)
       
       const elapsed = ctx.currentTime - lastStepTimeRef.current
-      const prevTicks = prevSubdivisionRef.current === 'off-beat' ? 2 : prevSubdivisionRef.current
+      const prevTicks = (typeof prevSubdivisionRef.current === 'string' && prevSubdivisionRef.current !== 'off-beat') ? 4 : (prevSubdivisionRef.current === 'off-beat' ? 2 : prevSubdivisionRef.current)
       const prevStepDuration = 60.0 / (prevBpmRef.current * prevTicks)
       
       let fraction = elapsed / prevStepDuration
@@ -372,7 +375,7 @@ export function Metronome() {
       const currentSub = subdivisionRef.current
       const currentNum = numeratorRef.current
       
-      const ticksPerBeat = currentSub === 'off-beat' ? 2 : currentSub
+      const ticksPerBeat = (typeof currentSub === 'string' && currentSub !== 'off-beat') ? 4 : (currentSub === 'off-beat' ? 2 : currentSub)
       const beatInMeasure = Math.floor(step / ticksPerBeat) % currentNum
       const subIndex = step % ticksPerBeat
       
@@ -395,10 +398,21 @@ export function Metronome() {
         }
       }
 
-      const shouldPlay = currentSub !== 'off-beat' || subIndex === 1
+      let shouldPlay = true
+      if (currentSub === 'off-beat' && subIndex === 0) shouldPlay = false
+      if (currentSub === 'galopa-inversa' && subIndex === 1) shouldPlay = false
+      if (currentSub === 'galopa' && subIndex === 3) shouldPlay = false
+      if (currentSub === 'sincopa' && subIndex === 2) shouldPlay = false
+
       if (shouldPlay) {
-        const isAccent = beatInMeasure === 0 && subIndex === 0
-        const isSub = subIndex > 0 || currentSub === 'off-beat'
+        let isAccent = beatInMeasure === 0 && subIndex === 0
+        if (currentSub === 'sincopa' && subIndex === 1) {
+            isAccent = true // Accent the off-beat for sincopa
+        } else if (currentSub === 'sincopa' && beatInMeasure === 0 && subIndex === 0) {
+            isAccent = false // Don't accent the first tick for sincopa, even on beat 0
+        }
+
+        const isSub = !isAccent
         playClick(nextStepTimeRef.current, isAccent, isSub)
       }
 
@@ -545,7 +559,7 @@ export function Metronome() {
     setTotalMeasures(0)
   }
 
-  const ticksCount = subdivision === 'off-beat' ? 2 : subdivision
+  const ticksCount = (typeof subdivision === 'string' && subdivision !== 'off-beat') ? 4 : (subdivision === 'off-beat' ? 2 : subdivision)
   const currentTickRate = bpm * ticksCount
   const swingDuration = (currentTickRate <= 240) ? 60 / currentTickRate : 60 / bpm
 
@@ -712,16 +726,33 @@ export function Metronome() {
                       const isSubActive = isCurrent && activeSubdivision === subIdx && flashActive
                       const isFirstSub = subIdx === 0
                       
+                      let isSilenced = false
+                      if (subdivision === 'off-beat' && subIdx === 0) isSilenced = true
+                      if (subdivision === 'galopa-inversa' && subIdx === 1) isSilenced = true
+                      if (subdivision === 'galopa' && subIdx === 3) isSilenced = true
+                      if (subdivision === 'sincopa' && subIdx === 2) isSilenced = true
+
+                      // For Síncopa, the off-beat (subIdx 1) takes the primary accent flash styling
+                      let flashAsAccent = false
+                      if (subdivision === 'sincopa' && subIdx === 1) {
+                        flashAsAccent = true
+                      } else if (subdivision === 'sincopa' && subIdx === 0) {
+                        flashAsAccent = false
+                      } else {
+                         flashAsAccent = isFirstBeat && isFirstSub
+                      }
+
+
                       return (
                         <div
                           key={subIdx}
                           className={cn(
                             "w-2 h-2 rounded-full transition-all duration-100",
-                            isSubActive
-                              ? isFirstBeat && isFirstSub
+                            isSubActive && !isSilenced
+                              ? flashAsAccent
                                 ? "bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)] scale-125"
                                 : "bg-primary-500 shadow-[0_0_4px_rgba(139,92,246,0.6)] scale-125"
-                              : subdivision === 'off-beat' && subIdx === 0
+                              : isSilenced
                                 ? "bg-transparent border border-dashed border-gray-400 dark:border-gray-600"
                                 : "bg-gray-300 dark:bg-gray-750"
                           )}
@@ -775,32 +806,83 @@ export function Metronome() {
 
         <div>
           <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Subdivisiones</label>
-          <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
-            {(
-              [
-                { label: 'Negras', value: 1 },
-                { label: 'Off-beat', value: 'off-beat' },
-                { label: 'Corcheas', value: 2 },
-                { label: 'Tresillos', value: 3 },
-                { label: 'Semicorch.', value: 4 },
-                { label: 'Seisillos', value: 6 },
-                { label: 'Fusas', value: 8 },
-              ] as const
-            ).map((subOption) => (
-              <button
-                key={subOption.value}
-                onClick={() => setSubdivision(subOption.value)}
-                className={cn(
-                  "py-2 px-1 rounded-xl text-xs font-semibold border transition-all duration-200 active:scale-95",
-                  subdivision === subOption.value
-                    ? "bg-primary-600 border-primary-600 text-white shadow-sm shadow-primary-500/20"
-                    : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                )}
-              >
-                {subOption.label}
-              </button>
-            ))}
+
+          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-950 p-1 border border-gray-200/50 dark:border-gray-800/50 mb-3">
+            <button
+              onClick={() => setSubdivisionTab('regulares')}
+              className={cn(
+                "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200",
+                subdivisionTab === 'regulares'
+                  ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              )}
+            >
+              Regulares
+            </button>
+            <button
+              onClick={() => setSubdivisionTab('patrones')}
+              className={cn(
+                "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200",
+                subdivisionTab === 'patrones'
+                  ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              )}
+            >
+              Patrones / Irregulares
+            </button>
           </div>
+
+          {subdivisionTab === 'regulares' ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(
+                [
+                  { label: 'Negras', value: 1 },
+                  { label: 'Off-beat', value: 'off-beat' },
+                  { label: 'Corcheas', value: 2 },
+                  { label: 'Tresillos', value: 3 },
+                  { label: 'Semicorch.', value: 4 },
+                  { label: 'Seisillos', value: 6 },
+                  { label: 'Fusas', value: 8 },
+                ] as const
+              ).map((subOption) => (
+                <button
+                  key={subOption.value}
+                  onClick={() => setSubdivision(subOption.value as SubdivType)}
+                  className={cn(
+                    "py-2 px-1 rounded-xl text-xs font-semibold border transition-all duration-200 active:scale-95",
+                    subdivision === subOption.value
+                      ? "bg-primary-600 border-primary-600 text-white shadow-sm shadow-primary-500/20"
+                      : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  )}
+                >
+                  {subOption.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(
+                [
+                  { label: 'Galopa Invertida', value: 'galopa-inversa' },
+                  { label: 'Galopa', value: 'galopa' },
+                  { label: 'Síncopa', value: 'sincopa' },
+                ] as const
+              ).map((subOption) => (
+                <button
+                  key={subOption.value}
+                  onClick={() => setSubdivision(subOption.value as SubdivType)}
+                  className={cn(
+                    "py-2 px-1 rounded-xl text-xs font-semibold border transition-all duration-200 active:scale-95",
+                    subdivision === subOption.value
+                      ? "bg-primary-600 border-primary-600 text-white shadow-sm shadow-primary-500/20"
+                      : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  )}
+                >
+                  {subOption.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
