@@ -930,7 +930,7 @@ export function SongEditor({ song }: { song: Song }) {
               </div>
               <div>
                 <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white">Modo Lectura Activo</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Estás en vista de acordes y letra. Pulsa 'Editar' para abrir el formulario y realizar cambios.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Estás en vista de acordes y letra. Pulsa &apos;Editar&apos; para abrir el formulario y realizar cambios.</p>
               </div>
             </div>
             <Button variant="secondary" size="sm" onClick={toggleEdit} className="shrink-0 text-xs sm:text-sm">

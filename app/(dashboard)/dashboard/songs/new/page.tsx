@@ -1184,8 +1184,8 @@ export default function NewSongPage() {
             <span>💡</span>
             <div>
               <p className="font-medium mb-1">Cómo obtener el link:</p>
-              <p><strong>YouTube:</strong> Abre la canción → Clic en "Compartir" → Copia el link</p>
-              <p><strong>Spotify:</strong> Abre la canción → Clic en "..." → Compartir → Copiar enlace de canción</p>
+              <p><strong>YouTube:</strong> Abre la canción → Clic en &quot;Compartir&quot; → Copia el link</p>
+              <p><strong>Spotify:</strong> Abre la canción → Clic en &quot;...&quot; → Compartir → Copiar enlace de canción</p>
             </div>
           </div>
         </div>
@@ -1276,8 +1276,8 @@ export default function NewSongPage() {
                       ⭐ Modo Simple (Recomendado)
                     </p>
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                      1. Toca "Beat" en cada tiempo de la canción<br/>
-                      2. Al terminar un compás completo, toca "Fin de Compás"<br/>
+                      1. Toca &quot;Beat&quot; en cada tiempo de la canción<br/>
+                      2. Al terminar un compás completo, toca &quot;Fin de Compás&quot;<br/>
                       3. Repite para confirmar el patrón
                     </p>
                     
