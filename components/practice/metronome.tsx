@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 // Types for metronome configuration
-type SubdivType = 1 | 'off-beat' | 2 | 3 | 4 | 6
+type SubdivType = 1 | 'off-beat' | 2 | 3 | 4 | 6 | 8
 type SoundProfile = 'woodblock' | 'sine' | 'cowbell'
 
 const NUMERATORS = [2, 3, 4, 5, 6, 7, 9, 12]
@@ -775,7 +775,7 @@ export function Metronome() {
 
         <div>
           <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Subdivisiones</label>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
             {(
               [
                 { label: 'Negras', value: 1 },
@@ -784,6 +784,7 @@ export function Metronome() {
                 { label: 'Tresillos', value: 3 },
                 { label: 'Semicorch.', value: 4 },
                 { label: 'Seisillos', value: 6 },
+                { label: 'Fusas', value: 8 },
               ] as const
             ).map((subOption) => (
               <button
