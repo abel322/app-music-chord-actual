@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Play, Square, Plus, Minus, Volume2, VolumeX, RefreshCw, Music, RotateCcw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { RhythmNotation } from './RhythmNotation'
 
 // Types for metronome configuration
 type SubdivType = 1 | 'off-beat' | 2 | 3 | 4 | 6 | 8 | 'galopa-inversa' | 'galopa' | 'sincopa'
@@ -806,6 +807,8 @@ export function Metronome() {
 
         <div>
           <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Subdivisiones</label>
+
+          <RhythmNotation subdivision={subdivision} />
 
           <div className="flex rounded-xl bg-gray-100 dark:bg-gray-950 p-1 border border-gray-200/50 dark:border-gray-800/50 mb-3">
             <button
