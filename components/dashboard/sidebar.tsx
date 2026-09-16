@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { Music, Home, Library, Search, Settings, LogOut, Activity, Calendar, Menu, X } from 'lucide-react'
+import { Music, Home, Library, Search, Settings, LogOut, Activity, Calendar, Menu, X, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
@@ -24,6 +24,7 @@ export function Sidebar({ user }: SidebarProps) {
   const links = [
     { href: '/dashboard', label: 'Inicio', icon: Home },
     { href: '/dashboard/songs', label: 'Canciones', icon: Library },
+    { href: '/chords', label: 'Progresiones', icon: Layers },
     { href: '/dashboard/routines', label: 'Rutinas de Práctica', icon: Calendar },
     { href: '/dashboard/practice', label: 'Metrónomo', icon: Activity },
     { href: '/dashboard/search', label: 'Buscar', icon: Search },
