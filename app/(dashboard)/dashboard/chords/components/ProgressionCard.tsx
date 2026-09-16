@@ -13,16 +13,10 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
   const [activeChordIndex, setActiveChordIndex] = useState<number | null>(null)
 
-  // Track interval for cleanup
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Clean up interval on unmount
+  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-      synth.stopAll()
+      synth.stopProgression()
     }
   }, [])
 
@@ -45,31 +39,19 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
     if (progression.chords.length === 0) return
 
     setIsPlaying(true)
-    let currentIndex = 0
-
-    // Calculate duration of one measure (4 beats) in milliseconds
-    const beatDurationMs = (60 / progression.bpm) * 1000
-    const chordDurationMs = beatDurationMs * 4 // Assuming 4 beats per chord
-
-    // Play first chord immediately
-    setActiveChordIndex(currentIndex)
-    handlePlayChord(currentIndex, chordDurationMs)
-
-    intervalRef.current = setInterval(() => {
-      currentIndex = (currentIndex + 1) % progression.chords.length
-      setActiveChordIndex(currentIndex)
-      handlePlayChord(currentIndex, chordDurationMs)
-    }, chordDurationMs)
+    synth.playProgression(
+      progression.chords,
+      progression.bpm,
+      (index: number) => {
+        setActiveChordIndex(index)
+      }
+    )
   }
 
   const stopLoop = () => {
     setIsPlaying(false)
     setActiveChordIndex(null)
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-    synth.stopAll()
+    synth.stopProgression()
   }
 
   return (

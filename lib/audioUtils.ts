@@ -45,34 +45,42 @@ export const noteToFreq = (noteStr: string): number => {
 export class PolyphonicSynth {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private activeOscillators: OscillatorNode[] = [];
+  private compressor: DynamicsCompressorNode | null = null;
+  private activeOscillators: Set<OscillatorNode> = new Set();
+  private lookaheadTimeout: NodeJS.Timeout | null = null;
+  private nextChordIndex: number = 0;
+  private nextNoteTime: number = 0;
+  private isPlayingProgression: boolean = false;
+  private currentChords: { name: string; notes: string[] }[] = [];
+  private currentBpm: number = 120;
+  private onChordChangeCallback: ((index: number) => void) | null = null;
 
   init() {
     if (typeof window !== 'undefined' && !this.audioContext) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContextClass) {
         this.audioContext = new AudioContextClass();
+
         this.masterGain = this.audioContext.createGain();
-        // Lower overall volume to prevent clipping when multiple notes play
-        this.masterGain.gain.value = 0.6;
-        this.masterGain.connect(this.audioContext.destination);
+        this.masterGain.gain.value = 0.25; // Calibrated master gain
+
+        this.compressor = this.audioContext.createDynamicsCompressor();
+        this.compressor.threshold.value = -12;
+        this.compressor.knee.value = 10;
+        this.compressor.ratio.value = 4;
+        this.compressor.attack.value = 0.003;
+        this.compressor.release.value = 0.1;
+
+        // Route: Master Gain -> Dynamics Compressor -> Destination
+        this.masterGain.connect(this.compressor);
+        this.compressor.connect(this.audioContext.destination);
       }
     }
   }
 
-  playChord(notes: string[], durationMs: number = 2000) {
-    if (!this.audioContext || !this.masterGain) {
-      this.init();
-      if (!this.audioContext || !this.masterGain) return;
-    }
+  private scheduleChord(notes: string[], startTime: number, durationMs: number) {
+    if (!this.audioContext || !this.masterGain) return;
 
-    if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
-    }
-
-    this.stopAll();
-
-    const now = this.audioContext.currentTime;
     const playTime = durationMs / 1000;
 
     // Envelope settings
@@ -86,7 +94,7 @@ export class PolyphonicSynth {
     const decayTime = Math.max(0, playTime - actualAttackTime - actualReleaseTime);
 
     // Master Gain per voice proportional attenuation to prevent clipping
-    const chordGain = 0.25 / Math.max(1, notes.length);
+    const chordGain = 1.0 / Math.max(1, notes.length);
 
     // Warm analog-style lowpass filter for the chord
     const filter = this.audioContext.createBiquadFilter();
@@ -105,11 +113,11 @@ export class PolyphonicSynth {
 
       // Oscilador 1 (Fundamental): onda 'sine' al 100% de amplitud
       osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(freq, now);
+      osc1.frequency.setValueAtTime(freq, startTime);
 
       // Oscilador 2 (Color/Armónico): onda 'triangle' a la misma frecuencia
       osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(freq, now);
+      osc2.frequency.setValueAtTime(freq, startTime);
 
       const mixGain1 = this.audioContext!.createGain();
       mixGain1.gain.value = 1.0;
@@ -124,36 +132,167 @@ export class PolyphonicSynth {
 
       // ADSR
       // Start at 0 to avoid click
-      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.setValueAtTime(0, startTime);
       // Attack
-      gainNode.gain.linearRampToValueAtTime(chordGain, now + actualAttackTime);
+      gainNode.gain.linearRampToValueAtTime(chordGain, startTime + actualAttackTime);
       // Decay (spans most of the chord duration down to a soft sustain)
-      gainNode.gain.exponentialRampToValueAtTime(Math.max(0.0001, chordGain * sustainLevel), now + actualAttackTime + decayTime);
+      gainNode.gain.exponentialRampToValueAtTime(Math.max(0.0001, chordGain * sustainLevel), startTime + actualAttackTime + decayTime);
       // Release
-      gainNode.gain.linearRampToValueAtTime(0, now + playTime);
+      gainNode.gain.linearRampToValueAtTime(0, startTime + playTime);
 
       gainNode.connect(filter);
 
-      osc1.start(now);
-      osc2.start(now);
+      osc1.start(startTime);
+      osc2.start(startTime);
 
       // To avoid glitches with rapid stops, add a tiny buffer to stop
-      osc1.stop(now + playTime + 0.05);
-      osc2.stop(now + playTime + 0.05);
+      const stopTime = startTime + playTime + 0.05;
+      osc1.stop(stopTime);
+      osc2.stop(stopTime);
 
-      this.activeOscillators.push(osc1, osc2);
+      this.activeOscillators.add(osc1);
+      this.activeOscillators.add(osc2);
+
+      // Garbage collection when oscillator finishes
+      const cleanup = () => {
+        osc1.disconnect();
+        osc2.disconnect();
+        mixGain1.disconnect();
+        mixGain2.disconnect();
+        gainNode.disconnect();
+        this.activeOscillators.delete(osc1);
+        this.activeOscillators.delete(osc2);
+      };
+
+      osc1.onended = cleanup;
+      // We don't need to add it to osc2 since they end at the same time and cleanup handles both
     });
+
+    // Disconnect filter after it's done being used
+    setTimeout(() => {
+        filter.disconnect();
+    }, durationMs + 100);
+  }
+
+  playChord(notes: string[], durationMs: number = 2000) {
+    if (!this.audioContext || !this.masterGain) {
+      this.init();
+      if (!this.audioContext || !this.masterGain) return;
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    this.stopAll();
+
+    const now = this.audioContext.currentTime;
+    this.scheduleChord(notes, now, durationMs);
+  }
+
+  private scheduler() {
+    if (!this.audioContext || !this.isPlayingProgression) return;
+
+    // Lookahead schedule window
+    const lookahead = 0.1; // seconds
+    const scheduleAheadTime = 0.1; // seconds
+
+    while (this.nextNoteTime < this.audioContext.currentTime + scheduleAheadTime) {
+      this.scheduleNextChord();
+    }
+
+    this.lookaheadTimeout = setTimeout(() => this.scheduler(), lookahead * 1000);
+  }
+
+  private scheduleNextChord() {
+    if (this.currentChords.length === 0 || !this.audioContext) return;
+
+    const currentChord = this.currentChords[this.nextChordIndex];
+
+    // Calculate duration of one measure (4 beats) in milliseconds
+    const beatDurationMs = (60 / this.currentBpm) * 1000;
+    const chordDurationMs = beatDurationMs * 4; // Assuming 4 beats per chord
+
+    // Schedule the audio
+    this.scheduleChord(currentChord.notes, this.nextNoteTime, chordDurationMs);
+
+    // Schedule UI update
+    const chordIndex = this.nextChordIndex;
+    const callbackTime = this.nextNoteTime - this.audioContext.currentTime;
+
+    if (this.onChordChangeCallback) {
+      if (callbackTime > 0) {
+        setTimeout(() => {
+          if (this.isPlayingProgression && this.onChordChangeCallback) {
+            requestAnimationFrame(() => {
+              if (this.onChordChangeCallback) {
+                this.onChordChangeCallback(chordIndex);
+              }
+            });
+          }
+        }, callbackTime * 1000);
+      } else {
+        requestAnimationFrame(() => {
+          if (this.isPlayingProgression && this.onChordChangeCallback) {
+            this.onChordChangeCallback(chordIndex);
+          }
+        });
+      }
+    }
+
+    // Advance time and index
+    this.nextNoteTime += chordDurationMs / 1000;
+    this.nextChordIndex = (this.nextChordIndex + 1) % this.currentChords.length;
+  }
+
+  playProgression(chords: { name: string; notes: string[] }[], bpm: number, onChordChange: (index: number) => void) {
+    if (!this.audioContext || !this.masterGain) {
+      this.init();
+      if (!this.audioContext || !this.masterGain) return;
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    this.stopAll();
+
+    this.currentChords = chords;
+    this.currentBpm = bpm;
+    this.onChordChangeCallback = onChordChange;
+    this.isPlayingProgression = true;
+
+    this.nextChordIndex = 0;
+    this.nextNoteTime = this.audioContext.currentTime + 0.05; // slight delay to start
+
+    this.scheduler();
+  }
+
+  stopProgression() {
+    this.isPlayingProgression = false;
+    if (this.lookaheadTimeout) {
+      clearTimeout(this.lookaheadTimeout);
+      this.lookaheadTimeout = null;
+    }
+    this.stopAll();
   }
 
   stopAll() {
+    this.isPlayingProgression = false;
+    if (this.lookaheadTimeout) {
+      clearTimeout(this.lookaheadTimeout);
+      this.lookaheadTimeout = null;
+    }
+
     this.activeOscillators.forEach(osc => {
       try {
         osc.stop();
+        osc.disconnect();
       } catch (e) {
         // Ignore if already stopped
       }
     });
-    this.activeOscillators = [];
+    this.activeOscillators.clear();
   }
 }
 
