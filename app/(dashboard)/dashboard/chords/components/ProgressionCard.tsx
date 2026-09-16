@@ -26,10 +26,10 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
     }
   }, [])
 
-  const handlePlayChord = (index: number) => {
+  const handlePlayChord = (index: number, duration?: number) => {
     const chord = progression.chords[index]
     if (chord) {
-      synth.playChord(chord.notes, 1000)
+      synth.playChord(chord.notes, duration || 2000)
     }
   }
 
@@ -47,22 +47,18 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
     setIsPlaying(true)
     let currentIndex = 0
 
-    // Play first chord immediately
-    setActiveChordIndex(currentIndex)
-    handlePlayChord(currentIndex)
-
     // Calculate duration of one measure (4 beats) in milliseconds
     const beatDurationMs = (60 / progression.bpm) * 1000
     const chordDurationMs = beatDurationMs * 4 // Assuming 4 beats per chord
 
+    // Play first chord immediately
+    setActiveChordIndex(currentIndex)
+    handlePlayChord(currentIndex, chordDurationMs)
+
     intervalRef.current = setInterval(() => {
       currentIndex = (currentIndex + 1) % progression.chords.length
       setActiveChordIndex(currentIndex)
-
-      const chord = progression.chords[currentIndex]
-      if (chord) {
-        synth.playChord(chord.notes, chordDurationMs)
-      }
+      handlePlayChord(currentIndex, chordDurationMs)
     }, chordDurationMs)
   }
 

@@ -50,7 +50,7 @@ export class PolyphonicSynth {
     }
   }
 
-  playChord(notes: string[], durationMs: number = 1000) {
+  playChord(notes: string[], durationMs: number = 2000) {
     if (!this.audioContext || !this.masterGain) {
       this.init();
       if (!this.audioContext || !this.masterGain) return;
@@ -64,38 +64,76 @@ export class PolyphonicSynth {
 
     const now = this.audioContext.currentTime;
     // Envelope settings
-    const attackTime = 0.05;
-    const releaseTime = 0.8;
+    const attackTime = 0.03;
+    const decayTime = 0.4;
+    const sustainLevel = 0.15;
+    const peakLevel = 0.3;
+
     // Play for slightly shorter than the next chord might come, or let it ring based on duration
     const playTime = durationMs / 1000;
+
+    // Calculate release time based on playTime, cap it to a reasonable maximum
+    // Release should fall gracefully but fit within the total playtime if possible
+    const releaseTime = Math.min(1.0, playTime * 0.3);
+
+    // Global filter for the chord
+    const filter = this.audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1500;
+    filter.connect(this.masterGain);
 
     notes.forEach((noteStr) => {
       const freq = noteToFreq(noteStr);
       if (freq === 0) return;
 
-      const osc = this.audioContext!.createOscillator();
+      const osc1 = this.audioContext!.createOscillator();
+      const osc2 = this.audioContext!.createOscillator();
       const gainNode = this.audioContext!.createGain();
 
-      // Lo-fi rhodes-like sound
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now);
+      // Lo-fi rhodes-like sound (sine with a bit of triangle for harmonics)
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq, now);
 
-      // Simple ADSR
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(freq, now);
+
+      const mixGain1 = this.audioContext!.createGain();
+      mixGain1.gain.value = 0.8;
+      const mixGain2 = this.audioContext!.createGain();
+      mixGain2.gain.value = 0.2;
+
+      osc1.connect(mixGain1);
+      osc2.connect(mixGain2);
+
+      mixGain1.connect(gainNode);
+      mixGain2.connect(gainNode);
+
+      // ADSR
       gainNode.gain.setValueAtTime(0, now);
       // Attack
-      gainNode.gain.linearRampToValueAtTime(0.3, now + attackTime);
-      // Sustain
-      gainNode.gain.setValueAtTime(0.3, now + playTime - releaseTime);
+      gainNode.gain.linearRampToValueAtTime(peakLevel, now + attackTime);
+      // Decay
+      gainNode.gain.exponentialRampToValueAtTime(Math.max(0.001, sustainLevel), now + attackTime + decayTime);
+
+      // We want to sustain until the release phase
+      const releaseStart = now + playTime - releaseTime;
+
+      if (releaseStart > now + attackTime + decayTime) {
+         gainNode.gain.setValueAtTime(Math.max(0.001, sustainLevel), releaseStart);
+      }
+
       // Release
       gainNode.gain.exponentialRampToValueAtTime(0.001, now + playTime);
 
-      osc.connect(gainNode);
-      gainNode.connect(this.masterGain!);
+      gainNode.connect(filter);
 
-      osc.start(now);
-      osc.stop(now + playTime);
+      osc1.start(now);
+      osc2.start(now);
 
-      this.activeOscillators.push(osc);
+      osc1.stop(now + playTime);
+      osc2.stop(now + playTime);
+
+      this.activeOscillators.push(osc1, osc2);
     });
   }
 

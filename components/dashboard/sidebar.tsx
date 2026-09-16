@@ -24,7 +24,7 @@ export function Sidebar({ user }: SidebarProps) {
   const links = [
     { href: '/dashboard', label: 'Inicio', icon: Home },
     { href: '/dashboard/songs', label: 'Canciones', icon: Library },
-    { href: '/chords', label: 'Progresiones', icon: Layers },
+    { href: '/dashboard/chords', label: 'Progresiones', icon: Layers },
     { href: '/dashboard/routines', label: 'Rutinas de Práctica', icon: Calendar },
     { href: '/dashboard/practice', label: 'Metrónomo', icon: Activity },
     { href: '/dashboard/search', label: 'Buscar', icon: Search },
