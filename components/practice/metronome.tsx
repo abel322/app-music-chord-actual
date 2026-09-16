@@ -252,8 +252,10 @@ export function Metronome() {
     return audioContextRef.current
   }
 
+  type ClickLevel = 'downbeat' | 'beat' | 'micro-accent' | 'subdivision'
+
   // Audio synthesis helper for primary rhythm
-  const playClick = (time: number, isAccent: boolean, isSub: boolean) => {
+  const playClick = (time: number, clickLevel: ClickLevel) => {
     const ctx = audioContextRef.current
     if (!ctx) return
 
@@ -268,17 +270,21 @@ export function Metronome() {
     let frequency = 800
     let decayTime = 0.06
 
-    if (isAccent) {
+    if (clickLevel === 'downbeat') {
       frequency = 1000
       toneVolume = masterVol * 1.0
       decayTime = 0.08
-    } else if (!isSub) {
+    } else if (clickLevel === 'beat') {
       frequency = 800
       toneVolume = masterVol * 0.75
       decayTime = 0.06
-    } else {
-      frequency = 600
-      toneVolume = masterVol * 0.4
+    } else if (clickLevel === 'micro-accent') {
+      frequency = 700
+      toneVolume = masterVol * 0.55
+      decayTime = 0.05
+    } else { // subdivision
+      frequency = 550
+      toneVolume = masterVol * 0.25
       decayTime = 0.04
     }
 
@@ -405,16 +411,26 @@ export function Metronome() {
       if (currentSub === 'galopa' && subIndex === 3) shouldPlay = false
       if (currentSub === 'sincopa' && subIndex === 2) shouldPlay = false
 
-      if (shouldPlay) {
-        let isAccent = beatInMeasure === 0 && subIndex === 0
-        if (currentSub === 'sincopa' && subIndex === 1) {
-            isAccent = true // Accent the off-beat for sincopa
-        } else if (currentSub === 'sincopa' && beatInMeasure === 0 && subIndex === 0) {
-            isAccent = false // Don't accent the first tick for sincopa, even on beat 0
-        }
+      let clickLevel: ClickLevel = 'subdivision'
 
-        const isSub = !isAccent
-        playClick(nextStepTimeRef.current, isAccent, isSub)
+      if (subIndex === 0) {
+        clickLevel = beatInMeasure === 0 ? 'downbeat' : 'beat'
+      } else if (currentSub === 6 && subIndex === 3) {
+        clickLevel = 'micro-accent'
+      } else if (currentSub === 8 && subIndex === 4) {
+        clickLevel = 'micro-accent'
+      }
+
+      if (currentSub === 'sincopa') {
+        if (subIndex === 1) {
+          clickLevel = beatInMeasure === 0 ? 'downbeat' : 'beat'
+        } else if (subIndex === 0) {
+          clickLevel = 'subdivision'
+        }
+      }
+
+      if (shouldPlay) {
+        playClick(nextStepTimeRef.current, clickLevel)
       }
 
       lastStepTimeRef.current = nextStepTimeRef.current
@@ -429,7 +445,10 @@ export function Metronome() {
       const timeoutId = setTimeout(() => {
         setActiveBeat(beatInMeasure)
         setActiveSubdivision(subIndex)
-        setIsAccentFlash(beatInMeasure === 0 && subIndex === 0)
+        setIsAccentFlash(
+          (beatInMeasure === 0 && subIndex === 0 && currentSub !== 'sincopa') ||
+          (currentSub === 'sincopa' && beatInMeasure === 0 && subIndex === 1)
+        )
         setFlashActive(true)
 
         if (swingOnSubdivision) {
@@ -733,16 +752,23 @@ export function Metronome() {
                       if (subdivision === 'galopa' && subIdx === 3) isSilenced = true
                       if (subdivision === 'sincopa' && subIdx === 2) isSilenced = true
 
-                      // For Síncopa, the off-beat (subIdx 1) takes the primary accent flash styling
-                      let flashAsAccent = false
-                      if (subdivision === 'sincopa' && subIdx === 1) {
-                        flashAsAccent = true
-                      } else if (subdivision === 'sincopa' && subIdx === 0) {
-                        flashAsAccent = false
-                      } else {
-                         flashAsAccent = isFirstBeat && isFirstSub
+                      // Determine visualization level for subdivisions
+                      let visualLevel: 'downbeat' | 'beat' | 'micro' | 'sub' = 'sub'
+                      if (subIdx === 0) {
+                        visualLevel = isFirstBeat ? 'downbeat' : 'beat'
+                      } else if (subdivision === 6 && subIdx === 3) {
+                        visualLevel = 'micro'
+                      } else if (subdivision === 8 && subIdx === 4) {
+                        visualLevel = 'micro'
                       }
 
+                      if (subdivision === 'sincopa') {
+                        if (subIdx === 1) {
+                          visualLevel = isFirstBeat ? 'downbeat' : 'beat'
+                        } else if (subIdx === 0) {
+                          visualLevel = 'sub'
+                        }
+                      }
 
                       return (
                         <div
@@ -750,9 +776,13 @@ export function Metronome() {
                           className={cn(
                             "w-2 h-2 rounded-full transition-all duration-100",
                             isSubActive && !isSilenced
-                              ? flashAsAccent
-                                ? "bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)] scale-125"
-                                : "bg-primary-500 shadow-[0_0_4px_rgba(139,92,246,0.6)] scale-125"
+                              ? visualLevel === 'downbeat'
+                                ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)] scale-125"
+                                : visualLevel === 'beat'
+                                  ? "bg-primary-500 shadow-[0_0_5px_rgba(139,92,246,0.6)] scale-125"
+                                  : visualLevel === 'micro'
+                                    ? "bg-primary-500/80 shadow-[0_0_3px_rgba(139,92,246,0.4)] scale-110"
+                                    : "bg-primary-400/60 scale-100" // subtle glow for sub
                               : isSilenced
                                 ? "bg-transparent border border-dashed border-gray-400 dark:border-gray-600"
                                 : "bg-gray-300 dark:bg-gray-750"
