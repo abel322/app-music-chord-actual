@@ -46,7 +46,8 @@ export class PolyphonicSynth {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
-  private activeOscillators: Set<OscillatorNode> = new Set();
+  private filter: BiquadFilterNode | null = null;
+  private activeVoices: Set<{ osc: OscillatorNode; gainNode: GainNode }> = new Set();
   private lookaheadTimeout: NodeJS.Timeout | null = null;
   private nextChordIndex: number = 0;
   private nextNoteTime: number = 0;
@@ -62,7 +63,12 @@ export class PolyphonicSynth {
         this.audioContext = new AudioContextClass();
 
         this.masterGain = this.audioContext.createGain();
-        this.masterGain.gain.value = 0.25; // Calibrated master gain
+        this.masterGain.gain.value = 1.0; // Calibrated master gain
+
+        this.filter = this.audioContext.createBiquadFilter();
+        this.filter.type = 'lowpass';
+        this.filter.frequency.value = 850;
+        this.filter.Q.value = 0.5;
 
         this.compressor = this.audioContext.createDynamicsCompressor();
         this.compressor.threshold.value = -12;
@@ -71,7 +77,8 @@ export class PolyphonicSynth {
         this.compressor.attack.value = 0.003;
         this.compressor.release.value = 0.1;
 
-        // Route: Master Gain -> Dynamics Compressor -> Destination
+        // Route: Filter -> Master Gain -> Dynamics Compressor -> Destination
+        this.filter.connect(this.masterGain);
         this.masterGain.connect(this.compressor);
         this.compressor.connect(this.audioContext.destination);
       }
@@ -79,99 +86,53 @@ export class PolyphonicSynth {
   }
 
   private scheduleChord(notes: string[], startTime: number, durationMs: number) {
-    if (!this.audioContext || !this.masterGain) return;
+    if (!this.audioContext || !this.filter) return;
 
-    const playTime = durationMs / 1000;
-
-    // Envelope settings
-    const attackTime = 0.015;
-    const releaseTime = 0.3;
-    const sustainLevel = 0.1;
-
-    // Constrain times to fit within the playTime
-    const actualReleaseTime = Math.min(releaseTime, playTime / 2);
-    const actualAttackTime = Math.min(attackTime, playTime / 4);
-    const decayTime = Math.max(0, playTime - actualAttackTime - actualReleaseTime);
-
-    // Master Gain per voice proportional attenuation to prevent clipping
-    const chordGain = 1.0 / Math.max(1, notes.length);
-
-    // Warm analog-style lowpass filter for the chord
-    const filter = this.audioContext.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 800; // between 700 Hz and 1000 Hz
-    filter.Q.value = 1.0;
-    filter.connect(this.masterGain);
+    const duration = durationMs / 1000;
+    const now = startTime;
+    const voiceGain = 0.2 / Math.max(1, notes.length);
 
     notes.forEach((noteStr) => {
       const freq = noteToFreq(noteStr);
       if (freq === 0) return;
 
-      const osc1 = this.audioContext!.createOscillator();
-      const osc2 = this.audioContext!.createOscillator();
+      const osc = this.audioContext!.createOscillator();
       const gainNode = this.audioContext!.createGain();
 
-      // Oscilador 1 (Fundamental): onda 'sine' al 100% de amplitud
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(freq, startTime);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
 
-      // Oscilador 2 (Color/Armónico): onda 'triangle' a la misma frecuencia
-      osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(freq, startTime);
+      osc.connect(gainNode);
+      gainNode.connect(this.filter!);
 
-      const mixGain1 = this.audioContext!.createGain();
-      mixGain1.gain.value = 1.0;
-      const mixGain2 = this.audioContext!.createGain();
-      mixGain2.gain.value = 0.18; // 15-20% para darle cuerpo sin estridencia
+      // Envolvente limpia por voz con rampa lineal al inicio y fin (Zero-crossing)
+      const attackTime = 0.025;
+      const releaseTime = 0.05;
 
-      osc1.connect(mixGain1);
-      osc2.connect(mixGain2);
+      const attackEnd = now + attackTime;
+      // Decay point calculation - ensure it is strictly greater than attackEnd
+      const decayEnd = Math.max(attackEnd + 0.001, now + duration - releaseTime);
+      const releaseEnd = Math.max(decayEnd + 0.001, now + duration);
+      const stopTime = releaseEnd + 0.05; // 50ms margen de seguridad temporal (headroom)
 
-      mixGain1.connect(gainNode);
-      mixGain2.connect(gainNode);
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(voiceGain, attackEnd); // Ataque suave sin chasquido inicial
+      gainNode.gain.exponentialRampToValueAtTime(Math.max(voiceGain * 0.15, 0.0001), decayEnd); // Decay progresivo
+      gainNode.gain.linearRampToValueAtTime(0, releaseEnd); // Cierre absoluto a 0 sin corte abrupto
 
-      // ADSR
-      // Start at 0 to avoid click
-      gainNode.gain.setValueAtTime(0, startTime);
-      // Attack
-      gainNode.gain.linearRampToValueAtTime(chordGain, startTime + actualAttackTime);
-      // Decay (spans most of the chord duration down to a soft sustain)
-      gainNode.gain.exponentialRampToValueAtTime(Math.max(0.0001, chordGain * sustainLevel), startTime + actualAttackTime + decayTime);
-      // Release
-      gainNode.gain.linearRampToValueAtTime(0, startTime + playTime);
+      osc.start(now);
+      osc.stop(stopTime);
 
-      gainNode.connect(filter);
-
-      osc1.start(startTime);
-      osc2.start(startTime);
-
-      // To avoid glitches with rapid stops, add a tiny buffer to stop
-      const stopTime = startTime + playTime + 0.05;
-      osc1.stop(stopTime);
-      osc2.stop(stopTime);
-
-      this.activeOscillators.add(osc1);
-      this.activeOscillators.add(osc2);
+      const voice = { osc, gainNode };
+      this.activeVoices.add(voice);
 
       // Garbage collection when oscillator finishes
-      const cleanup = () => {
-        osc1.disconnect();
-        osc2.disconnect();
-        mixGain1.disconnect();
-        mixGain2.disconnect();
+      osc.onended = () => {
+        osc.disconnect();
         gainNode.disconnect();
-        this.activeOscillators.delete(osc1);
-        this.activeOscillators.delete(osc2);
+        this.activeVoices.delete(voice);
       };
-
-      osc1.onended = cleanup;
-      // We don't need to add it to osc2 since they end at the same time and cleanup handles both
     });
-
-    // Disconnect filter after it's done being used
-    setTimeout(() => {
-        filter.disconnect();
-    }, durationMs + 100);
   }
 
   playChord(notes: string[], durationMs: number = 2000) {
@@ -284,15 +245,29 @@ export class PolyphonicSynth {
       this.lookaheadTimeout = null;
     }
 
-    this.activeOscillators.forEach(osc => {
+    const now = this.audioContext ? this.audioContext.currentTime : 0;
+
+    this.activeVoices.forEach(voice => {
       try {
-        osc.stop();
-        osc.disconnect();
+        if (this.audioContext) {
+          // fade out of 0.02s
+          voice.gainNode.gain.cancelScheduledValues(now);
+          // Set to current value to avoid jumping
+          try {
+            voice.gainNode.gain.setValueAtTime(voice.gainNode.gain.value, now);
+            voice.gainNode.gain.linearRampToValueAtTime(0, now + 0.02);
+            voice.osc.stop(now + 0.02 + 0.05); // 50ms safety margin
+          } catch(err) {
+            voice.osc.stop();
+          }
+        } else {
+          voice.osc.stop();
+        }
       } catch (e) {
         // Ignore if already stopped
       }
     });
-    this.activeOscillators.clear();
+    // Let onended handle disconnection and deletion
   }
 }
 
