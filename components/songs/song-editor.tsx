@@ -605,6 +605,32 @@ export function SongEditor({ song }: { song: Song }) {
                       )}
                     </div>
 
+                    {/* Instrumentos asignados a esta sección */}
+                    {(() => {
+                      const matchedSec = Array.isArray(song.sections)
+                        ? song.sections.find((s: any) => s.label?.toLowerCase() === section.label?.toLowerCase()) || song.sections[sectionIdx]
+                        : null
+                      const sectionInstruments: string[] = Array.isArray(matchedSec?.instruments) ? matchedSec.instruments : []
+                      
+                      if (sectionInstruments.length === 0) return null
+
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mr-1">
+                            Instrumentos:
+                          </span>
+                          {sectionInstruments.map((inst: string) => (
+                            <span
+                              key={inst}
+                              className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800"
+                            >
+                              {inst}
+                            </span>
+                          ))}
+                        </div>
+                      )
+                    })()}
+
                     {/* Líneas de la sección */}
                     <div className="space-y-3">
                       {section.lines.map((line, lineIdx) => (

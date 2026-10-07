@@ -8,6 +8,8 @@ import { ArrowLeft, Save, Plus, Trash2, GripVertical, ArrowUp, ArrowDown } from 
 import Link from 'next/link'
 import { getDiatonicChords, getAllChordTypes, getChordDegree } from '@/lib/music-theory'
 import { transposeChord } from '@/lib/transpose'
+import { SectionInstrumentPicker } from '@/components/songs/SectionInstrumentPicker'
+import { DEFAULT_PRESET_INSTRUMENTS } from '@/lib/validations/song'
 
 type SectionType = 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'instrumental' | 'outro' | 'solo'
 
@@ -17,6 +19,7 @@ interface Section {
   label: string
   lines: Line[]
   timeSignature?: string
+  instruments?: string[]
 }
 
 interface Line {
@@ -64,6 +67,9 @@ export default function NewSongPage() {
   const [showPlayer, setShowPlayer] = useState(false)
   const [genre, setGenre] = useState('')
   const [instruments, setInstruments] = useState<string[]>([])
+  const [availableInstruments, setAvailableInstruments] = useState<string[]>([
+    ...DEFAULT_PRESET_INSTRUMENTS,
+  ])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [analysisSuccess, setAnalysisSuccess] = useState<string | null>(null)
@@ -251,8 +257,22 @@ export default function NewSongPage() {
       label: `${SECTION_TYPES.find(t => t.value === type)?.label || type} ${sectionNumber}`,
       lines: [{ id: Date.now().toString(), lyrics: '', chords: [] }],
       timeSignature: timeSignature, // Usar el compás global por defecto
+      instruments: [],
     }
     setSections([...sections, newSection])
+  }
+
+  const handleAddCustomInstrument = (newInstrument: string) => {
+    setAvailableInstruments((prev) => {
+      const exists = prev.some((i) => i.toLowerCase() === newInstrument.toLowerCase())
+      return exists ? prev : [...prev, newInstrument]
+    })
+  }
+
+  const updateSectionInstruments = (sectionId: string, updatedInstruments: string[]) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, instruments: updatedInstruments } : s))
+    )
   }
 
   const removeSection = (sectionId: string) => {
@@ -473,7 +493,10 @@ export default function NewSongPage() {
         if (songData.timeSignature) setTimeSignature(songData.timeSignature)
         if (songData.tempo) setTempo(songData.tempo.toString())
         if (songData.genre) setGenre(songData.genre)
-        if (Array.isArray(songData.instruments)) setInstruments(songData.instruments)
+        if (Array.isArray(songData.instruments)) {
+          setInstruments(songData.instruments)
+          setAvailableInstruments((prev) => Array.from(new Set([...prev, ...songData.instruments])))
+        }
 
         // Cargar secciones y acordes en la estructura de bloques
         if (Array.isArray(songData.sections) && songData.sections.length > 0) {
@@ -536,6 +559,7 @@ export default function NewSongPage() {
                   },
                 ],
                 timeSignature: songData.timeSignature || timeSignature || '4/4',
+                instruments: Array.isArray(sec.instruments) ? sec.instruments : [],
               }
             }
           )
@@ -1679,6 +1703,16 @@ export default function NewSongPage() {
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
+              </div>
+
+              {/* Selector de Instrumentos para esta Sección */}
+              <div className="p-3 bg-gray-50/70 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-700/60">
+                <SectionInstrumentPicker
+                  selectedInstruments={section.instruments || []}
+                  availableInstruments={availableInstruments}
+                  onChange={(newInstruments) => updateSectionInstruments(section.id, newInstruments)}
+                  onAddCustomInstrument={handleAddCustomInstrument}
+                />
               </div>
 
               {/* Lines */}

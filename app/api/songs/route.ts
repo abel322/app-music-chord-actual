@@ -4,23 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { parseChords, detectKey } from '@/lib/chord-parser'
-
-const CreateSongSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  artist: z.string().optional().nullable(),
-  lyrics: z.string().optional().nullable(),
-  content: z.string().optional().nullable(),
-  key: z.string().optional().nullable(),
-  timeSignature: z.string().optional().nullable(),
-  tempo: z.coerce.number().optional().nullable(),
-  youtubeUrl: z.string().optional().nullable(),
-  genre: z.string().optional().nullable(),
-  instruments: z.any().optional().nullable(),
-  sections: z.any().optional().nullable(),
-  chords: z.any().optional().nullable(),
-  tags: z.array(z.string()).optional(),
-  isFavorite: z.boolean().optional(),
-})
+import { SongInputSchema } from '@/lib/validations/song'
 
 export async function GET(req: NextRequest) {
   try {
@@ -59,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const data = CreateSongSchema.parse(body)
+    const data = SongInputSchema.parse(body)
 
     const rawText = data.content || data.lyrics || ''
     const parsedChords = rawText ? parseChords(rawText) : []

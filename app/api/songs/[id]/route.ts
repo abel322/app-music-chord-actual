@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { UpdateSongSchema } from '@/lib/validations/song'
+import { z } from 'zod'
 
 export async function GET(
   req: NextRequest,
@@ -26,14 +28,18 @@ export async function PUT(
 ) {
   try {
     const body = await req.json()
+    const validatedData = UpdateSongSchema.parse(body)
     
     const song = await prisma.song.update({
       where: { id: params.id },
-      data: body,
+      data: validatedData,
     })
 
     return NextResponse.json({ song })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
     return NextResponse.json({ error: 'Failed to update song' }, { status: 500 })
   }
 }

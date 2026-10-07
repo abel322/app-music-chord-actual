@@ -69,8 +69,8 @@ model Song {
   tempo         Int?      @default(120) // Tempo en BPM
   youtubeUrl    String?   // URL de YouTube o audio de referencia
   genre         String?   // Género musical detectado
-  instruments   Json?     // Instrumentos detectados (Json)
-  sections      Json?     // Estructura y progresiones de acordes en formato JSON
+  instruments   Json?     // Instrumentos generales detectados (Json: string[])
+  sections      Json?     // Estructura de secciones en JSON: Array<{ id: string, type: string, label: string, instruments: string[], lines: Line[], timeSignature?: string }>
   content       String    @default("") @db.Text // Letras con acordes
   lyrics        String    @default("") @db.Text // Solo letras (para búsqueda)
   chords        String    @default("") @db.Text // JSON string con acordes
@@ -79,6 +79,7 @@ model Song {
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions      Version[]
+  songSections  SongSection[] // Relación a secciones normalizadas (opcional frente a sections Json)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -124,4 +125,21 @@ model PracticeSession {
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Modelo relacional para secciones de canciones con etiquetas de instrumentos
+model SongSection {
+  id            String    @id @default(cuid())
+  songId        String
+  song          Song      @relation(fields: [songId], references: [id], onDelete: Cascade)
+  type          String    // intro, verse, prechorus, chorus, bridge, instrumental, solo, outro
+  label         String    // Ej: "Intro 1", "Coro"
+  order         Int       @default(0)
+  timeSignature String?   @default("4/4")
+  instruments   String[]  @default([]) // Etiquetas de instrumentos para esta sección
+  lines         Json?     // Estructura de líneas, letras y acordes
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([songId])
 }
