@@ -70,6 +70,11 @@ export function MeasureGrid({
 
     handleUpdateMeasure({
       ...measure,
+      division: 'half',
+      slots: [
+        { index: 0, label: 'Mitad 1 (T. 1)', chord: chord1 || 'C' },
+        { index: 1, label: 'Mitad 2 (T. 3)', chord: chord2 || 'G' },
+      ],
       beats: newBeats,
     })
   }

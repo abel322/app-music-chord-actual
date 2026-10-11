@@ -1,40 +1,65 @@
 /**
  * Tipos de TypeScript para la estructura de Compases (Measures / Bars Grid),
- * Subdivisiones Rítmicas (Regulares e Irregulares) y Lead Sheet musical en MusicChord.
+ * División Rítmica del Compás Completo (Global Bar Division) y Lead Sheet musical en MusicChord.
  */
 
 export type BeatAccent = 'normal' | 'accent' | 'cut' | 'syncopated'
 
-// Tipos de subdivisión rítmica
+// Catálogo Completo de Subdivisiones a Nivel del Compás Completo
+export type MeasureDivision =
+  | 'whole'          // 1 acorde / Redonda (todo el compás)
+  | 'half'           // 2 acordes (Blancas / 2 tiempos c/u)
+  | 'quarter'        // 4 acordes (Negras / 4 tiempos estándar)
+  | 'eighth'         // 8 subdivisiones (Corcheas: 1 & 2 & 3 & 4 &)
+  | 'sixteenth'      // 16 subdivisiones (Semicorcheas: 1 e & a ...)
+  | 'thirty_second'  // 32 subdivisiones (Fusas)
+  | 'triplet_half'   // Tresillo de Blancas (3 en el compás / 3 contra 4)
+  | 'triplet_quarter'// Tresillos de Negras (6 en el compás / Shuffle / Swing)
+  | 'triplet_eighth' // Tresillos de Corcheas (12 en el compás)
+  | 'quintuplet'     // Cincillo (5 partes iguales en el compás)
+  | 'sextuplet'      // Seisillo (6 partes iguales en el compás)
+  | 'septuplet'      // Septillo (7 partes iguales en el compás)
+  | 'nonuplet'       // Novenillo (9 partes iguales en el compás)
+  | 'amalgam_3_3_2'  // Amalgama 3+3+2 (Clave latina / Funk / 8/8)
+  | 'amalgam_3_2'    // Amalgama 3+2 (Métrica 5/8)
+  | 'amalgam_2_3'    // Amalgama 2+3 (Métrica 5/8)
+  | 'amalgam_2_2_3'  // Amalgama 2+2+3 (Métrica 7/8)
+  | 'amalgam_3_2_2'  // Amalgama 3+2+2 (Métrica 7/8)
+
+/**
+ * Slot rítmico dentro del compás para ubicar acordes, silencios y acentos
+ */
+export interface MeasureSlot {
+  index: number
+  label: string       // "1", "&", "e", "a", "Mitad 1", etc.
+  chord: string | null
+  accent?: boolean
+  isRest?: boolean
+}
+
+// Tipos legados de compatibilidad
 export type RegularSubdivision = '1/1' | '1/2' | '1/4' | '1/8' | '1/16'
 export type IrregularSubdivision = 'triplet' | 'quintuplet' | 'sextuplet' | 'septuplet'
 export type AmalgamSubdivision = '3+2' | '2+3' | '3+3+2' | '2+2+3'
 export type SubdivisionType = RegularSubdivision | IrregularSubdivision | AmalgamSubdivision
 
-/**
- * Slot de micro-timing dentro de un pulso o compás
- * Permite posicionar acordes en contratiempos (&), síncopas, figuras irregulares o cortes
- */
 export interface SubBeatSlot {
   id: string
-  slotIndex: number // 0, 1, 2... posición relativa dentro del pulso
-  label: string // ej: "1", "&", "e", "a", "t1", "t2", "t3"
-  chord?: string // Acorde asignado a esta fracción de tiempo
-  accent?: BeatAccent // Normal, Acento (>), Corte (.), Síncopa (^)
-  tied?: boolean // Si el acorde viene ligado desde el slot previo
+  slotIndex: number
+  label: string
+  chord?: string
+  accent?: BeatAccent
+  tied?: boolean
 }
 
-/**
- * Pulso individual de un compás
- */
 export interface ChordBeat {
   id: string
-  beat: number // 1, 2, 3, 4 (número de pulso en el compás)
-  chord: string // Acorde principal o base en el pulso (ej: "G", "D/F#")
-  accent?: BeatAccent // Normal, Acento (>), Corte/Stop (.), Síncopa (^)
-  duration?: number // Duración en pulsos (ej. 1, 2, 4)
-  subdivision?: SubdivisionType // '1/4' (por defecto), '1/8', '1/16', 'triplet', etc.
-  subSlots?: SubBeatSlot[] // Micro-slots dentro del pulso para síncopas / contratiempos
+  beat: number // 1, 2, 3, 4
+  chord: string
+  accent?: BeatAccent
+  duration?: number
+  subdivision?: SubdivisionType
+  subSlots?: SubBeatSlot[]
 }
 
 /**
@@ -42,16 +67,18 @@ export interface ChordBeat {
  */
 export interface Measure {
   id: string
-  measureNumber: number // 1, 2, 3, 4, ...
-  timeSignature?: string // Compás específico si cambia (ej. "4/4", "3/4", "6/8", "5/8")
-  subdivision?: SubdivisionType // Subdivisión rítmica global del compás si aplica
-  subdivisionGrouping?: string // ej: "3+2", "2+3", "3+3+2" para amalgamas
-  beats: ChordBeat[] // Acordes distribuidos en sus respectivos pulsos y micro-slots
+  measureNumber: number
+  timeSignature?: string // ej. "4/4", "3/4", "6/8", "5/8", "7/8"
+  division?: MeasureDivision // Subdivisión a nivel del compás completo
+  slots?: MeasureSlot[] // Slots calculados según la división global elegida
+  subdivision?: SubdivisionType // Compatibilidad
+  subdivisionGrouping?: string // Compatibilidad
+  beats: ChordBeat[] // Acordes por pulso (sincronizados con los slots)
   repeatStart?: boolean // Apertura de repetición (|:)
   repeatEnd?: boolean // Cierre de repetición (:|)
   repeatCount?: number // Número de repeticiones (ej. 2x, 4x)
   volta?: number // Casilla de repetición (1ª o 2ª casilla)
-  cadence?: string // Tipo o ID de cadencia (ej. 'autentica-pac', 'plagal', 'rota', 'semicadencia')
+  cadence?: string // Tipo o ID de cadencia
   cadenceLabel?: string // Etiqueta descriptiva (ej. 'Cadencia Auténtica (V → I)')
   cadenceColor?: string // Clases de color para el badge
   guideLyric?: string // Letra guía rítmica sutil debajo del compás
@@ -62,11 +89,11 @@ export interface Measure {
  */
 export interface SectionMeasures {
   id: string
-  type: string // 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'instrumental' | 'solo' | 'outro'
-  label: string // "Intro", "Estrofa 1", "Coro"
-  timeSignature?: string // Compás base de la sección (ej. "4/4")
-  instruments?: string[] // Instrumentos asignados
-  measures: Measure[] // Lista ordenada de compases
-  guideLyrics?: string // Texto completo lírico de referencia
-  lines?: any[] // Compatibilidad con el formato anterior
+  type: string
+  label: string
+  timeSignature?: string
+  instruments?: string[]
+  measures: Measure[]
+  guideLyrics?: string
+  lines?: any[]
 }

@@ -1,15 +1,19 @@
 'use client'
 
 import React from 'react'
-import { Measure, ChordBeat, SubBeatSlot, BeatAccent } from '@/types/measure'
+import { Measure, MeasureSlot, MeasureDivision } from '@/types/measure'
 import { detectCadence } from '@/lib/harmonic-theory'
-import { getSubdivisionBracketLabel, getAccentSymbol } from '@/lib/rhythm-utils'
+import { 
+  inferMeasureDivision, 
+  ensureMeasureSlots, 
+  getDivisionBracket 
+} from '@/lib/rhythm-utils'
 import { Copy, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface MeasureCellProps {
   measure: Measure
-  beatsPerMeasure: number
+  beatsPerMeasure?: number
   currentKey?: string
   isSelected?: boolean
   isEditing?: boolean
@@ -30,18 +34,17 @@ export function MeasureCell({
   onDuplicate,
   onRemove,
 }: MeasureCellProps) {
-  const hasChords = measure.beats.length > 0
-  const primaryChord = measure.beats.find((b) => b.beat === 1)?.chord || (measure.beats[0]?.chord ?? '')
+  const division = inferMeasureDivision(measure)
+  const slots = ensureMeasureSlots(measure)
+  const divisionBracket = getDivisionBracket(division)
 
-  // Un solo acorde ocupa todo el compás si no hay subdivisiones complejas
-  const isSingleChordFullMeasure =
-    measure.beats.length === 1 &&
-    measure.beats[0].beat === 1 &&
-    (!measure.beats[0].subSlots || measure.beats[0].subSlots.length <= 1) &&
-    (!measure.beats[0].subdivision || measure.beats[0].subdivision === '1/4' || measure.beats[0].subdivision === '1/1')
+  // Acorde principal (para detección de cadencia y vista completa)
+  const primaryChord = slots.find((s) => s.chord && s.chord !== '%')?.chord || 
+    measure.beats.find((b) => b.chord)?.chord || ''
 
-  // Detección automática o etiqueta manual de cadencia
-  const prevChord = prevMeasure?.beats[prevMeasure.beats.length - 1]?.chord || prevMeasure?.beats[0]?.chord || ''
+  // Cadencia armónica (manual o automática)
+  const prevChord = prevMeasure?.beats[prevMeasure.beats.length - 1]?.chord || 
+    prevMeasure?.slots?.find((s) => s.chord)?.chord || ''
   const detectedCadence = detectCadence(primaryChord, prevChord, currentKey)
   const cadenceToDisplay =
     measure.cadenceLabel || (detectedCadence ? `${detectedCadence.name} (${detectedCadence.degrees})` : null)
@@ -50,16 +53,11 @@ export function MeasureCell({
     detectedCadence?.colorBadge ||
     'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-800'
 
-  // Bracket global de compás si es amalgama
-  const measureBracket = measure.subdivisionGrouping || getSubdivisionBracketLabel(measure.subdivision)
-
-  const beatsArray = Array.from({ length: beatsPerMeasure }, (_, i) => i + 1)
-
   return (
     <div
       onClick={onClick}
       className={cn(
-        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[118px] p-2.5 sm:p-3',
+        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[120px] p-2.5 sm:p-3',
         isSelected && isEditing
           ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
           : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
@@ -68,7 +66,7 @@ export function MeasureCell({
         isEditing && 'cursor-pointer hover:shadow-md'
       )}
     >
-      {/* Cabecera del Compás: Número, Barra de Repetición, Badge de Cadencia y Casillas */}
+      {/* 1. Cabecera del Compás: Número, Barra de Repetición, Badge de Cadencia, Bracket y Casillas */}
       <div className="flex items-center justify-between text-[11px] leading-none mb-1 gap-1">
         <div className="flex items-center gap-1.5 font-mono shrink-0">
           <span className="text-slate-400 dark:text-slate-500 font-bold">
@@ -78,15 +76,16 @@ export function MeasureCell({
           {measure.repeatStart && (
             <span
               className="font-extrabold text-primary-600 dark:text-primary-400 text-xs tracking-tighter"
-              title="Inicio de repetición"
+              title="Inicio de repetición |:"
             >
               |:
             </span>
           )}
 
-          {measureBracket && (
-            <span className="px-1 py-0.2 rounded text-[9px] font-mono font-extrabold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
-              {measureBracket}
+          {/* Indicador de figura irregular o amalgama */}
+          {divisionBracket && (
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-black bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+              {divisionBracket}
             </span>
           )}
         </div>
@@ -117,7 +116,7 @@ export function MeasureCell({
           {measure.repeatEnd && (
             <span
               className="font-extrabold text-primary-600 dark:text-primary-400 text-xs tracking-tighter"
-              title="Fin de repetición"
+              title="Fin de repetición :|"
             >
               :| {measure.repeatCount ? `x${measure.repeatCount}` : ''}
             </span>
@@ -157,103 +156,230 @@ export function MeasureCell({
         </div>
       </div>
 
-      {/* Contenido Armónico y Rítmico del Compás */}
+      {/* 2. Cuerpo Armónico y Rítmico según la División Global */}
       <div className="flex-1 flex flex-col justify-center my-1">
-        {isSingleChordFullMeasure ? (
-          /* Caso 1: Un solo acorde dura todo el compás con slashes */
+        {division === 'whole' ? (
+          /* Caso Redonda: 1 Acorde Centrado Grande con Slashes / / / / */
           <div className="flex flex-col items-center justify-center">
-            <span className="font-mono text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
-              {primaryChord}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="font-mono text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
+                {slots[0]?.chord || primaryChord || '/'}
+              </span>
+              {slots[0]?.accent && (
+                <span className="text-xs font-black text-amber-500 leading-none">&gt;</span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 text-slate-300 dark:text-slate-600 font-mono text-[11px] font-bold mt-1">
               {Array.from({ length: beatsPerMeasure }).map((_, i) => (
                 <span key={i}>/</span>
               ))}
             </div>
           </div>
-        ) : (
-          /* Caso 2: Pulsos divididos o con subdivisiones rítmicas / slots */
-          <div className="grid grid-cols-4 gap-1 w-full text-center items-end py-0.5">
-            {beatsArray.map((beatNum) => {
-              const beatData = measure.beats.find((b) => b.beat === beatNum)
-              const hasSubSlots = beatData?.subSlots && beatData.subSlots.length > 1
-              const beatBracket = getSubdivisionBracketLabel(beatData?.subdivision)
-              const accentMark = getAccentSymbol(beatData?.accent)
+        ) : division === 'half' ? (
+          /* Caso Blancas: 2 Mitades con División Central */
+          <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 text-center items-center py-1">
+            <div className="flex flex-col items-center justify-center px-1">
+              <div className="flex items-center gap-0.5">
+                <span className="font-mono text-base sm:text-lg font-black text-slate-900 dark:text-white leading-none">
+                  {slots[0]?.chord || '/'}
+                </span>
+                {slots[0]?.accent && (
+                  <span className="text-[10px] font-black text-amber-500 leading-none">&gt;</span>
+                )}
+              </div>
+              <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
+                T. 1-2
+              </span>
+            </div>
 
+            <div className="flex flex-col items-center justify-center px-1">
+              <div className="flex items-center gap-0.5">
+                <span className="font-mono text-base sm:text-lg font-black text-slate-900 dark:text-white leading-none">
+                  {slots[1]?.chord || '/'}
+                </span>
+                {slots[1]?.accent && (
+                  <span className="text-[10px] font-black text-amber-500 leading-none">&gt;</span>
+                )}
+              </div>
+              <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
+                T. 3-4
+              </span>
+            </div>
+          </div>
+        ) : division === 'quarter' ? (
+          /* Caso Negras: 4 Tiempos Estándar */
+          <div className="grid grid-cols-4 gap-1 w-full text-center items-end py-0.5">
+            {slots.map((s) => (
+              <div key={s.index} className="flex flex-col items-center justify-between p-0.5">
+                <div className="flex items-center gap-0.5">
+                  <span className="font-mono text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-none">
+                    {s.chord || '/'}
+                  </span>
+                  {s.accent && (
+                    <span className="text-[9px] font-black text-amber-500 leading-none">&gt;</span>
+                  )}
+                </div>
+                <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
+                  {s.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : division === 'eighth' ? (
+          /* Caso Corcheas: Tira Horizontal de 8 Subdivisiones (1 & 2 & 3 & 4 &) */
+          <div className="space-y-0.5">
+            <div className="grid grid-cols-8 gap-0.5 w-full text-center items-center py-1 bg-slate-50 dark:bg-slate-950/60 rounded-lg p-1 border border-slate-100 dark:border-slate-800/80">
+              {slots.map((s) => {
+                const isOffbeat = s.label === '&'
+                const hasChord = !!s.chord
+
+                return (
+                  <div
+                    key={s.index}
+                    className={cn(
+                      'flex flex-col items-center justify-center p-0.5 rounded transition-colors',
+                      hasChord && 'bg-primary-50 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800'
+                    )}
+                  >
+                    <div className="flex items-center gap-0.2">
+                      <span
+                        className={cn(
+                          'font-mono text-[10px] sm:text-xs font-black leading-none truncate',
+                          hasChord
+                            ? 'text-primary-700 dark:text-primary-300'
+                            : 'text-slate-300 dark:text-slate-700'
+                        )}
+                      >
+                        {s.chord || (isOffbeat ? '·' : '/')}
+                      </span>
+                      {s.accent && (
+                        <span className="text-[8px] font-black text-amber-500 leading-none">&gt;</span>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        'text-[8px] font-mono mt-0.5',
+                        isOffbeat
+                          ? 'text-primary-500 font-extrabold'
+                          : 'text-slate-400 font-semibold'
+                      )}
+                    >
+                      {s.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : division === 'sixteenth' ? (
+          /* Caso Semicorcheas (16 Subdivisiones): 4 Tiempos agrupados (1 e & a) */
+          <div className="grid grid-cols-4 gap-1 w-full text-center items-center py-0.5">
+            {[0, 1, 2, 3].map((bIdx) => {
+              const beatSlots = slots.slice(bIdx * 4, (bIdx + 1) * 4)
+              const hasChordInBeat = beatSlots.some((s) => !!s.chord)
               return (
                 <div
-                  key={beatNum}
+                  key={bIdx}
                   className={cn(
-                    'flex flex-col items-center justify-between p-1 rounded-md transition-colors min-h-[48px]',
-                    isEditing ? 'hover:bg-primary-100/70 dark:hover:bg-primary-950/60' : '',
-                    beatData?.chord ? 'font-bold' : 'text-slate-300 dark:text-slate-700'
+                    'flex flex-col items-center justify-between p-1 rounded-lg border transition-colors',
+                    hasChordInBeat
+                      ? 'border-primary-300 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-950/40'
+                      : 'border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/30'
                   )}
                 >
-                  {/* Si el pulso tiene bracket de figura irregular (ej. tresillo [3]) */}
-                  {beatBracket && (
-                    <span className="text-[9px] font-mono font-extrabold text-blue-600 dark:text-blue-400 leading-none mb-0.5">
-                      {beatBracket}
-                    </span>
-                  )}
-
-                  {/* Renderizado de acordes del pulso o micro-slots */}
-                  {hasSubSlots ? (
-                    /* Pulsos subdivididos con slots (ej. 1 & o tresillos) */
-                    <div className="flex items-center justify-center gap-0.5 w-full">
-                      {beatData!.subSlots!.map((slot, sIdx) => {
-                        const slotAccent = getAccentSymbol(slot.accent)
-                        return (
-                          <div
-                            key={slot.id || sIdx}
-                            className="flex-1 flex flex-col items-center justify-center min-w-0"
-                          >
-                            <span className="font-mono text-xs font-black text-slate-900 dark:text-white truncate">
-                              {slot.chord || (sIdx === 0 ? beatData?.chord || '/' : '/')}
-                            </span>
-                            {slotAccent && (
-                              <span className="text-[8px] font-black text-amber-500 leading-none">
-                                {slotAccent}
-                              </span>
+                  <div className="grid grid-cols-4 gap-0.5 w-full">
+                    {beatSlots.map((s) => {
+                      const isRest = s.isRest || s.chord === '%'
+                      return (
+                        <div key={s.index} className="flex flex-col items-center justify-center">
+                          <span
+                            className={cn(
+                              'font-mono text-[9px] font-black leading-none truncate',
+                              s.chord
+                                ? isRest
+                                  ? 'text-rose-500'
+                                  : 'text-primary-700 dark:text-primary-300'
+                                : 'text-slate-300 dark:text-slate-700'
                             )}
-                            <span className="text-[8px] font-mono text-slate-400 dark:text-slate-500">
-                              {slot.label}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    /* Pulso estándar simple */
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="flex items-center gap-0.5">
-                        {beatData?.chord ? (
-                          <span className="font-mono text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-none">
-                            {beatData.chord}
+                            title={`${s.label}: ${s.chord || 'sin acorde'}`}
+                          >
+                            {s.chord || '·'}
                           </span>
-                        ) : (
-                          <span className="text-[11px] font-mono text-slate-300 dark:text-slate-700 font-semibold">
-                            /
+                          {s.accent && (
+                            <span className="text-[7px] font-black text-amber-500 leading-none">&gt;</span>
+                          )}
+                          <span
+                            className={cn(
+                              'text-[7px] font-mono mt-0.5',
+                              s.chord ? 'text-primary-600 font-bold' : 'text-slate-400'
+                            )}
+                          >
+                            {s.label}
                           </span>
-                        )}
-                        {accentMark && (
-                          <span className="text-[9px] font-black text-amber-500 leading-none">
-                            {accentMark}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 font-semibold mt-0.5">
-                        {beatNum}
-                      </span>
-                    </div>
-                  )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })}
           </div>
+        ) : (
+          /* Casos Irregulares, Amalgamas y Fusas */
+          <div className="space-y-0.5">
+            <div
+              className={cn(
+                'grid gap-0.5 w-full text-center items-center py-1 bg-slate-50 dark:bg-slate-950/60 rounded-lg p-1 border border-slate-100 dark:border-slate-800/80',
+                slots.length <= 3 && 'grid-cols-3',
+                slots.length === 5 && 'grid-cols-5',
+                slots.length === 6 && 'grid-cols-6',
+                slots.length === 7 && 'grid-cols-7',
+                slots.length === 9 && 'grid-cols-9',
+                slots.length === 12 && 'grid-cols-6 sm:grid-cols-12',
+                slots.length >= 16 && 'grid-cols-8 sm:grid-cols-16'
+              )}
+            >
+              {slots.map((s) => {
+                const hasChord = !!s.chord
+                const isRest = s.isRest || s.chord === '%'
+
+                return (
+                  <div
+                    key={s.index}
+                    className={cn(
+                      'flex flex-col items-center justify-center p-0.5 rounded transition-colors',
+                      hasChord && 'bg-primary-50 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800'
+                    )}
+                  >
+                    <div className="flex items-center gap-0.2">
+                      <span
+                        className={cn(
+                          'font-mono text-[9px] sm:text-[11px] font-black leading-none truncate',
+                          hasChord
+                            ? isRest
+                              ? 'text-rose-500 font-bold'
+                              : 'text-primary-700 dark:text-primary-300'
+                            : 'text-slate-300 dark:text-slate-700'
+                        )}
+                      >
+                        {s.chord || '/'}
+                      </span>
+                      {s.accent && (
+                        <span className="text-[8px] font-black text-amber-500 leading-none">&gt;</span>
+                      )}
+                    </div>
+                    <span className="text-[7px] sm:text-[8px] font-mono text-slate-400 mt-0.5 truncate">
+                      {s.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Letra guía rítmica inferior */}
+      {/* 3. Letra Guía Rítmica Inferior */}
       {measure.guideLyric && (
         <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800/60">
           <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate font-serif">

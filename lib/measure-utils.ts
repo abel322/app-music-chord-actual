@@ -40,6 +40,14 @@ export function createDefaultMeasure(
     id: `measure-${Date.now()}-${measureNumber}-${Math.random().toString(36).slice(2, 6)}`,
     measureNumber,
     timeSignature,
+    division: 'whole',
+    slots: [
+      {
+        index: 0,
+        label: 'Todo el Compás',
+        chord: defaultChord || null,
+      },
+    ],
     beats,
   }
 }
@@ -73,6 +81,8 @@ export function duplicateMeasure(measures: Measure[], measureId: string): Measur
   const duplicated: Measure = {
     ...target,
     id: `m-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    division: target.division,
+    slots: target.slots ? target.slots.map((s) => ({ ...s })) : undefined,
     subdivision: target.subdivision,
     subdivisionGrouping: target.subdivisionGrouping,
     cadence: target.cadence,
@@ -129,6 +139,14 @@ export function applyProgressionToMeasures(
       cadenceLabel: existing?.cadenceLabel,
       cadenceColor: existing?.cadenceColor,
       guideLyric: existing?.guideLyric || '',
+      division: 'whole',
+      slots: [
+        {
+          index: 0,
+          label: 'Todo el Compás',
+          chord,
+        },
+      ],
       beats: [
         {
           id: `b-${Date.now()}-${i}`,
@@ -174,6 +192,14 @@ export function applyProgressionFromMeasure(
       // Reemplazar acorde en el compás existente
       updated[targetIdx] = {
         ...updated[targetIdx],
+        division: 'whole',
+        slots: [
+          {
+            index: 0,
+            label: 'Todo el Compás',
+            chord,
+          },
+        ],
         beats: [
           {
             id: `beat-prog-${Date.now()}-${i}`,
@@ -203,6 +229,12 @@ export function transposeMeasures(measures: Measure[], semitones: number): Measu
 
   return measures.map((m) => ({
     ...m,
+    slots: m.slots
+      ? m.slots.map((s) => ({
+          ...s,
+          chord: s.chord && s.chord !== '%' ? transposeChord(s.chord, semitones) : s.chord,
+        }))
+      : undefined,
     beats: m.beats.map((b) => ({
       ...b,
       chord: transposeChord(b.chord, semitones),
@@ -247,6 +279,16 @@ export function ensureSectionMeasures(
         id: m.id || `m-${Date.now()}-${mIdx}`,
         measureNumber: num,
         timeSignature: m.timeSignature || timeSignature,
+        division: m.division,
+        slots: Array.isArray(m.slots)
+          ? m.slots.map((s: any) => ({
+              index: s.index,
+              label: s.label,
+              chord: s.chord,
+              accent: s.accent,
+              isRest: s.isRest,
+            }))
+          : undefined,
         subdivision: m.subdivision,
         subdivisionGrouping: m.subdivisionGrouping,
         cadence: m.cadence,
