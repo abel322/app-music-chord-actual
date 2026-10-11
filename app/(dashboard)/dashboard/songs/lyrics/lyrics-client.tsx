@@ -332,7 +332,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
                   <div className="min-h-[84px] p-3 rounded-xl bg-gray-50 dark:bg-slate-950/60 border border-gray-100 dark:border-slate-800/80 mb-4">
                     {song.snippet.hasLyrics ? (
                       <p className="text-xs text-gray-600 dark:text-gray-300 italic whitespace-pre-line line-clamp-3 leading-relaxed font-serif">
-                        "{song.snippet.text}"
+                        &quot;{song.snippet.text}&quot;
                       </p>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-3 text-center text-gray-400 dark:text-gray-500">

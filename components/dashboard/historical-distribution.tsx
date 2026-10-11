@@ -22,7 +22,7 @@ export function HistoricalDistribution({ instrumentMinutes }: HistoricalDistribu
 
   const targetMinutes = useMemo(() => targetHours * 60, [targetHours])
 
-  const instruments: Instrument[] = ['GUITARRA', 'PIANO', 'BAJO', 'BATERIA']
+  const instruments: Instrument[] = useMemo(() => ['GUITARRA', 'PIANO', 'BAJO', 'BATERIA'], [])
 
   const distribution = useMemo(() => {
     return instruments.map(inst => {
@@ -34,7 +34,7 @@ export function HistoricalDistribution({ instrumentMinutes }: HistoricalDistribu
         percentage
       }
     }).sort((a, b) => b.minutes - a.minutes)
-  }, [instrumentMinutes, targetMinutes])
+  }, [instrumentMinutes, targetMinutes, instruments])
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">

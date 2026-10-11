@@ -232,9 +232,10 @@ export function Metronome() {
   // Mount check
   useEffect(() => {
     setMounted(true)
+    const currentTimeout = timeoutsRef.current
     return () => {
       if (timerIdRef.current) clearTimeout(timerIdRef.current)
-      timeoutsRef.current.forEach((id) => clearTimeout(id))
+      currentTimeout.forEach((id) => clearTimeout(id))
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close()
       }

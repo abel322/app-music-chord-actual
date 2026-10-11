@@ -164,15 +164,21 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
     return d
   }
 
-  const startOfWeek = getStartOfWeek(currentDate)
-  const endOfWeek = new Date(startOfWeek)
-  endOfWeek.setDate(endOfWeek.getDate() + 7)
+  const startOfWeek = useMemo(() => getStartOfWeek(currentDate), [currentDate])
 
-  const weekDays = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date(startOfWeek)
-    d.setDate(d.getDate() + i)
-    return d
-  })
+  const endOfWeek = useMemo(() => {
+    const end = new Date(startOfWeek)
+    end.setDate(end.getDate() + 7)
+    return end
+  }, [startOfWeek])
+
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(startOfWeek)
+      d.setDate(d.getDate() + i)
+      return d
+    })
+  }, [startOfWeek])
 
   const prevWeek = () => {
     const d = new Date(currentDate)
