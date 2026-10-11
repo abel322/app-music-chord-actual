@@ -1,10 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { Music, Home, Library, Search, Settings, LogOut, Activity, Calendar, Menu, X, Layers } from 'lucide-react'
+import { 
+  Music, 
+  Home, 
+  Library, 
+  Search, 
+  Settings, 
+  LogOut, 
+  Activity, 
+  Calendar, 
+  Menu, 
+  X, 
+  Layers, 
+  ChevronDown, 
+  FileText 
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
@@ -17,13 +31,48 @@ interface SidebarProps {
   }
 }
 
+interface NavItem {
+  href?: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  isAccordion?: boolean
+  basePath?: string
+  subItems?: {
+    href: string
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+  }[]
+}
+
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
 
-  const links = [
+  // Detectar si la ruta actual pertenece a la sección canciones
+  const isSongsActive = pathname.startsWith('/dashboard/songs')
+  
+  // Estado para el acordeón desplegable de canciones
+  const [isSongsExpanded, setIsSongsExpanded] = useState(isSongsActive)
+
+  // Abrir automáticamente el submenú si la URL comienza con /dashboard/songs
+  useEffect(() => {
+    if (pathname.startsWith('/dashboard/songs')) {
+      setIsSongsExpanded(true)
+    }
+  }, [pathname])
+
+  const links: NavItem[] = [
     { href: '/dashboard', label: 'Inicio', icon: Home },
-    { href: '/dashboard/songs', label: 'Canciones', icon: Library },
+    {
+      label: 'Canciones',
+      icon: Library,
+      isAccordion: true,
+      basePath: '/dashboard/songs',
+      subItems: [
+        { href: '/dashboard/songs/lyrics', label: 'Letras', icon: FileText },
+        { href: '/dashboard/songs/chords', label: 'Acordes', icon: Music },
+      ],
+    },
     { href: '/dashboard/chords', label: 'Progresiones', icon: Layers },
     { href: '/dashboard/routines', label: 'Rutinas de Práctica', icon: Calendar },
     { href: '/dashboard/practice', label: 'Metrónomo', icon: Activity },
@@ -63,16 +112,91 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <div className="flex flex-1 flex-col overflow-y-auto pt-6 px-4 gap-2">
+        <div className="flex flex-1 flex-col overflow-y-auto pt-6 px-4 gap-1.5">
           {links.map((link) => {
             const Icon = link.icon
-            // Exact match for dashboard, prefix match for others to keep them active in sub-routes
-            const isActive = link.href === '/dashboard' ? pathname === link.href : pathname.startsWith(link.href)
-            
+
+            if (link.isAccordion && link.subItems) {
+              const hasActiveChild = link.subItems.some((sub) =>
+                pathname === sub.href || pathname.startsWith(sub.href + '/')
+              )
+              const isSectionActive = isSongsActive || hasActiveChild
+
+              return (
+                <div key={link.label} className="flex flex-col">
+                  {/* Elemento de Canciones con Acordeón Colapsable */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSongsExpanded((prev) => !prev)}
+                    className={cn(
+                      'flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group text-left',
+                      isSectionActive
+                        ? 'text-white bg-slate-800/80 border border-slate-700/50'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    )}
+                    aria-expanded={isSongsExpanded}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={cn(
+                        'w-5 h-5 shrink-0 transition-colors',
+                        isSectionActive ? 'text-primary-400' : 'text-slate-400 group-hover:text-slate-200'
+                      )} />
+                      <span>{link.label}</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        'w-4 h-4 text-slate-400 transition-transform duration-200 ease-in-out',
+                        isSongsExpanded && 'rotate-180 text-white'
+                      )}
+                    />
+                  </button>
+
+                  {/* Submenú Desplegable con Animación Suave */}
+                  <div
+                    className={cn(
+                      'grid transition-all duration-200 ease-in-out',
+                      isSongsExpanded ? 'grid-rows-[1fr] opacity-100 my-1' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+                    )}
+                  >
+                    <div className="overflow-hidden pl-3 ml-3 border-l border-slate-800/80 space-y-1">
+                      {link.subItems.map((subItem) => {
+                        const SubIcon = subItem.icon
+                        const isSubActive =
+                          pathname === subItem.href || pathname.startsWith(subItem.href + '/')
+
+                        return (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200',
+                              isSubActive
+                                ? 'bg-primary-600 text-white shadow-md shadow-primary-900/30'
+                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
+                            )}
+                          >
+                            <SubIcon className={cn('w-4 h-4 shrink-0', isSubActive ? 'text-white' : 'text-slate-400')} />
+                            <span>{subItem.label}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            // Enlace estándar directo
+            const isActive =
+              link.href === '/dashboard'
+                ? pathname === link.href
+                : pathname.startsWith(link.href!)
+
             return (
               <Link
                 key={link.href}
-                href={link.href}
+                href={link.href!}
                 onClick={() => setIsOpen(false)}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',

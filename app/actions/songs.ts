@@ -68,6 +68,8 @@ export async function createSongAction(rawData: SongInput) {
   })
 
   revalidatePath('/dashboard/songs')
+  revalidatePath('/dashboard/songs/chords')
+  revalidatePath('/dashboard/songs/lyrics')
   return { success: true, song }
 }
 
@@ -120,6 +122,8 @@ export async function updateSongAction(id: string, rawData: UpdateSongInput) {
   })
 
   revalidatePath('/dashboard/songs')
+  revalidatePath('/dashboard/songs/chords')
+  revalidatePath('/dashboard/songs/lyrics')
   revalidatePath(`/dashboard/songs/${id}`)
 
   return { success: true, song: updatedSong }
