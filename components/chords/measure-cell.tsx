@@ -161,12 +161,20 @@ export function MeasureCell({
         {division === 'whole' ? (
           /* Caso Redonda: 1 Acorde Centrado Grande con Slashes / / / / */
           <div className="flex flex-col items-center justify-center">
-            <div className="flex items-center gap-1">
-              <span className="font-mono text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
+            <div className="flex items-center gap-1 max-w-full">
+              <span
+                className={cn(
+                  'font-mono font-black tracking-tight text-slate-900 dark:text-white leading-none truncate max-w-full',
+                  ((slots[0]?.chord || primaryChord || '').length > 8)
+                    ? 'text-lg sm:text-xl'
+                    : 'text-xl sm:text-2xl'
+                )}
+                title={slots[0]?.chord || primaryChord || '/'}
+              >
                 {slots[0]?.chord || primaryChord || '/'}
               </span>
               {slots[0]?.accent && (
-                <span className="text-xs font-black text-amber-500 leading-none">&gt;</span>
+                <span className="text-xs font-black text-amber-500 leading-none shrink-0">&gt;</span>
               )}
             </div>
             <div className="flex items-center gap-1.5 text-slate-300 dark:text-slate-600 font-mono text-[11px] font-bold mt-1">
@@ -178,13 +186,21 @@ export function MeasureCell({
         ) : division === 'half' ? (
           /* Caso Blancas: 2 Mitades con División Central */
           <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 text-center items-center py-1">
-            <div className="flex flex-col items-center justify-center px-1">
-              <div className="flex items-center gap-0.5">
-                <span className="font-mono text-base sm:text-lg font-black text-slate-900 dark:text-white leading-none">
+            <div className="flex flex-col items-center justify-center px-1 overflow-hidden">
+              <div className="flex items-center gap-0.5 max-w-full">
+                <span
+                  className={cn(
+                    'font-mono font-black text-slate-900 dark:text-white leading-none truncate max-w-full',
+                    (slots[0]?.chord?.length || 0) > 7
+                      ? 'text-sm sm:text-base'
+                      : 'text-base sm:text-lg'
+                  )}
+                  title={slots[0]?.chord || '/'}
+                >
                   {slots[0]?.chord || '/'}
                 </span>
                 {slots[0]?.accent && (
-                  <span className="text-[10px] font-black text-amber-500 leading-none">&gt;</span>
+                  <span className="text-[10px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
                 )}
               </div>
               <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
@@ -192,13 +208,21 @@ export function MeasureCell({
               </span>
             </div>
 
-            <div className="flex flex-col items-center justify-center px-1">
-              <div className="flex items-center gap-0.5">
-                <span className="font-mono text-base sm:text-lg font-black text-slate-900 dark:text-white leading-none">
+            <div className="flex flex-col items-center justify-center px-1 overflow-hidden">
+              <div className="flex items-center gap-0.5 max-w-full">
+                <span
+                  className={cn(
+                    'font-mono font-black text-slate-900 dark:text-white leading-none truncate max-w-full',
+                    (slots[1]?.chord?.length || 0) > 7
+                      ? 'text-sm sm:text-base'
+                      : 'text-base sm:text-lg'
+                  )}
+                  title={slots[1]?.chord || '/'}
+                >
                   {slots[1]?.chord || '/'}
                 </span>
                 {slots[1]?.accent && (
-                  <span className="text-[10px] font-black text-amber-500 leading-none">&gt;</span>
+                  <span className="text-[10px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
                 )}
               </div>
               <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
@@ -210,13 +234,21 @@ export function MeasureCell({
           /* Caso Negras: 4 Tiempos Estándar */
           <div className="grid grid-cols-4 gap-1 w-full text-center items-end py-0.5">
             {slots.map((s) => (
-              <div key={s.index} className="flex flex-col items-center justify-between p-0.5">
-                <div className="flex items-center gap-0.5">
-                  <span className="font-mono text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-none">
+              <div key={s.index} className="flex flex-col items-center justify-between p-0.5 overflow-hidden">
+                <div className="flex items-center gap-0.5 max-w-full">
+                  <span
+                    className={cn(
+                      'font-mono font-black text-slate-900 dark:text-white leading-none truncate max-w-full',
+                      (s.chord?.length || 0) > 6
+                        ? 'text-[10px] sm:text-xs'
+                        : 'text-xs sm:text-sm'
+                    )}
+                    title={s.chord || '/'}
+                  >
                     {s.chord || '/'}
                   </span>
                   {s.accent && (
-                    <span className="text-[9px] font-black text-amber-500 leading-none">&gt;</span>
+                    <span className="text-[9px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
                   )}
                 </div>
                 <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">

@@ -13,7 +13,9 @@ import {
 } from '@/lib/rhythm-utils'
 import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
-import { Copy, Split, Sparkles, Tag, Music, Sliders, VolumeX, X, Check } from 'lucide-react'
+import { ChordSelectorModal } from './ChordSelectorModal'
+import { normalizeChordInput } from '@/lib/chord-catalog'
+import { Copy, Split, Sparkles, Tag, Music, Sliders, VolumeX, X, Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface MeasureInspectorProps {
@@ -28,6 +30,7 @@ interface MeasureInspectorProps {
   onApplyProgression: (measureId: string, prog: HarmonicProgression) => void
   onToggleRepeat: (measureId: string, type: 'start' | 'end') => void
   onToggleVolta: (measureId: string, volta: number) => void
+  onClose?: () => void
 }
 
 export function MeasureInspector({
@@ -42,10 +45,12 @@ export function MeasureInspector({
   onApplyProgression,
   onToggleRepeat,
   onToggleVolta,
+  onClose,
 }: MeasureInspectorProps) {
   const currentDivision = inferMeasureDivision(selectedMeasure)
   const currentSlots = ensureMeasureSlots(selectedMeasure, timeSignature)
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0)
+  const [isChordModalOpen, setIsChordModalOpen] = useState<boolean>(false)
 
   // Cambiar la división global del compás completo
   const handleSelectDivision = (newDivision: MeasureDivision) => {
@@ -63,15 +68,15 @@ export function MeasureInspector({
     })
   }
 
-  // Modificar el acorde de un slot
+  // Modificar el acorde de un slot con normalización inteligente
   const handleUpdateSlotChord = (slotIndex: number, newChord: string) => {
-    const trimmed = newChord.trim()
+    const normalized = normalizeChordInput(newChord)
     const updatedSlots = currentSlots.map((s) => {
       if (s.index !== slotIndex) return s
       return {
         ...s,
-        chord: trimmed === '' ? null : trimmed,
-        isRest: trimmed === '%' ? true : false,
+        chord: normalized === '' ? null : normalized,
+        isRest: normalized === '%' ? true : false,
       }
     })
 
@@ -263,6 +268,18 @@ export function MeasureInspector({
           >
             2ª
           </button>
+
+          {/* Botón Cerrar Inspector */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors shadow-xs ml-1"
+              title="Cerrar inspector (Escape o clic fuera)"
+            >
+              <X className="w-3.5 h-3.5" /> Cerrar
+            </button>
+          )}
         </div>
       </div>
 
@@ -476,32 +493,108 @@ export function MeasureInspector({
         </div>
       </div>
 
-      {/* 4. Paleta rápida de Acordes Diatónicos en la tonalidad activa */}
-      {diatonicChords.length > 0 && (
-        <div className="pt-1 flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-primary-500" /> Acordes en {currentKey}:
-          </span>
-          {diatonicChords.map((chord) => (
-            <button
-              key={chord}
-              type="button"
-              onClick={() => {
-                handleUpdateSlotChord(activeSlotIndex, chord)
-              }}
-              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-primary-50 dark:hover:bg-primary-950/60 hover:text-primary-600 transition-colors shadow-sm"
-              title={`Asignar ${chord} al slot activo (${currentSlots[activeSlotIndex]?.label || activeSlotIndex + 1})`}
-            >
-              {chord}
-            </button>
-          ))}
-          {currentSlots.length > 1 && (
-            <span className="text-[11px] font-semibold text-primary-500 ml-1">
-              (Destino: {currentSlots[activeSlotIndex]?.label || `Slot ${activeSlotIndex + 1}`})
+      {/* 4. Catálogo y Selección de Acordes (Básicos y Avanzados) */}
+      <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Music className="w-4 h-4 text-primary-500" />
+              <span>Catálogo de Acordes:</span>
             </span>
-          )}
+            <span className="text-[11px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/80 px-2 py-0.5 rounded-lg border border-primary-200 dark:border-primary-800">
+              Destino: {currentSlots[activeSlotIndex]?.label || `Slot ${activeSlotIndex + 1}`}
+            </span>
+          </div>
+
+          {/* Botón Maestro del Modal Selector Completo */}
+          <button
+            type="button"
+            onClick={() => setIsChordModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-primary-600 text-white hover:bg-primary-500 shadow-sm shadow-primary-900/30 transition-all hover:scale-[1.02]"
+            title="Abrir constructor avanzado de tríadas, séptimas, tensiones y slash chords"
+          >
+            <Sparkles className="w-3.5 h-3.5" /> ✦ Selector Avanzado (Tríadas, Séptimas, Jazz, Alterados, Slash)
+          </button>
         </div>
-      )}
+
+        {/* Fila 1: Acordes Diatónicos en la Tonalidad Actual */}
+        {diatonicChords.length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                Grados Diatónicos en {currentKey}:
+              </span>
+              <span className="text-[10px] text-slate-400">Inserción en 1 clic</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {diatonicChords.map((chord) => (
+                <button
+                  key={chord}
+                  type="button"
+                  onClick={() => {
+                    handleUpdateSlotChord(activeSlotIndex, chord)
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-primary-50 dark:hover:bg-primary-950/60 hover:border-primary-300 dark:hover:border-primary-700 hover:text-primary-600 transition-colors shadow-xs"
+                  title={`Asignar ${chord} al slot ${currentSlots[activeSlotIndex]?.label || activeSlotIndex + 1}`}
+                >
+                  {chord}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Fila 2: Extensiones y Calidades Frecuentes sobre la Tónica */}
+        <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[11px] font-bold text-slate-500">
+              Extensiones y Familias sobre {currentKey}:
+            </span>
+            <span className="text-[10px] text-slate-400">Pop, Jazz & Gospel</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              `${currentKey}maj7`,
+              `${currentKey}7`,
+              `${currentKey}m7`,
+              `${currentKey}9`,
+              `${currentKey}maj9`,
+              `${currentKey}m9`,
+              `${currentKey}11`,
+              `${currentKey}13`,
+              `${currentKey}7alt`,
+              `${currentKey}7(#9)`,
+              `${currentKey}m7b5`,
+              `${currentKey}dim7`,
+              `${currentKey}sus4`,
+              `${currentKey}/E`,
+              `${currentKey}/G`,
+              `${currentKey}/B`,
+            ].map((chordVariant) => (
+              <button
+                key={chordVariant}
+                type="button"
+                onClick={() => handleUpdateSlotChord(activeSlotIndex, chordVariant)}
+                className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-primary-50 dark:hover:bg-primary-950/60 hover:border-primary-300 hover:text-primary-600 transition-colors"
+                title={`Asignar ${chordVariant} al slot ${currentSlots[activeSlotIndex]?.label || activeSlotIndex + 1}`}
+              >
+                {chordVariant}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal / Popover del Constructor Avanzado de Acordes */}
+      <ChordSelectorModal
+        isOpen={isChordModalOpen}
+        onClose={() => setIsChordModalOpen(false)}
+        onSelectChord={(chord) => handleUpdateSlotChord(activeSlotIndex, chord)}
+        initialChord={currentSlots[activeSlotIndex]?.chord}
+        currentKey={currentKey}
+        slotLabel={currentSlots[activeSlotIndex]?.label || `${activeSlotIndex + 1}`}
+        measureNumber={selectedMeasure.measureNumber}
+      />
 
       {/* 5. Letra Guía del Compás y Atajos de Cadencias */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-slate-200 dark:border-slate-800">

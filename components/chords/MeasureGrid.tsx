@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Measure, ChordBeat } from '@/types/measure'
 import { getBeatsPerMeasure, duplicateMeasure, applyProgressionFromMeasure } from '@/lib/measure-utils'
 import { HarmonicProgression, getProgressionChords } from '@/lib/harmonic-theory'
@@ -31,6 +31,52 @@ export function MeasureGrid({
 }: MeasureGridProps) {
   const beatsPerMeasure = getBeatsPerMeasure(timeSignature)
   const [selectedMeasureId, setSelectedMeasureId] = useState<string | null>(null)
+  const gridContainerRef = useRef<HTMLDivElement>(null)
+
+  // Deselección automática al hacer clic fuera o presionar Escape
+  useEffect(() => {
+    if (!selectedMeasureId) return
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+
+      // Si el clic ocurrió dentro de nuestro contenedor (grid de compases + panel inspector), no cerrar
+      if (gridContainerRef.current?.contains(target)) {
+        return
+      }
+
+      // Si el clic ocurrió dentro de un modal / popover / portal / dropdown, no cerrar
+      if (
+        target.closest('[data-radix-popper-content-wrapper]') ||
+        target.closest('[role="dialog"]') ||
+        target.closest('[role="menu"]') ||
+        target.closest('.chord-picker-modal') ||
+        target.closest('.chord-picker-popover')
+      ) {
+        return
+      }
+
+      // Clic exterior detectado: deseleccionar y cerrar panel inspector
+      setSelectedMeasureId(null)
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedMeasureId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedMeasureId])
 
   const selectedMeasure = measures.find((m) => m.id === selectedMeasureId)
 
@@ -107,7 +153,7 @@ export function MeasureGrid({
   }
 
   return (
-    <div className="space-y-4">
+    <div ref={gridContainerRef} className="space-y-4">
       {/* Rejilla de Compases: 4 Compases por Fila en Desktop, 2 en Móvil */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5">
         {measures.map((measure, index) => {
@@ -147,6 +193,7 @@ export function MeasureGrid({
           onApplyProgression={handleApplyProgressionFromHere}
           onToggleRepeat={handleToggleRepeat}
           onToggleVolta={handleToggleVolta}
+          onClose={() => setSelectedMeasureId(null)}
         />
       )}
 

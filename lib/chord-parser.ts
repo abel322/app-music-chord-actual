@@ -4,7 +4,7 @@ export const CHORDS = [
   'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'
 ]
 
-export const CHORD_REGEX = /\b([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|[0-9])*)\b/g
+export const CHORD_REGEX = /\b([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|[0-9#b+()°øΔ/])*(?:\/[A-G][#b]?)?)\b/g
 
 export function parseChords(text: string): string[] {
   const matches = text.match(CHORD_REGEX)

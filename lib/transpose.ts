@@ -38,7 +38,7 @@ function transposeSingleChord(chord: string, semitones: number): string {
 }
 
 export function transposeSong(lyrics: string, semitones: number): string {
-  return lyrics.replace(/\b([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|[0-9])*)\b/g, 
+  return lyrics.replace(/\b([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|[0-9#b+()°øΔ/])*(?:\/[A-G][#b]?)?)\b/g, 
     (match) => transposeChord(match, semitones)
   )
 }
