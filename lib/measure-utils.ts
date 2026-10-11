@@ -73,9 +73,20 @@ export function duplicateMeasure(measures: Measure[], measureId: string): Measur
   const duplicated: Measure = {
     ...target,
     id: `m-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    subdivision: target.subdivision,
+    subdivisionGrouping: target.subdivisionGrouping,
+    cadence: target.cadence,
+    cadenceLabel: target.cadenceLabel,
+    cadenceColor: target.cadenceColor,
     beats: target.beats.map((b) => ({
       ...b,
       id: `b-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      subSlots: b.subSlots
+        ? b.subSlots.map((s) => ({
+            ...s,
+            id: `s-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          }))
+        : undefined,
     })),
   }
 
@@ -195,6 +206,12 @@ export function transposeMeasures(measures: Measure[], semitones: number): Measu
     beats: m.beats.map((b) => ({
       ...b,
       chord: transposeChord(b.chord, semitones),
+      subSlots: b.subSlots
+        ? b.subSlots.map((s) => ({
+            ...s,
+            chord: s.chord ? transposeChord(s.chord, semitones) : '',
+          }))
+        : undefined,
     })),
   }))
 }
@@ -230,6 +247,11 @@ export function ensureSectionMeasures(
         id: m.id || `m-${Date.now()}-${mIdx}`,
         measureNumber: num,
         timeSignature: m.timeSignature || timeSignature,
+        subdivision: m.subdivision,
+        subdivisionGrouping: m.subdivisionGrouping,
+        cadence: m.cadence,
+        cadenceLabel: m.cadenceLabel,
+        cadenceColor: m.cadenceColor,
         beats: Array.isArray(m.beats)
           ? m.beats.map((b: any) => ({
               id: b.id || `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -237,6 +259,17 @@ export function ensureSectionMeasures(
               chord: b.chord || '',
               accent: b.accent || 'normal',
               duration: b.duration,
+              subdivision: b.subdivision,
+              subSlots: Array.isArray(b.subSlots)
+                ? b.subSlots.map((s: any) => ({
+                    id: s.id || `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    slotIndex: s.slotIndex ?? 0,
+                    label: s.label || '',
+                    chord: s.chord || '',
+                    accent: s.accent || 'normal',
+                    tied: !!s.tied,
+                  }))
+                : undefined,
             }))
           : [],
         repeatStart: !!m.repeatStart,
