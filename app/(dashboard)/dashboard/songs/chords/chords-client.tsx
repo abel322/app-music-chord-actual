@@ -267,7 +267,7 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
                     Modificado recientemente
                   </span>
                   <Link
-                    href={`/dashboard/songs/${song.id}`}
+                    href={`/dashboard/songs/chords/${song.id}`}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 border border-primary-200/60 dark:border-primary-800/50 transition-colors"
                   >
                     <span>Ver Acordes</span>

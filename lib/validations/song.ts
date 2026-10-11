@@ -59,14 +59,12 @@ export const SectionSchema = z.object({
   id: z.string(),
   type: SectionTypeSchema,
   label: z.string(),
-  /**
-   * Etiquetas de instrumentos asignados específicamente a esta sección.
-   * Ej: ['Piano', 'Pad', 'Voz Lead']
-   */
   instruments: z.array(z.string()).default([]),
   timeSignature: z.string().optional(),
-  lines: z.array(LineSchema).default([]),
-})
+  lines: z.array(LineSchema).optional().default([]),
+  measures: z.array(z.any()).optional().default([]),
+  guideLyrics: z.string().optional(),
+}).passthrough()
 
 /**
  * Esquema para crear o actualizar una canción en la base de datos PostgreSQL con Prisma.

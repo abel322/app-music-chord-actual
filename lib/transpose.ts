@@ -5,6 +5,21 @@ const FLAT_TO_SHARP: Record<string, string> = {
 }
 
 export function transposeChord(chord: string, semitones: number): string {
+  if (semitones === 0) return chord
+  if (!chord || typeof chord !== 'string') return ''
+
+  // Soporte para acordes con bajo alternado (Slash Chords, ej: G/B, A/C#)
+  if (chord.includes('/')) {
+    const [mainChord, bass] = chord.split('/')
+    if (mainChord && bass) {
+      return `${transposeSingleChord(mainChord, semitones)}/${transposeSingleChord(bass, semitones)}`
+    }
+  }
+
+  return transposeSingleChord(chord, semitones)
+}
+
+function transposeSingleChord(chord: string, semitones: number): string {
   const match = chord.match(/^([A-G][#b]?)(.*)$/)
   if (!match) return chord
 

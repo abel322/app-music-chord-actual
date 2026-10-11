@@ -349,7 +349,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
                     {song.genre || (song.snippet.hasLyrics ? 'Con lírica' : 'Instrumental')}
                   </span>
                   <Link
-                    href={`/dashboard/songs/${song.id}`}
+                    href={`/dashboard/songs/lyrics/${song.id}`}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200/60 dark:border-purple-800/50 transition-colors"
                   >
                     <span>Ver Letra</span>
