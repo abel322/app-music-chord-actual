@@ -63,6 +63,76 @@ export function generateMeasures(
 }
 
 /**
+ * Duplica un compás existente insertándolo inmediatamente después
+ */
+export function duplicateMeasure(measures: Measure[], measureId: string): Measure[] {
+  const index = measures.findIndex((m) => m.id === measureId)
+  if (index === -1) return measures
+
+  const target = measures[index]
+  const duplicated: Measure = {
+    ...target,
+    id: `m-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    beats: target.beats.map((b) => ({
+      ...b,
+      id: `b-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    })),
+  }
+
+  const updated = [...measures]
+  updated.splice(index + 1, 0, duplicated)
+
+  // Renumerar compases
+  return updated.map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
+}
+
+/**
+ * Aplica una lista de acordes provenientes de una progresión a una lista de compases
+ */
+export function applyProgressionToMeasures(
+  measures: Measure[],
+  progressionChords: string[],
+  timeSignature: string = '4/4'
+): Measure[] {
+  if (progressionChords.length === 0) return measures
+
+  const beatsCount = getBeatsPerMeasure(timeSignature)
+  const result: Measure[] = []
+
+  // Si hay menos compases que acordes en la progresión, expandir compases
+  const targetCount = Math.max(measures.length, progressionChords.length)
+
+  for (let i = 0; i < targetCount; i++) {
+    const existing = measures[i]
+    const chord = progressionChords[i % progressionChords.length]
+
+    const newMeasure: Measure = {
+      id: existing ? existing.id : `m-prog-${Date.now()}-${i}`,
+      measureNumber: i + 1,
+      timeSignature: existing?.timeSignature || timeSignature,
+      repeatStart: existing?.repeatStart,
+      repeatEnd: existing?.repeatEnd,
+      repeatCount: existing?.repeatCount,
+      volta: existing?.volta,
+      guideLyric: existing?.guideLyric || '',
+      beats: [
+        {
+          id: `b-${Date.now()}-${i}`,
+          beat: 1,
+          chord,
+          accent: 'normal',
+          duration: beatsCount,
+        },
+      ],
+    }
+
+    result.push(newMeasure)
+  }
+
+  return result
+}
+
+/**
  * Transpone todos los acordes de una lista de compases por N semitonos
  */
 export function transposeMeasures(measures: Measure[], semitones: number): Measure[] {

@@ -25,10 +25,12 @@ import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
   transposeSectionMeasures, 
-  generateMeasures 
+  generateMeasures,
+  applyProgressionToMeasures 
 } from '@/lib/measure-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
 import { transposeChord } from '@/lib/transpose'
+import { POPULAR_PROGRESSIONS, getProgressionChords } from '@/lib/harmonic-theory'
 import { updateSongAction } from '@/app/actions/songs'
 import { cn } from '@/lib/utils'
 
@@ -77,7 +79,6 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     const counter = { current: 1 }
 
     if (rawSections.length === 0) {
-      // Si la canción no tiene secciones, generar al menos una Intro y un Coro de 4 compases
       return [
         {
           id: `sec-intro-${Date.now()}`,
@@ -106,7 +107,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   // Acordes diatónicos de la tonalidad actual para sugerencias
   const diatonicChords = useMemo(() => {
     try {
-      return getDiatonicChords(currentKey)
+      const res = getDiatonicChords(currentKey)
+      return res.inKey.map((c) => `${c.root}${c.type}`)
     } catch {
       return ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim']
     }
@@ -130,6 +132,20 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections((prev) => transposeSectionMeasures(prev, reverseDelta))
     setCurrentKey(song.key || 'C')
     setTransposeSemitones(0)
+  }
+
+  // Aplicar progresión predefinida a una sección
+  const handleApplyProgression = (sectionId: string, progressionId: string) => {
+    const chords = getProgressionChords(progressionId, currentKey)
+    setSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId) return sec
+        return {
+          ...sec,
+          measures: applyProgressionToMeasures(sec.measures, chords, sec.timeSignature || timeSignature),
+        }
+      })
+    )
   }
 
   // Actualizar compases de una sección específica
@@ -403,7 +419,29 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 </div>
 
                 {isEditing && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Selector de Progresiones Rápidas */}
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleApplyProgression(section.id, e.target.value)
+                          e.target.value = ''
+                        }
+                      }}
+                      defaultValue=""
+                      className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-primary-600 dark:text-primary-400 focus:outline-none shadow-sm cursor-pointer"
+                      title="Poblar compases con una progresión armónica"
+                    >
+                      <option value="" disabled>
+                        ✦ Progresión Armónica...
+                      </option>
+                      {POPULAR_PROGRESSIONS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+
                     <button
                       type="button"
                       onClick={() => handleRemoveSection(section.id)}
