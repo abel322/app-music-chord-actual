@@ -22,6 +22,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MeasureGrid } from '@/components/chords/MeasureGrid'
+import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
+import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
@@ -29,7 +31,7 @@ import {
   applyProgressionToMeasures, 
   transposeSectionMeasures 
 } from '@/lib/measure-utils'
-import { POPULAR_PROGRESSIONS, getProgressionChords } from '@/lib/harmonic-theory'
+import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
 import { getDiatonicChords } from '@/lib/music-theory'
 import { createSongAction, updateSongAction } from '@/app/actions/songs'
 import { cn } from '@/lib/utils'
@@ -168,9 +170,9 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     )
   }
 
-  // Aplicar una Progresión Predefinida a una sección
-  const handleApplyProgression = (sectionId: string, progressionId: string) => {
-    const progressionChords = getProgressionChords(progressionId, key)
+  // Aplicar una Progresión a una sección completa
+  const handleApplyProgression = (sectionId: string, prog: HarmonicProgression | string) => {
+    const progressionChords = getProgressionChords(prog, key)
     setSections((prev) =>
       prev.map((sec) => {
         if (sec.id !== sectionId) return sec
@@ -178,6 +180,24 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           ...sec,
           measures: applyProgressionToMeasures(sec.measures, progressionChords, sec.timeSignature || timeSignature),
         }
+      })
+    )
+  }
+
+  // Marcar cadencia en el compás final de la sección
+  const handleApplySectionCadence = (sectionId: string, cad: CadenceDefinition | null) => {
+    setSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId || sec.measures.length === 0) return sec
+        const lastIdx = sec.measures.length - 1
+        const updatedMeasures = [...sec.measures]
+        updatedMeasures[lastIdx] = {
+          ...updatedMeasures[lastIdx],
+          cadence: cad ? cad.id || cad.type : undefined,
+          cadenceLabel: cad ? `${cad.name} (${cad.degrees})` : undefined,
+          cadenceColor: cad ? cad.colorBadge : undefined,
+        }
+        return { ...sec, measures: updatedMeasures }
       })
     )
   }
@@ -504,27 +524,20 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
                 {/* Acciones de Sección y Selector de Progresiones */}
                 <div className="flex items-center gap-2 flex-wrap justify-end">
-                  {/* Selector Rápido de Progresiones Armónicas */}
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleApplyProgression(section.id, e.target.value)
-                        e.target.value = ''
-                      }
-                    }}
-                    defaultValue=""
-                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-50 dark:bg-primary-950/50 border border-primary-200 dark:border-primary-800/80 text-primary-700 dark:text-primary-300 focus:outline-none shadow-sm cursor-pointer"
-                    title="Poblar compases con acordes de una progresión clásica"
-                  >
-                    <option value="" disabled>
-                      ✦ Progresión Rápida ({key})...
-                    </option>
-                    {POPULAR_PROGRESSIONS.map((prog) => (
-                      <option key={prog.id} value={prog.id}>
-                        {prog.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* Selector Desacoplado de Progresiones */}
+                  <ProgressionPicker
+                    currentKey={key}
+                    buttonLabel="✦ Progresión de Sección"
+                    buttonVariant="subtle"
+                    onSelectProgression={(prog) => handleApplyProgression(section.id, prog)}
+                  />
+
+                  {/* Selector Desacoplado de Cadencias al cierre de sección */}
+                  <CadencePicker
+                    buttonLabel="✦ Cadencia Final"
+                    buttonVariant="subtle"
+                    onSelectCadence={(cad) => handleApplySectionCadence(section.id, cad)}
+                  />
 
                   {/* Duplicar Sección */}
                   <button

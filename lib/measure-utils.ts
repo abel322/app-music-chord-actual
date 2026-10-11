@@ -114,6 +114,9 @@ export function applyProgressionToMeasures(
       repeatEnd: existing?.repeatEnd,
       repeatCount: existing?.repeatCount,
       volta: existing?.volta,
+      cadence: existing?.cadence,
+      cadenceLabel: existing?.cadenceLabel,
+      cadenceColor: existing?.cadenceColor,
       guideLyric: existing?.guideLyric || '',
       beats: [
         {
@@ -130,6 +133,55 @@ export function applyProgressionToMeasures(
   }
 
   return result
+}
+
+/**
+ * Aplica una progresión de acordes a partir de un compás específico,
+ * rellenando compases subsiguientes y preservando compases anteriores y posteriores.
+ */
+export function applyProgressionFromMeasure(
+  measures: Measure[],
+  startMeasureId: string,
+  progressionChords: string[],
+  timeSignature: string = '4/4'
+): Measure[] {
+  if (!progressionChords || progressionChords.length === 0) return measures
+
+  const startIndex = measures.findIndex((m) => m.id === startMeasureId)
+  if (startIndex === -1) {
+    return applyProgressionToMeasures(measures, progressionChords, timeSignature)
+  }
+
+  const beatsCount = getBeatsPerMeasure(timeSignature)
+  const updated = [...measures]
+
+  for (let i = 0; i < progressionChords.length; i++) {
+    const targetIdx = startIndex + i
+    const chord = progressionChords[i]
+
+    if (targetIdx < updated.length) {
+      // Reemplazar acorde en el compás existente
+      updated[targetIdx] = {
+        ...updated[targetIdx],
+        beats: [
+          {
+            id: `beat-prog-${Date.now()}-${i}`,
+            beat: 1,
+            chord,
+            accent: 'normal',
+            duration: beatsCount,
+          },
+        ],
+      }
+    } else {
+      // Si la progresión excede la cantidad de compases, agregar nuevo compás
+      const newM = createDefaultMeasure(targetIdx + 1, timeSignature, chord)
+      updated.push(newM)
+    }
+  }
+
+  // Renumerar compases
+  return updated.map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
 }
 
 /**

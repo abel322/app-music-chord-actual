@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react'
 import { Measure, ChordBeat, BeatAccent } from '@/types/measure'
-import { getBeatsPerMeasure, duplicateMeasure } from '@/lib/measure-utils'
-import { detectCadence } from '@/lib/harmonic-theory'
-import { Plus, Trash2, Repeat, Edit3, X, Check, Copy, Split, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react'
+import { getBeatsPerMeasure, duplicateMeasure, applyProgressionFromMeasure } from '@/lib/measure-utils'
+import { detectCadence, HarmonicProgression, CadenceDefinition, PRESET_CADENCES, getProgressionChords } from '@/lib/harmonic-theory'
+import { ProgressionPicker } from './ProgressionPicker'
+import { CadencePicker } from './CadencePicker'
+import { Plus, Trash2, Repeat, Edit3, X, Check, Copy, Split, Sparkles, Tag, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface MeasureGridProps {
@@ -78,6 +80,35 @@ export function MeasureGrid({
     setEditingBeat(null)
   }
 
+  // Aplicar una progresión a partir de un compás específico
+  const handleApplyProgressionFromHere = (measureId: string, prog: HarmonicProgression) => {
+    const chords = getProgressionChords(prog, currentKey)
+    const updated = applyProgressionFromMeasure(measures, measureId, chords, timeSignature)
+    onUpdateMeasures(updated)
+  }
+
+  // Asignar o desasignar cadencia armónica en un compás
+  const handleSetCadenceOnMeasure = (measureId: string, cad: CadenceDefinition | null) => {
+    const measure = measures.find((m) => m.id === measureId)
+    if (!measure) return
+
+    if (!cad) {
+      handleUpdateMeasure({
+        ...measure,
+        cadence: undefined,
+        cadenceLabel: undefined,
+        cadenceColor: undefined,
+      })
+    } else {
+      handleUpdateMeasure({
+        ...measure,
+        cadence: cad.id || cad.type,
+        cadenceLabel: `${cad.name} (${cad.degrees})`,
+        cadenceColor: cad.colorBadge,
+      })
+    }
+  }
+
   // Dividir el compás en 2 acordes (ej: Beat 1 y Beat 3 en 4/4)
   const handleSplitMeasure = (measureId: string, chord1: string, chord2: string) => {
     const measure = measures.find((m) => m.id === measureId)
@@ -143,12 +174,13 @@ export function MeasureGrid({
           const primaryChord = measure.beats.find((b) => b.beat === 1)?.chord || (measure.beats[0]?.chord ?? '')
           const singleChordFullMeasure = measure.beats.length === 1 && measure.beats[0].beat === 1
 
-          // Detección automática de cadencia armónica con respecto al compás anterior
+          // Detección automática o etiqueta manual de cadencia armónica
           const prevMeasure = index > 0 ? measures[index - 1] : null
           const prevChord = prevMeasure?.beats[prevMeasure.beats.length - 1]?.chord || prevMeasure?.beats[0]?.chord || ''
           const detectedCadence = detectCadence(primaryChord, prevChord, currentKey)
-          const cadenceToDisplay = measure.cadenceLabel || detectedCadence?.label
-          const cadenceColor = detectedCadence?.colorBadge || 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+
+          const cadenceToDisplay = measure.cadenceLabel || (detectedCadence ? `${detectedCadence.name} (${detectedCadence.degrees})` : null)
+          const cadenceColor = measure.cadenceColor || detectedCadence?.colorBadge || 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-800'
 
           // Pulsos del compás
           const beatsArray = Array.from({ length: beatsPerMeasure }, (_, i) => i + 1)
@@ -160,7 +192,7 @@ export function MeasureGrid({
                 if (isEditing) setSelectedMeasureId(measure.id)
               }}
               className={cn(
-                'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[96px] sm:min-h-[110px] p-2.5 sm:p-3',
+                'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[102px] sm:min-h-[115px] p-2.5 sm:p-3',
                 isSelected && isEditing
                   ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
                   : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
@@ -183,15 +215,15 @@ export function MeasureGrid({
                   )}
                 </div>
 
-                {/* Badge de Cadencia Armónica Detectada */}
+                {/* Badge de Cadencia Armónica (Automática o Manual) */}
                 {cadenceToDisplay && (
-                  <div className="truncate max-w-[125px] sm:max-w-[150px]">
+                  <div className="truncate max-w-[130px] sm:max-w-[160px]">
                     <span 
                       className={cn(
                         'inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border tracking-tight truncate',
                         cadenceColor
                       )} 
-                      title={detectedCadence?.description || cadenceToDisplay}
+                      title={cadenceToDisplay}
                     >
                       {cadenceToDisplay}
                     </span>
@@ -246,7 +278,7 @@ export function MeasureGrid({
               {/* Contenido Armónico del Compás (Chords & Beats) */}
               <div className="flex-1 flex flex-col justify-center my-1">
                 {singleChordFullMeasure ? (
-                  /* Caso 1: Un solo acorde dura todo el compás (Barra completa con slashes elegantes) */
+                  /* Caso 1: Un solo acorde dura todo el compás */
                   <div className="flex flex-col items-center justify-center">
                     <span className="font-mono text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                       {primaryChord}
@@ -316,25 +348,42 @@ export function MeasureGrid({
         })}
       </div>
 
-      {/* Editor interactivo del Compás en Modo Edición */}
+      {/* Panel Inspector Interactivo del Compás Seleccionado en Modo Edición */}
       {isEditing && selectedMeasure && (
         <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-md animate-in fade-in space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-primary-600 text-white shadow-sm">
                 Compás #{selectedMeasure.measureNumber}
               </span>
               <span className="text-xs text-slate-500">
-                Ajuste de acordes por pulso, cadencias y estructura
+                Ajuste modular por compás: Progresiones, Cadencias y Pulsos
               </span>
             </div>
 
+            {/* Acciones Modulares por Compás */}
             <div className="flex items-center gap-2 flex-wrap">
+              {/* 1. Selector Desacoplado: Aplicar Progresión desde este compás */}
+              <ProgressionPicker
+                currentKey={currentKey}
+                buttonLabel="✦ Progresión desde aquí"
+                buttonVariant="subtle"
+                onSelectProgression={(prog) => handleApplyProgressionFromHere(selectedMeasure.id, prog)}
+              />
+
+              {/* 2. Selector Desacoplado: Marcar Cadencia en este compás */}
+              <CadencePicker
+                currentCadenceId={selectedMeasure.cadence}
+                buttonLabel="✦ Marcar Cadencia"
+                buttonVariant="subtle"
+                onSelectCadence={(cad) => handleSetCadenceOnMeasure(selectedMeasure.id, cad)}
+              />
+
               {/* Duplicar Compás */}
               <button
                 type="button"
                 onClick={() => handleDuplicate(selectedMeasure.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
                 title="Clonar este compás"
               >
                 <Copy className="w-3.5 h-3.5" /> Duplicar
@@ -348,7 +397,7 @@ export function MeasureGrid({
                   const c2 = diatonicChords[4] || 'G'
                   handleSplitMeasure(selectedMeasure.id, c1, c2)
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 hover:bg-primary-50 dark:hover:bg-primary-950/50 transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 hover:bg-primary-50 dark:hover:bg-primary-950/50 transition-colors shadow-sm"
                 title="Dividir en 2 acordes de 2 tiempos"
               >
                 <Split className="w-3.5 h-3.5" /> 2 Acordes / Compás
@@ -359,7 +408,7 @@ export function MeasureGrid({
                 type="button"
                 onClick={() => handleToggleRepeat(selectedMeasure.id, 'start')}
                 className={cn(
-                  'px-2 py-1 rounded text-xs font-mono font-bold border transition-colors',
+                  'px-2 py-1 rounded-lg text-xs font-mono font-bold border transition-colors shadow-sm',
                   selectedMeasure.repeatStart
                     ? 'bg-primary-600 text-white border-primary-600'
                     : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -371,7 +420,7 @@ export function MeasureGrid({
                 type="button"
                 onClick={() => handleToggleRepeat(selectedMeasure.id, 'end')}
                 className={cn(
-                  'px-2 py-1 rounded text-xs font-mono font-bold border transition-colors',
+                  'px-2 py-1 rounded-lg text-xs font-mono font-bold border transition-colors shadow-sm',
                   selectedMeasure.repeatEnd
                     ? 'bg-primary-600 text-white border-primary-600'
                     : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -422,7 +471,7 @@ export function MeasureGrid({
 
           {/* Paleta rápida de Acordes Diatónicos en la tonalidad activa */}
           {diatonicChords.length > 0 && (
-            <div className="pt-2 flex items-center gap-1.5 flex-wrap">
+            <div className="pt-1 flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-primary-500" /> Acordes en {currentKey}:
               </span>
@@ -441,10 +490,11 @@ export function MeasureGrid({
             </div>
           )}
 
-          {/* Letra Guía del Compás y Etiquetado Manual de Cadencia */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+          {/* Letra Guía del Compás y Atajos de Cadencias Populares */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+            {/* Letra rítmica guía */}
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                 Letra rítmica de guía para este compás:
               </label>
               <input
@@ -457,40 +507,49 @@ export function MeasureGrid({
                     guideLyric: e.target.value,
                   })
                 }}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
             </div>
 
+            {/* Insignia / Atajos Rápidos de Cadencia */}
             <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">
-                Etiquetar cadencia armónica:
-              </label>
-              <select
-                value={selectedMeasure.cadence || ''}
-                onChange={(e) => {
-                  const val = e.target.value
-                  let label = ''
-                  if (val === 'autentica') label = 'Cadencia Auténtica (V → I)'
-                  if (val === 'plagal') label = 'Cadencia Plagal (IV → I)'
-                  if (val === 'rota') label = 'Cadencia Rota (V → vi)'
-                  if (val === 'semicadencia') label = 'Semicadencia (→ V)'
-                  if (val === 'frigia') label = 'Cadencia Frigia (♭VI → V)'
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                  <Tag className="w-3.5 h-3.5 text-purple-500" /> Insignia de Cadencia en este compás:
+                </label>
+                {selectedMeasure.cadence && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetCadenceOnMeasure(selectedMeasure.id, null)}
+                    className="text-[11px] text-red-500 hover:underline font-semibold"
+                  >
+                    Quitar Cadencia
+                  </button>
+                )}
+              </div>
 
-                  handleUpdateMeasure({
-                    ...selectedMeasure,
-                    cadence: val || undefined,
-                    cadenceLabel: label || undefined,
-                  })
-                }}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
-              >
-                <option value="">(Auto-detectar o Sin cadencia)</option>
-                <option value="autentica">Cadencia Auténtica (V → I)</option>
-                <option value="plagal">Cadencia Plagal (IV → I)</option>
-                <option value="rota">Cadencia Rota / Deceptiva (V → vi)</option>
-                <option value="semicadencia">Semicadencia (→ V)</option>
-                <option value="frigia">Cadencia Frigia (♭VI → V)</option>
-              </select>
+              {/* Botones de 1 clic para cadencias frecuentes */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {PRESET_CADENCES.slice(0, 5).map((cad) => {
+                  const isActive = selectedMeasure.cadence === cad.type || selectedMeasure.cadence === cad.id
+                  return (
+                    <button
+                      key={cad.id}
+                      type="button"
+                      onClick={() => handleSetCadenceOnMeasure(selectedMeasure.id, cad)}
+                      className={cn(
+                        'px-2 py-1 rounded-md text-[10px] font-bold border transition-all truncate',
+                        isActive
+                          ? cn(cad.colorBadge, 'ring-2 ring-purple-500/50')
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-purple-300'
+                      )}
+                      title={cad.description}
+                    >
+                      {cad.name.split('(')[0].replace('Cadencia ', '')} ({cad.degrees})
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>

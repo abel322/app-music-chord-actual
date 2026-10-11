@@ -1,9 +1,10 @@
 /**
- * Módulo de Teoría Armónica para MusicChord
- * Gestión de Progresiones de Acordes y Detección de Cadencias
+ * Módulo de Teoría Armónica Avanzada para MusicChord
+ * Gestión desacoplada de Progresiones de Acordes, Detección y Catálogo de Cadencias
  */
 
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 
 const FLAT_TO_SHARP: Record<string, string> = {
   Db: 'C#',
@@ -13,6 +14,8 @@ const FLAT_TO_SHARP: Record<string, string> = {
   Bb: 'A#',
 }
 
+const FLAT_KEYS = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Dm', 'Gm', 'Cm', 'Fm', 'Bbm']
+
 /**
  * Normaliza cualquier nota (ej: Db -> C#)
  */
@@ -21,90 +24,119 @@ export function normalizeNote(note: string): string {
   return FLAT_TO_SHARP[trimmed] || trimmed
 }
 
-/**
- * Mapeo de grados romanos relativos a semitonos e intervalos
- */
-const DEGREE_DEFINITIONS: Record<string, { semitones: number; quality: string }> = {
-  // Tónica
-  I: { semitones: 0, quality: '' },
-  i: { semitones: 0, quality: 'm' },
+export function getNoteName(noteIndex: number, preferFlat: boolean = false): string {
+  const norm = (noteIndex % 12 + 12) % 12
+  return preferFlat ? FLAT_NOTES[norm] : SHARP_NOTES[norm]
+}
 
-  // Segunda bemol / Napolitano
-  '♭II': { semitones: 1, quality: '' },
-  bII: { semitones: 1, quality: '' },
-
-  // Segunda
-  ii: { semitones: 2, quality: 'm' },
-  II: { semitones: 2, quality: '' },
-
-  // Tercera bemol
-  '♭III': { semitones: 3, quality: '' },
-  bIII: { semitones: 3, quality: '' },
-
-  // Tercera
-  iii: { semitones: 4, quality: 'm' },
-  III: { semitones: 4, quality: '' },
-
-  // Cuarta
-  IV: { semitones: 5, quality: '' },
-  iv: { semitones: 5, quality: 'm' },
-
-  // Tritono
-  '♭V': { semitones: 6, quality: 'dim' },
-
-  // Quinta
-  V: { semitones: 7, quality: '' },
-  v: { semitones: 7, quality: 'm' },
-  V7: { semitones: 7, quality: '7' },
-
-  // Sexta bemol
-  '♭VI': { semitones: 8, quality: '' },
-  bVI: { semitones: 8, quality: '' },
-
-  // Sexta
-  vi: { semitones: 9, quality: 'm' },
-  VI: { semitones: 9, quality: '' },
-
-  // Séptima bemol
-  '♭VII': { semitones: 10, quality: '' },
-  bVII: { semitones: 10, quality: '' },
-
-  // Séptima / Sensible
-  'vii°': { semitones: 11, quality: 'dim' },
-  viio: { semitones: 11, quality: 'dim' },
-  vii: { semitones: 11, quality: 'dim' },
-  VII: { semitones: 11, quality: '' },
+const ROMAN_MAP: Record<string, number> = {
+  i: 0,
+  ii: 2,
+  iii: 4,
+  iv: 5,
+  v: 7,
+  vi: 9,
+  vii: 11,
 }
 
 /**
- * Convierte un grado romano a su acorde correspondiente en una tonalidad dada
+ * Convierte un grado romano (incluyendo alteraciones, extensiones y dominantes secundarias)
+ * a su acorde real en la tonalidad dada.
  * Ej: degreeToChord('vi', 'C') => 'Am'
- *     degreeToChord('V', 'G') => 'D'
+ *     degreeToChord('V7', 'G') => 'D7'
+ *     degreeToChord('♭VII', 'C') => 'Bb'
+ *     degreeToChord('iiø7', 'C') => 'Dm7b5'
+ *     degreeToChord('V7(b9)', 'C') => 'G7(b9)'
+ *     degreeToChord('Imaj7', 'F') => 'Fmaj7'
  */
 export function degreeToChord(degree: string, key: string = 'C'): string {
-  // Limpiar tonalidad de si viene con "m" (menor)
+  if (!degree) return ''
+  const trimmed = degree.trim()
+
+  // Dominantes secundarias (ej: V7/vi, V7/bVI) excepto inversiones de tipo iv6
+  if (trimmed.includes('/') && !trimmed.startsWith('iv6')) {
+    const [num, denom] = trimmed.split('/')
+    const denomLower = denom.toLowerCase().replace(/^[b♭#♯]/, '')
+    if (ROMAN_MAP[denomLower] !== undefined) {
+      const targetChord = degreeToChord(denom, key)
+      const match = targetChord.match(/^([A-G][#b]?)/)
+      if (match) {
+        return degreeToChord(num, match[1])
+      }
+    }
+  }
+
   const isMinorKey = key.endsWith('m') && !key.toLowerCase().endsWith('maj')
-  const rootKey = normalizeNote(key.replace(/m$/i, '').trim())
+  const cleanKey = key.replace(/m$/i, '').trim()
+  const keyIndex = SHARP_NOTES.indexOf(cleanKey) !== -1 ? SHARP_NOTES.indexOf(cleanKey) : FLAT_NOTES.indexOf(cleanKey)
+  if (keyIndex === -1) return degree
 
-  const rootIndex = NOTES.indexOf(rootKey)
-  if (rootIndex === -1) return degree
+  let accidental = 0
+  let rest = trimmed
+  let hasFlatAccidental = false
 
-  const def = DEGREE_DEFINITIONS[degree]
-  if (!def) return degree
+  if (rest.startsWith('♭') || rest.startsWith('b')) {
+    accidental = -1
+    hasFlatAccidental = true
+    rest = rest.slice(1)
+  } else if (rest.startsWith('♯') || rest.startsWith('#')) {
+    accidental = 1
+    rest = rest.slice(1)
+  }
 
-  const chordRootIndex = (rootIndex + def.semitones) % 12
-  const chordRoot = NOTES[chordRootIndex]
+  const romanMatch = rest.match(/^(vii|vi|iv|v|iii|ii|i)/i)
+  if (!romanMatch) return degree
 
-  return `${chordRoot}${def.quality}`
+  const romanRaw = romanMatch[0]
+  const romanLower = romanRaw.toLowerCase()
+  const baseSemitones = ROMAN_MAP[romanLower]
+  if (baseSemitones === undefined) return degree
+
+  const isLower = romanRaw === romanLower
+  const suffix = rest.slice(romanRaw.length)
+
+  const preferFlat = hasFlatAccidental || FLAT_KEYS.includes(key)
+  const chordRootIndex = (keyIndex + baseSemitones + accidental + 12) % 12
+  const chordRoot = getNoteName(chordRootIndex, preferFlat)
+
+  // Extensiones explícitas
+  if (suffix) {
+    if (suffix === '7') {
+      return `${chordRoot}${isLower ? 'm7' : '7'}`
+    }
+    if (suffix === 'maj7' || suffix === 'Δ7' || suffix === 'Maj7') {
+      return `${chordRoot}maj7`
+    }
+    if (suffix === 'ø7' || suffix === 'm7b5' || suffix === 'm7♭5') {
+      return `${chordRoot}m7b5`
+    }
+    if (suffix === 'dim7' || suffix === '°7' || suffix === 'o7') {
+      return `${chordRoot}dim7`
+    }
+    if (suffix === 'dim' || suffix === '°' || suffix === 'o') {
+      return `${chordRoot}dim`
+    }
+    if (suffix.startsWith('(b9)') || suffix === '7(b9)') {
+      return `${chordRoot}7(b9)`
+    }
+    return `${chordRoot}${suffix}`
+  }
+
+  // Sensible disminuida
+  if (romanLower === 'vii' && (trimmed.includes('°') || trimmed.includes('o'))) {
+    return `${chordRoot}dim`
+  }
+
+  return `${chordRoot}${isLower ? 'm' : ''}`
 }
 
 /**
- * Obtiene el grado romano de un acorde dado dentro de una tonalidad
+ * Obtiene el grado romano relativo de un acorde dado dentro de una tonalidad
  */
 export function chordToDegree(chord: string, key: string = 'C'): string | null {
   if (!chord) return null
 
-  // Remover bajo alternado para analizar el grado fundamental (ej. D/F# -> D)
+  // Remover bajo alternado (ej. D/F# -> D)
   const [mainChord] = chord.split('/')
   const match = mainChord.match(/^([A-G][#b]?)(.*)$/)
   if (!match) return null
@@ -113,14 +145,14 @@ export function chordToDegree(chord: string, key: string = 'C'): string | null {
   const chordSuffix = match[2] || ''
 
   const rootKey = normalizeNote(key.replace(/m$/i, '').trim())
-  const keyIndex = NOTES.indexOf(rootKey)
-  const chordIndex = NOTES.indexOf(chordRoot)
+  const keyIndex = SHARP_NOTES.indexOf(rootKey)
+  const chordIndex = SHARP_NOTES.indexOf(chordRoot)
 
   if (keyIndex === -1 || chordIndex === -1) return null
 
   const semitones = (chordIndex - keyIndex + 12) % 12
   const isMinor = chordSuffix.startsWith('m') && !chordSuffix.startsWith('maj')
-  const isDim = chordSuffix.includes('dim') || chordSuffix.includes('m7b5')
+  const isDim = chordSuffix.includes('dim') || chordSuffix.includes('m7b5') || chordSuffix.includes('°')
 
   switch (semitones) {
     case 0:
@@ -153,123 +185,281 @@ export function chordToDegree(chord: string, key: string = 'C'): string | null {
 }
 
 /**
- * Definición de una Progresión Armónica Predefinida
+ * Definición de una Progresión Armónica
  */
 export interface HarmonicProgression {
   id: string
   name: string
   degrees: string[]
-  genre: 'Pop' | 'Jazz' | 'Rock' | 'Balada' | 'Clásica' | 'Latino'
+  genre: 'Pop' | 'Jazz' | 'Rock' | 'Gospel' | 'Balada' | 'Clásica' | 'Latino' | 'Modal' | 'Personalizada'
   description: string
-  cadenceNote?: string
+  barsCount?: number
+  isCustom?: boolean
+  createdAt?: string
 }
 
 /**
- * Catálogo maestro de progresiones armónicas populares
+ * Catálogo Maestro de Progresiones Armónicas (Mayor y Menor)
  */
 export const POPULAR_PROGRESSIONS: HarmonicProgression[] = [
+  // --- POP / WORSHIP ---
   {
     id: 'axis-pop',
     name: 'I - V - vi - IV (Eje Pop / Los 4 Acordes)',
     degrees: ['I', 'V', 'vi', 'IV'],
     genre: 'Pop',
-    description: 'La progresión más exitosa del pop contemporáneo (Don\'t Stop Believin\', Let It Be, With Or Without You).',
-    cadenceNote: 'Resolución abierta',
+    description: 'La progresión más exitosa del pop y worship contemporáneo (Don\'t Stop Believin\', Let It Be, With Or Without You).',
+    barsCount: 4,
   },
   {
-    id: 'melancholic-vi-iv-i-v',
-    name: 'vi - IV - I - V (Pop Melancólico / Menor)',
+    id: 'worship-vi-iv-i-v',
+    name: 'vi - IV - I - V (Pop Melancólico / Worship)',
     degrees: ['vi', 'IV', 'I', 'V'],
     genre: 'Pop',
-    description: 'Sonido reflexivo y moderno centrado en la relativa menor (Faded, Someone Like You, Despacito).',
-    cadenceNote: 'Semicadencia en V',
+    description: 'Sonido reflexivo centrado en la relativa menor (Someone Like You, Despacito, Oceans).',
+    barsCount: 4,
   },
   {
-    id: 'jazz-ii-v-i',
-    name: 'ii - V - I - I (Cadencia de Jazz Estándar)',
-    degrees: ['ii', 'V', 'I', 'I'],
-    genre: 'Jazz',
-    description: 'La cadencia armónica por excelencia en jazz, bossa nova y neo-soul (Autumn Leaves, Blue Bossa).',
-    cadenceNote: 'Cadencia Auténtica Perfecta',
+    id: 'pop-i-iv-vi-v',
+    name: 'I - IV - vi - V (Pop Energético / Himno)',
+    degrees: ['I', 'IV', 'vi', 'V'],
+    genre: 'Pop',
+    description: 'Flujo positivo y ascendente utilizado en estrofas y pre-coros dinámicos.',
+    barsCount: 4,
   },
   {
-    id: 'doo-wop-50s',
+    id: 'royal-road',
+    name: 'IV - V - iii - vi (Royal Road / Pop Contemporáneo)',
+    degrees: ['IV', 'V', 'iii', 'vi'],
+    genre: 'Pop',
+    description: 'La famosísima progresión de la música japonesa y pop internacional con resolución en vi.',
+    barsCount: 4,
+  },
+  {
+    id: '50s-doo-wop',
     name: 'I - vi - IV - V (Doo-Wop Años 50 / Balada)',
     degrees: ['I', 'vi', 'IV', 'V'],
     genre: 'Balada',
     description: 'La rueda armónica dorada del pop de los 50 y baladas nostálgicas (Stand By Me, Unchained Melody).',
-    cadenceNote: 'Semicadencia circular',
+    barsCount: 4,
+  },
+
+  // --- JAZZ / BOSSA / STANDARD ---
+  {
+    id: 'jazz-ii-v-i',
+    name: 'ii7 - V7 - Imaj7 (Cadencia de Jazz Estándar)',
+    degrees: ['ii7', 'V7', 'Imaj7', 'Imaj7'],
+    genre: 'Jazz',
+    description: 'La cadencia armónica por excelencia en jazz, bossa nova y neo-soul (Autumn Leaves, Blue Bossa).',
+    barsCount: 4,
   },
   {
-    id: 'rock-i-iv-v',
-    name: 'I - IV - V - IV (Rock & Roll Clásico)',
-    degrees: ['I', 'IV', 'V', 'IV'],
-    genre: 'Rock',
-    description: 'Estructura directa y potente del rock, blues y folk (Wild Thing, Twist and Shout, La Bamba).',
-    cadenceNote: 'Plagal pendular',
+    id: 'jazz-turnaround-1',
+    name: 'Imaj7 - vi7 - ii7 - V7 (Turnaround de Jazz I - vi - ii - V)',
+    degrees: ['Imaj7', 'vi7', 'ii7', 'V7'],
+    genre: 'Jazz',
+    description: 'Turnaround cíclico estándar para enlazar coros y solos.',
+    barsCount: 4,
   },
   {
-    id: 'classical-i-iv-v-i',
-    name: 'I - IV - V - I (Resolución Auténtica Clásica)',
-    degrees: ['I', 'IV', 'V', 'I'],
-    genre: 'Clásica',
-    description: 'La progresión fundamental de la armonía tonal con conclusión perfecta.',
-    cadenceNote: 'Cadencia Auténtica Perfecta',
+    id: 'jazz-turnaround-2',
+    name: 'iii7 - vi7 - ii7 - V7 (Turnaround iii - vi - ii - V)',
+    degrees: ['iii7', 'vi7', 'ii7', 'V7'],
+    genre: 'Jazz',
+    description: 'Descenso suave por quintas secundarias hacia la dominante.',
+    barsCount: 4,
   },
   {
-    id: 'andalusian-cadence',
-    name: 'vi - V - IV - III (Cadencia Andaluza / Flamenco)',
-    degrees: ['vi', 'V', 'IV', 'III'],
-    genre: 'Latino',
-    description: 'Descenso armónico tradicional en el folklore español y rock latino (Hit the Road Jack, Sultans of Swing).',
-    cadenceNote: 'Cadencia Frigia / Flamenca',
+    id: 'jazz-minor-ii-v-i',
+    name: 'iiø7 - V7(b9) - i (ii - V - i Menor Bossa / Jazz)',
+    degrees: ['iiø7', 'V7(b9)', 'i', 'i'],
+    genre: 'Jazz',
+    description: 'Cadencia fundamental en tonalidad menor con dominante con novena bemol.',
+    barsCount: 4,
   },
   {
-    id: 'mixolydian-rock',
+    id: 'coltrane-changes-basic',
+    name: 'Imaj7 - V7/♭VI - ♭VImaj7 - V7 (Coltrane Changes Básicas)',
+    degrees: ['Imaj7', 'V7/♭VI', '♭VImaj7', 'V7'],
+    genre: 'Jazz',
+    description: 'Modulación por terceras mayores inspirada en Giant Steps.',
+    barsCount: 4,
+  },
+
+  // --- ROCK / MODAL / FUNK ---
+  {
+    id: 'rock-mixolydian',
     name: 'I - ♭VII - IV - I (Rock Mixolidio Épico)',
     degrees: ['I', '♭VII', 'IV', 'I'],
     genre: 'Rock',
     description: 'Sonido himno del classic rock usando la séptima bemol (Sweet Home Alabama, Hey Jude, Fortunate Son).',
-    cadenceNote: 'Resolución Mixolidia',
+    barsCount: 4,
   },
   {
-    id: 'plagal-turnaround',
-    name: 'I - IV - I - V (Balada Folk / Acústica)',
+    id: 'andalusian-flamenco',
+    name: 'i - ♭VII - ♭VI - V7 (Cadencia Andaluza / Flamenco)',
+    degrees: ['i', '♭VII', '♭VI', 'V7'],
+    genre: 'Latino',
+    description: 'Descenso armónico tradicional en el folklore español y rock latino (Hit the Road Jack, Sultans of Swing).',
+    barsCount: 4,
+  },
+  {
+    id: 'blues-minor',
+    name: 'i - iv - v - i (Blues Menor / Modal)',
+    degrees: ['i', 'iv', 'v', 'i'],
+    genre: 'Rock',
+    description: 'Estructura modal sobria y profunda para blues, funk y rock alternativo.',
+    barsCount: 4,
+  },
+  {
+    id: 'folk-classic-rock',
+    name: 'I - IV - I - V (Folk / Rock Clásico)',
     degrees: ['I', 'IV', 'I', 'V'],
-    genre: 'Balada',
-    description: 'Estructura rústica y abierta para estrofas y versos acústicos.',
-    cadenceNote: 'Semicadencia',
+    genre: 'Rock',
+    description: 'Estructura rústica y abierta para versos acústicos y country rock.',
+    barsCount: 4,
+  },
+
+  // --- GOSPEL / NEO-SOUL ---
+  {
+    id: 'gospel-minor-iv',
+    name: 'I - I7 - IV - iv (Gospel / Cuarto Menor Emotivo)',
+    degrees: ['I', 'I7', 'IV', 'iv'],
+    genre: 'Gospel',
+    description: 'Progresión gospel conmovedora con el clásico préstamo modal del iv menor.',
+    barsCount: 4,
+  },
+  {
+    id: 'neo-soul-descending',
+    name: 'IVmaj7 - iii7 - ii7 - Imaj7 (Neo-Soul Descenso Suave)',
+    degrees: ['IVmaj7', 'iii7', 'ii7', 'Imaj7'],
+    genre: 'Gospel',
+    description: 'Paseo diatónico descendente característico de Stevie Wonder, D\'Angelo y R&B contemporáneo.',
+    barsCount: 4,
+  },
+  {
+    id: 'gospel-turnaround',
+    name: 'ii - iii - IV - V (Gospel Ascenso Épico)',
+    degrees: ['ii', 'iii', 'IV', 'V'],
+    genre: 'Gospel',
+    description: 'Escalada cromática/diatónica de gran fuerza vocal que desemboca en la dominante.',
+    barsCount: 4,
   },
 ]
 
 /**
  * Obtiene los acordes reales de una progresión para una tonalidad específica
  */
-export function getProgressionChords(progressionId: string, key: string = 'C'): string[] {
-  const prog = POPULAR_PROGRESSIONS.find((p) => p.id === progressionId)
-  if (!prog) return []
+export function getProgressionChords(
+  progression: HarmonicProgression | string,
+  key: string = 'C'
+): string[] {
+  let degrees: string[] = []
 
-  return prog.degrees.map((deg) => degreeToChord(deg, key))
+  if (typeof progression === 'string') {
+    const found = POPULAR_PROGRESSIONS.find((p) => p.id === progression)
+    if (found) degrees = found.degrees
+    else degrees = progression.split(/[\s,-]+/).filter(Boolean)
+  } else if (progression && Array.isArray(progression.degrees)) {
+    degrees = progression.degrees
+  }
+
+  return degrees.map((deg) => degreeToChord(deg, key))
 }
 
 /**
- * Información de una Cadencia Armónica
+ * Definición de una Cadencia Armónica
  */
-export interface CadenceInfo {
-  type: 'autentica' | 'plagal' | 'rota' | 'semicadencia' | 'frigia'
-  label: string
+export interface CadenceDefinition {
+  id: string
+  type: string
+  name: string
+  degrees: string
   description: string
-  colorBadge: string // Estilos Tailwind para el tag visual
+  colorBadge: string // Estilos Tailwind para el badge
+  genre?: string
+  isCustom?: boolean
+  createdAt?: string
 }
 
 /**
- * Analiza dos acordes consecutivos e identifica si forman una cadencia musical
+ * Catálogo Maestro de Cadencias Predefinidas
+ */
+export const PRESET_CADENCES: CadenceDefinition[] = [
+  {
+    id: 'cad-pac',
+    type: 'autentica-pac',
+    name: 'Cadencia Auténtica Perfecta (PAC)',
+    degrees: 'V(7) → I',
+    description: 'Resolución conclusiva máxima de tensión dominante a tónica en estado fundamental.',
+    colorBadge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800',
+  },
+  {
+    id: 'cad-iac',
+    type: 'autentica-iac',
+    name: 'Cadencia Auténtica Imperfecta (IAC)',
+    degrees: 'V → I (inv.) / vii° → I',
+    description: 'Resolución de dominante donde uno de los acordes está invertido o soprano no reposa en tónica.',
+    colorBadge: 'bg-teal-100 text-teal-800 dark:bg-teal-950/80 dark:text-teal-300 border-teal-300 dark:border-teal-800',
+  },
+  {
+    id: 'cad-plagal',
+    type: 'plagal',
+    name: 'Cadencia Plagal ("Amén")',
+    degrees: 'IV → I  o  iv → I',
+    description: 'Resolución suave y solemne de la subdominante a la tónica, popular en himnos y baladas pop.',
+    colorBadge: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/80 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800',
+  },
+  {
+    id: 'cad-rota',
+    type: 'rota',
+    name: 'Cadencia Rota / Deceptiva',
+    degrees: 'V → vi  o  V → ♭VI',
+    description: 'Resolución sorpresiva donde la dominante evade la tónica y reposa en la relativa menor.',
+    colorBadge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300 dark:border-amber-800',
+  },
+  {
+    id: 'cad-semicadencia',
+    type: 'semicadencia',
+    name: 'Semicadencia (Reposo en V)',
+    degrees: 'I / ii / IV → V',
+    description: 'Pausa respiratoria sobre la dominante que deja la frase abierta esperando respuesta.',
+    colorBadge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800',
+  },
+  {
+    id: 'cad-frigia',
+    type: 'frigia',
+    name: 'Cadencia Frigia (Andaluza)',
+    degrees: 'iv6 → V  o  ♭VI → V',
+    description: 'Típica del modo menor y música española, con movimiento descendente de semitono al V.',
+    colorBadge: 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-300 dark:border-rose-800',
+  },
+  {
+    id: 'cad-picardia',
+    type: 'picardia',
+    name: 'Cadencia Picardía (Tercera de Picardía)',
+    degrees: 'V → I (en menor)',
+    description: 'Finalización luminosa en acorde Mayor dentro de una obra o sección en tonalidad menor.',
+    colorBadge: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-950/80 dark:text-fuchsia-300 border-fuchsia-300 dark:border-fuchsia-800',
+  },
+  {
+    id: 'cad-backdoor',
+    type: 'backdoor',
+    name: 'Cadencia Backdoor (Jazz/Soul)',
+    degrees: '♭VII7 → Imaj7',
+    description: 'Sustitución modal elegante del jazz y soul que resuelve suavemente desde el ♭VII dominante.',
+    colorBadge: 'bg-violet-100 text-violet-800 dark:bg-violet-950/80 dark:text-violet-300 border-violet-300 dark:border-violet-800',
+  },
+]
+
+/**
+ * Analiza dos acordes consecutivos e identifica automáticamente la cadencia
  */
 export function detectCadence(
   currentChord: string,
   previousChord: string,
   key: string = 'C'
-): CadenceInfo | null {
+): CadenceDefinition | null {
   if (!currentChord || !previousChord) return null
 
   const prevDegree = chordToDegree(previousChord, key)
@@ -277,69 +467,63 @@ export function detectCadence(
 
   if (!prevDegree || !currDegree) return null
 
-  // 1. Cadencia Auténtica Perfecta (V -> I)
+  const isMinorKey = key.endsWith('m') && !key.toLowerCase().endsWith('maj')
+
+  // 1. Cadencia Backdoor (♭VII -> I)
   if (
-    (prevDegree === 'V' || prevDegree === 'V7' || prevDegree === 'vii°') &&
+    (prevDegree === '♭VII' || prevDegree === 'bVII') &&
     (currDegree === 'I' || currDegree === 'i')
   ) {
-    return {
-      type: 'autentica',
-      label: 'Cadencia Auténtica (V → I)',
-      description: 'Resolución tonal perfecta de tensión a reposo absoluto.',
-      colorBadge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800',
-    }
+    return PRESET_CADENCES.find((c) => c.type === 'backdoor') || null
   }
 
-  // 2. Cadencia Plagal (IV -> I) ("Amén")
+  // 2. Tercera de Picardía (en tonalidad menor, resolución a I mayor)
+  if (
+    isMinorKey &&
+    (prevDegree === 'V' || prevDegree === 'v') &&
+    currDegree === 'I'
+  ) {
+    return PRESET_CADENCES.find((c) => c.type === 'picardia') || null
+  }
+
+  // 3. Cadencia Frigia (♭VI -> V o iv -> V)
+  if (
+    (prevDegree === '♭VI' || prevDegree === 'bVI' || prevDegree === 'iv') &&
+    currDegree === 'V'
+  ) {
+    return PRESET_CADENCES.find((c) => c.type === 'frigia') || null
+  }
+
+  // 4. Cadencia Auténtica (V -> I o vii° -> I)
+  if (
+    (prevDegree === 'V' || prevDegree === 'v' || prevDegree === 'vii°') &&
+    (currDegree === 'I' || currDegree === 'i')
+  ) {
+    return PRESET_CADENCES.find((c) => c.type === 'autentica-pac') || null
+  }
+
+  // 5. Cadencia Plagal (IV -> I o iv -> I)
   if (
     (prevDegree === 'IV' || prevDegree === 'iv') &&
     (currDegree === 'I' || currDegree === 'i')
   ) {
-    return {
-      type: 'plagal',
-      label: 'Cadencia Plagal (IV → I)',
-      description: 'Resolución dulce y suave (Cadencia del Amén).',
-      colorBadge: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800',
-    }
+    return PRESET_CADENCES.find((c) => c.type === 'plagal') || null
   }
 
-  // 3. Cadencia Rota / Deceptiva (V -> vi o V -> VI)
+  // 6. Cadencia Rota (V -> vi o V -> ♭VI)
   if (
-    (prevDegree === 'V' || prevDegree === 'V7') &&
-    (currDegree === 'vi' || currDegree === 'VI' || currDegree === '♭VI')
+    (prevDegree === 'V' || prevDegree === 'v') &&
+    (currDegree === 'vi' || currDegree === 'VI' || currDegree === '♭VI' || currDegree === 'bVI')
   ) {
-    return {
-      type: 'rota',
-      label: 'Cadencia Rota (V → vi)',
-      description: 'Resolución sorpresiva hacia la relativa menor en lugar de la tónica.',
-      colorBadge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-800',
-    }
+    return PRESET_CADENCES.find((c) => c.type === 'rota') || null
   }
 
-  // 4. Semicadencia (Termina en V)
+  // 7. Semicadencia (Cualquier grado que reposa en V)
   if (
     currDegree === 'V' &&
     (prevDegree === 'I' || prevDegree === 'IV' || prevDegree === 'ii' || prevDegree === 'vi')
   ) {
-    return {
-      type: 'semicadencia',
-      label: 'Semicadencia (→ V)',
-      description: 'Reposo en la dominante que deja la frase en suspenso para continuar.',
-      colorBadge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800',
-    }
-  }
-
-  // 5. Cadencia Frigia (♭VI -> V o iv -> V)
-  if (
-    (prevDegree === '♭VI' || prevDegree === 'iv') &&
-    currDegree === 'V'
-  ) {
-    return {
-      type: 'frigia',
-      label: 'Cadencia Frigia (♭VI → V)',
-      description: 'Resolución de carácter modal andaluz hacia la dominante.',
-      colorBadge: 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border-rose-300 dark:border-rose-800',
-    }
+    return PRESET_CADENCES.find((c) => c.type === 'semicadencia') || null
   }
 
   return null

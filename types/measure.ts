@@ -22,8 +22,9 @@ export interface Measure {
   repeatEnd?: boolean // Cierre de repetición (:|)
   repeatCount?: number // Número de repeticiones (ej. 2x, 4x)
   volta?: number // Casilla de repetición (1ª o 2ª casilla)
-  cadence?: string // Tipo de cadencia detectada o asignada (ej. 'autentica', 'plagal', 'rota', 'semicadencia')
-  cadenceLabel?: string // Etiqueta descriptiva (ej. 'Cadencia Auténtica V → I')
+  cadence?: string // Tipo o ID de cadencia (ej. 'autentica-pac', 'plagal', 'rota', 'semicadencia', 'custom-123')
+  cadenceLabel?: string // Etiqueta descriptiva (ej. 'Cadencia Auténtica (V → I)')
+  cadenceColor?: string // Clases de color para el badge
   guideLyric?: string // Letra guía sutil debajo del compás
 }
 
