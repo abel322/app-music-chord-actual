@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Measure, ChordBeat } from '@/types/measure'
 import { getBeatsPerMeasure, duplicateMeasure, applyProgressionFromMeasure } from '@/lib/measure-utils'
-import { HarmonicProgression, getProgressionChords, detectCadence } from '@/lib/harmonic-theory'
+import { HarmonicProgression, getProgressionChords } from '@/lib/harmonic-theory'
 import { MeasureCell, CadenceBracketInfo } from './measure-cell'
 import { MeasureInspector } from './measure-inspector'
 import { Plus } from 'lucide-react'
@@ -122,48 +122,85 @@ export function MeasureGrid({
     handleUpdateMeasure({ ...measure, volta: newVolta })
   }
 
-  // Calcular corchetes flotantes superiores de cadencias (1 compás o 2 compases agrupados)
+  // Eliminar cadencia de un compás (y de su par si es de 2 compases)
+  const handleRemoveCadence = (measureId: string) => {
+    const idx = measures.findIndex((m) => m.id === measureId)
+    if (idx === -1) return
+
+    const target = measures[idx]
+    const updated = measures.map((m, i) => {
+      if (m.id === measureId) {
+        return {
+          ...m,
+          cadence: undefined,
+          cadenceLabel: undefined,
+          cadenceColor: undefined,
+          cadenceRole: undefined,
+        }
+      }
+      if (target.cadenceRole === 'start' && i === idx + 1 && m.cadenceRole === 'end') {
+        return {
+          ...m,
+          cadence: undefined,
+          cadenceLabel: undefined,
+          cadenceColor: undefined,
+          cadenceRole: undefined,
+        }
+      }
+      if (target.cadenceRole === 'end' && i === idx - 1 && m.cadenceRole === 'start') {
+        return {
+          ...m,
+          cadence: undefined,
+          cadenceLabel: undefined,
+          cadenceColor: undefined,
+          cadenceRole: undefined,
+        }
+      }
+      return m
+    })
+
+    onUpdateMeasures(updated)
+  }
+
+  // Calcular corchetes flotantes superiores de cadencias MANUALES (sin detección automática)
   const cadenceBrackets = useMemo(() => {
     const map: Record<string, CadenceBracketInfo> = {}
 
     for (let i = 0; i < measures.length; i++) {
       const m = measures[i]
-      const prevM = i > 0 ? measures[i - 1] : null
+      if (!m.cadence && !m.cadenceLabel) continue
 
-      const primaryChord =
-        m.slots?.find((s) => s.chord && s.chord !== '%')?.chord ||
-        m.beats?.find((b) => b.chord)?.chord ||
-        ''
+      const label = m.cadenceLabel || m.cadence
 
-      const prevChord =
-        prevM?.beats?.[prevM.beats.length - 1]?.chord ||
-        prevM?.slots?.find((s) => s.chord)?.chord ||
-        ''
+      if (m.cadenceRole === 'start') {
+        map[m.id] = { type: 'start' }
+        continue
+      }
+      if (m.cadenceRole === 'end') {
+        map[m.id] = { type: 'end', label }
+        continue
+      }
+      if (m.cadenceRole === 'single') {
+        map[m.id] = { type: 'single', label }
+        continue
+      }
 
-      const detected = detectCadence(primaryChord, prevChord, currentKey)
-      const cadenceLabel =
-        m.cadenceLabel || (detected ? `${detected.name} (${detected.degrees})` : null)
-
-      if (cadenceLabel) {
-        if (i === 0 || !prevM) {
-          // Cadencia de 1 solo compás inicial
-          map[m.id] = { type: 'single', label: cadenceLabel }
-        } else if (map[prevM.id]?.type === 'end' || map[prevM.id]?.type === 'single') {
-          // Si el compás previo ya cerró otra cadencia, tratar este como compás individual
-          map[m.id] = { type: 'single', label: cadenceLabel }
+      // Compatibilidad con registros antiguos donde cadenceRole no estaba guardado:
+      if (i === 0 || m.division === 'half' || (m.slots && m.slots.length > 1)) {
+        map[m.id] = { type: 'single', label }
+      } else {
+        const prevM = measures[i - 1]
+        if (prevM && !prevM.cadence && !map[prevM.id]) {
+          map[prevM.id] = { type: 'start' }
+          map[m.id] = { type: 'end', label }
         } else {
-          // Cadencia agrupatoria de 2 compases consecutivos (tensión i-1 -> resolución i)
-          const isWrapped = i % 4 === 0
-          const isMobileWrapped = i % 2 === 0 && i % 4 !== 0
-
-          map[prevM.id] = { type: 'start', isWrapped, isMobileWrapped }
-          map[m.id] = { type: 'end', label: cadenceLabel, isWrapped, isMobileWrapped }
+          map[m.id] = { type: 'single', label }
         }
       }
     }
 
     return map
-  }, [measures, currentKey])
+  }, [measures])
 
   return (
     <div className="space-y-4">
@@ -190,6 +227,7 @@ export function MeasureGrid({
               }}
               onDuplicate={isEditing ? handleDuplicate : undefined}
               onRemove={isEditing && onRemoveMeasure ? onRemoveMeasure : undefined}
+              onRemoveCadence={isEditing ? handleRemoveCadence : undefined}
             />
           )
         })}

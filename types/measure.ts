@@ -81,6 +81,7 @@ export interface Measure {
   cadence?: string // Tipo o ID de cadencia
   cadenceLabel?: string // Etiqueta descriptiva (ej. 'Cadencia Auténtica (V → I)')
   cadenceColor?: string // Clases de color para el badge
+  cadenceRole?: 'single' | 'start' | 'end' // Rol en el corchete agrupatorio de cadencia
   guideLyric?: string // Letra guía rítmica sutil debajo del compás
 }
 

@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { Measure, MeasureSlot, MeasureDivision } from '@/types/measure'
-import { detectCadence } from '@/lib/harmonic-theory'
 import { 
   inferMeasureDivision, 
   ensureMeasureSlots, 
@@ -10,14 +9,12 @@ import {
   getMetricPulseGroups
 } from '@/lib/rhythm-utils'
 import { getBeatsPerMeasure } from '@/lib/measure-utils'
-import { Copy, Trash2 } from 'lucide-react'
+import { Copy, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface CadenceBracketInfo {
   type: 'single' | 'start' | 'end'
   label?: string
-  isWrapped?: boolean
-  isMobileWrapped?: boolean
 }
 
 interface MeasureCellProps {
@@ -32,6 +29,7 @@ interface MeasureCellProps {
   onClick?: () => void
   onDuplicate?: (measureId: string) => void
   onRemove?: (measureId: string) => void
+  onRemoveCadence?: (measureId: string) => void
 }
 
 export function MeasureCell({
@@ -46,6 +44,7 @@ export function MeasureCell({
   onClick,
   onDuplicate,
   onRemove,
+  onRemoveCadence,
 }: MeasureCellProps) {
   const effectiveTimeSig = measure.timeSignature || timeSignature || (beatsPerMeasure ? `${beatsPerMeasure}/4` : '4/4')
   const actualBeats = getBeatsPerMeasure(effectiveTimeSig)
@@ -58,20 +57,15 @@ export function MeasureCell({
   const firstHalfBeats = Array.from({ length: halfCount }, (_, i) => i + 1)
   const secondHalfBeats = Array.from({ length: Math.max(1, actualBeats - halfCount) }, (_, i) => halfCount + i + 1)
 
-  // Acorde principal (para detección de cadencia y vista completa)
-  const primaryChord = slots.find((s) => s.chord && s.chord !== '%')?.chord || 
-    measure.beats.find((b) => b.chord)?.chord || ''
-
-  // Cadencia armónica (manual o automática)
-  const prevChord = prevMeasure?.beats[prevMeasure.beats.length - 1]?.chord || 
-    prevMeasure?.slots?.find((s) => s.chord)?.chord || ''
-  const detectedCadence = detectCadence(primaryChord, prevChord, currentKey)
-  const cadenceToDisplay =
-    measure.cadenceLabel || (detectedCadence ? `${detectedCadence.name} (${detectedCadence.degrees})` : null)
-
-  const effectiveBracket =
+  // Corchete de Cadencia Armónica: SÓLO si fue configurada manualmente
+  const effectiveBracket: CadenceBracketInfo | null =
     cadenceBracket ||
-    (cadenceToDisplay ? { type: 'single', label: cadenceToDisplay } : null)
+    (measure.cadence || measure.cadenceLabel
+      ? {
+          type: (measure.cadenceRole as 'single' | 'start' | 'end') || 'single',
+          label: measure.cadenceRole === 'start' ? undefined : (measure.cadenceLabel || measure.cadence),
+        }
+      : null)
 
   return (
     <div
@@ -86,60 +80,66 @@ export function MeasureCell({
         isEditing && 'cursor-pointer hover:shadow-md'
       )}
     >
-      {/* 0. Corchete Flotante Superior de Cadencia Armónica (Estilo Partitura Tradicional) */}
+      {/* 0. Corchete Flotante Superior de Cadencia Armónica (Renderizado Local Inteligente) */}
       {effectiveBracket && (
         <>
+          {/* Caso 1: Compás individual (Semicadencia o cadencia en un solo compás) */}
           {effectiveBracket.type === 'single' && (
-            <div className="absolute -top-6 left-2 right-2 pointer-events-none z-20">
-              <div className="relative w-full h-3 border-t-2 border-l-2 border-r-2 border-purple-500/70 dark:border-purple-400/70 rounded-t-sm flex items-center justify-center">
-                {effectiveBracket.label && (
-                  <span className="pointer-events-auto text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 -mt-3.5 select-none shadow-2xs border border-purple-200/80 dark:border-purple-800/80 rounded whitespace-nowrap truncate max-w-[90%]">
+            <div className="absolute -top-6 left-2 right-2 pointer-events-none z-20 h-3 border-t-2 border-l-2 border-r-2 border-purple-500/70 dark:border-purple-400/70 rounded-t-sm">
+              {effectiveBracket.label && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1">
+                  <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-2xs border border-purple-200/80 dark:border-purple-800/80 select-none truncate max-w-[180px] sm:max-w-none inline-block">
                     {effectiveBracket.label}
                   </span>
-                )}
-              </div>
+                  {onRemoveCadence && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRemoveCadence(measure.id)
+                      }}
+                      className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                      title="Quitar cadencia"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
+          {/* Caso 2: Compás de origen (Tensión inicial: abre a la izquierda y se proyecta a la derecha) */}
           {effectiveBracket.type === 'start' && (
             <div
-              className={cn(
-                'absolute -top-6 left-2 pointer-events-none z-20 h-3 border-t-2 border-l-2 border-purple-500/70 dark:border-purple-400/70 rounded-tl-sm',
-                effectiveBracket.isWrapped
-                  ? 'right-2'
-                  : effectiveBracket.isMobileWrapped
-                  ? 'right-2 md:-right-[8px]'
-                  : '-right-[6px] sm:-right-[8px]'
-              )}
+              className="absolute -top-6 left-2 -right-3 pointer-events-none z-20 h-3 border-t-2 border-l-2 border-purple-500/70 dark:border-purple-400/70 rounded-tl-sm"
             />
           )}
 
+          {/* Caso 3: Compás de resolución (Llega desde la izquierda, cierra a la derecha y muestra el título) */}
           {effectiveBracket.type === 'end' && (
             <div
-              className={cn(
-                'absolute -top-6 right-2 pointer-events-none z-20 h-3 border-t-2 border-r-2 border-purple-500/70 dark:border-purple-400/70 rounded-tr-sm',
-                effectiveBracket.isWrapped
-                  ? 'left-2'
-                  : effectiveBracket.isMobileWrapped
-                  ? 'left-2 md:-left-[8px]'
-                  : '-left-[6px] sm:-left-[8px]'
-              )}
+              className="absolute -top-6 -left-3 right-2 pointer-events-none z-20 h-3 border-t-2 border-r-2 border-purple-500/70 dark:border-purple-400/70 rounded-tr-sm"
             >
-              {/* Texto de la Cadencia Flotante interrumpiendo la línea superior */}
+              {/* Título de la Cadencia renderizado sólo en el compás de resolución */}
               {effectiveBracket.label && (
-                <div
-                  className={cn(
-                    'absolute -top-3.5 whitespace-nowrap z-30 flex justify-center pointer-events-auto',
-                    effectiveBracket.isWrapped
-                      ? 'left-1/2 -translate-x-1/2'
-                      : effectiveBracket.isMobileWrapped
-                      ? 'left-1/2 -translate-x-1/2 md:left-0 md:-translate-x-1/2'
-                      : 'left-0 -translate-x-1/2'
-                  )}
-                >
-                  <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-2xs border border-purple-200/80 dark:border-purple-800/80 select-none truncate max-w-[200px] sm:max-w-none inline-block">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1">
+                  <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-2xs border border-purple-200/80 dark:border-purple-800/80 select-none truncate max-w-[180px] sm:max-w-none inline-block">
                     {effectiveBracket.label}
                   </span>
+                  {onRemoveCadence && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRemoveCadence(measure.id)
+                      }}
+                      className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                      title="Quitar cadencia"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               )}
             </div>

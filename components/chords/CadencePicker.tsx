@@ -104,17 +104,27 @@ export function CadencePicker({
         )}
       </div>
 
-      {/* Opción para Desmarcar / Auto-detectar */}
+      {/* Opción Destacada: ✕ Ninguna / Quitar Cadencia */}
       <button
         type="button"
         onClick={() => {
           onSelectCadence(null)
           setIsOpen(false)
         }}
-        className="w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors text-left shrink-0 border border-slate-200/60 dark:border-slate-800/60"
+        className={cn(
+          'w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all text-left shrink-0 border',
+          activeCadence
+            ? 'bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 shadow-2xs'
+            : 'bg-slate-50 dark:bg-slate-950/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+        )}
       >
-        <span className="flex items-center gap-1.5">
-          <span className="text-purple-500">✦</span> (Auto-detectar o Quitar cadencia)
+        <span className="flex items-center gap-2">
+          <span className="w-4 h-4 rounded-full bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-400 flex items-center justify-center text-[10px] font-black">
+            ✕
+          </span>
+          <span className={activeCadence ? 'font-bold text-red-600 dark:text-red-400' : 'font-semibold'}>
+            ✕ Ninguna / Quitar Cadencia
+          </span>
         </span>
         {!activeCadence && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
       </button>

@@ -621,17 +621,18 @@ export function MeasureInspector({
 
         {/* Insignia / Atajos Rápidos de Cadencia */}
         <div>
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-              <Tag className="w-3.5 h-3.5 text-purple-500" /> Insignia de Cadencia en este compás:
+              <Tag className="w-3.5 h-3.5 text-purple-500" /> Corchete de Cadencia en este compás:
             </label>
             {selectedMeasure.cadence && (
               <button
                 type="button"
                 onClick={() => handleSelectCadence(null)}
-                className="text-[11px] text-red-500 hover:underline font-semibold"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-800 transition-colors shadow-2xs"
+                title="Eliminar corchete y marca de cadencia"
               >
-                Quitar Cadencia
+                ✕ Quitar Cadencia
               </button>
             )}
           </div>
@@ -644,14 +645,14 @@ export function MeasureInspector({
                 <button
                   key={cad.id}
                   type="button"
-                  onClick={() => handleSelectCadence(cad)}
+                  onClick={() => handleSelectCadence(isActive ? null : cad)}
                   className={cn(
                     'px-2 py-1 rounded-md text-[10px] font-bold border transition-all truncate',
                     isActive
-                      ? cn(cad.colorBadge, 'ring-2 ring-purple-500/50')
+                      ? cn(cad.colorBadge, 'ring-2 ring-purple-500/50 shadow-sm')
                       : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-purple-300'
                   )}
-                  title={cad.description}
+                  title={isActive ? 'Clic para quitar cadencia' : cad.description}
                 >
                   {cad.name.split('(')[0].replace('Cadencia ', '')} ({cad.degrees})
                 </button>
