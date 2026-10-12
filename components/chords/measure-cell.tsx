@@ -57,6 +57,13 @@ export function MeasureCell({
   const firstHalfBeats = Array.from({ length: halfCount }, (_, i) => i + 1)
   const secondHalfBeats = Array.from({ length: Math.max(1, actualBeats - halfCount) }, (_, i) => halfCount + i + 1)
 
+  // Acorde principal del compás para la vista completa (división 'whole')
+  const primaryChord =
+    slots.find((s) => s.chord && s.chord !== '%')?.chord ||
+    slots[0]?.chord ||
+    measure.beats?.find((b) => b.chord)?.chord ||
+    ''
+
   // Corchete de Cadencia Armónica: SÓLO si fue configurada manualmente
   const effectiveBracket: CadenceBracketInfo | null =
     cadenceBracket ||
