@@ -252,8 +252,8 @@ export function CadencePicker({
           buttonVariant === 'default'
             ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
             : buttonVariant === 'subtle'
-            ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/70'
-            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400'
+              ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/70'
+              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400'
         )}
         title="Etiquetar cadencia armónica en este compás"
       >

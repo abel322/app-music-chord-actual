@@ -149,24 +149,17 @@ export function MeasureInspector({
     setIsChordModalOpen(true)
   }
 
-  // Asignar o desasignar cadencia (estrictamente metadatos y marcado visual, sin modificar slots, división ni acordes)
+  // Asignar o desasignar cadencia (marcado visual y metadatos exclusivamente, sin tocar jamás acordes, slots ni división)
   const handleSelectCadence = (cad: CadenceDefinition | null) => {
-    const updatedMeasure: Measure = {
+    onUpdateMeasure({
       ...selectedMeasure,
-      cadence: cad ? (cad.id || cad.type) : undefined,
+      division: selectedMeasure.division || currentDivision,
+      slots: selectedMeasure.slots || currentSlots,
+      cadence: cad ? (cad.type || cad.id) : undefined,
       cadenceLabel: cad ? `${cad.name} (${cad.degrees})` : undefined,
       cadenceColor: cad ? cad.colorBadge : undefined,
       cadenceRole: cad ? 'single' : undefined,
-    }
-
-    onUpdateMeasure(updatedMeasure)
-
-    if (onUpdateAllMeasures) {
-      const updatedList = measures.map((m) =>
-        m.id === selectedMeasure.id ? updatedMeasure : m
-      )
-      onUpdateAllMeasures(updatedList)
-    }
+    })
   }
 
   const divisionBracket = getDivisionBracket(currentDivision)
