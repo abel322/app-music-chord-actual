@@ -64,7 +64,7 @@ export function MeasureCell({
     <div
       onClick={onClick}
       className={cn(
-        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[120px] p-2.5 sm:p-3',
+        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[120px] p-2.5 sm:p-3 overflow-hidden',
         isSelected && isEditing
           ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
           : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
@@ -74,7 +74,7 @@ export function MeasureCell({
       )}
     >
       {/* 1. Cabecera del Compás: Número, Barra de Repetición, Badge de Cadencia, Bracket y Casillas */}
-      <div className="flex items-center justify-between text-[11px] leading-none mb-1 gap-1">
+      <div className="flex items-center justify-between text-[11px] leading-none mb-1 gap-1 shrink-0">
         <div className="flex items-center gap-1.5 font-mono shrink-0">
           <span className="text-slate-400 dark:text-slate-500 font-bold">
             {measure.measureNumber}
@@ -163,18 +163,22 @@ export function MeasureCell({
         </div>
       </div>
 
-      {/* 2. Cuerpo Armónico y Rítmico según la División Global */}
-      <div className="flex-1 flex flex-col justify-center my-1">
+      {/* 2. Cuerpo Armónico y Rítmico (Sin truncamiento con puntos suspensivos) */}
+      <div className="flex-1 flex flex-col justify-center my-1 min-w-0">
         {division === 'whole' ? (
           /* Caso Redonda / Métrica Completa: Acorde Centrado y Marcas de Pulso Agrupadas */
-          <div className="flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center justify-center min-w-0">
             {primaryChord ? (
               <>
-                <div className="flex items-center gap-1 max-w-full">
+                <div className="flex items-center justify-center gap-1 max-w-full">
                   <span
                     className={cn(
-                      'font-mono font-black tracking-tight text-slate-900 dark:text-white leading-none truncate max-w-full',
-                      primaryChord.length > 8 ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl'
+                      'font-mono font-black tracking-tight text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
+                      primaryChord.length > 9
+                        ? 'text-base sm:text-lg'
+                        : primaryChord.length > 6
+                        ? 'text-lg sm:text-xl'
+                        : 'text-xl sm:text-2xl'
                     )}
                     title={primaryChord}
                   >
@@ -211,14 +215,16 @@ export function MeasureCell({
         ) : division === 'half' ? (
           /* Caso Blancas: 2 Mitades con División Central */
           <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 text-center items-center py-1">
-            <div className="flex flex-col items-center justify-center px-1 overflow-hidden">
-              <div className="flex items-center gap-0.5 max-w-full">
+            <div className="flex flex-col items-center justify-center px-1 min-w-0">
+              <div className="flex items-center justify-center gap-0.5 max-w-full">
                 <span
                   className={cn(
-                    'font-mono font-black text-slate-900 dark:text-white leading-none truncate max-w-full',
+                    'font-mono text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
                     (slots[0]?.chord?.length || 0) > 7
-                      ? 'text-sm sm:text-base'
-                      : 'text-base sm:text-lg'
+                      ? 'text-xs sm:text-sm font-bold'
+                      : (slots[0]?.chord?.length || 0) > 4
+                      ? 'text-sm sm:text-base font-bold'
+                      : 'text-base sm:text-lg font-black'
                   )}
                   title={slots[0]?.chord || '/'}
                 >
@@ -233,14 +239,16 @@ export function MeasureCell({
               </span>
             </div>
 
-            <div className="flex flex-col items-center justify-center px-1 overflow-hidden">
-              <div className="flex items-center gap-0.5 max-w-full">
+            <div className="flex flex-col items-center justify-center px-1 min-w-0">
+              <div className="flex items-center justify-center gap-0.5 max-w-full">
                 <span
                   className={cn(
-                    'font-mono font-black text-slate-900 dark:text-white leading-none truncate max-w-full',
+                    'font-mono text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
                     (slots[1]?.chord?.length || 0) > 7
-                      ? 'text-sm sm:text-base'
-                      : 'text-base sm:text-lg'
+                      ? 'text-xs sm:text-sm font-bold'
+                      : (slots[1]?.chord?.length || 0) > 4
+                      ? 'text-sm sm:text-base font-bold'
+                      : 'text-base sm:text-lg font-black'
                   )}
                   title={slots[1]?.chord || '/'}
                 >
@@ -256,39 +264,44 @@ export function MeasureCell({
             </div>
           </div>
         ) : division === 'quarter' ? (
-          /* Caso Negras / Pulsos Principales: dinámico según slots.length */
+          /* Caso Negras / 4 Subdivisiones: dinámico según slots.length */
           <div
             className={cn(
-              'grid gap-1 w-full text-center items-end py-0.5',
+              'grid gap-0.5 sm:gap-1 w-full text-center items-end py-0.5',
               slots.length === 2 && 'grid-cols-2',
               slots.length === 3 && 'grid-cols-3',
               slots.length === 4 && 'grid-cols-4',
               slots.length > 4 && 'grid-cols-4 sm:grid-cols-6'
             )}
           >
-            {slots.map((s) => (
-              <div key={s.index} className="flex flex-col items-center justify-between p-0.5 overflow-hidden">
-                <div className="flex items-center gap-0.5 max-w-full">
-                  <span
-                    className={cn(
-                      'font-mono font-black text-slate-900 dark:text-white leading-none truncate max-w-full',
-                      (s.chord?.length || 0) > 6
-                        ? 'text-[10px] sm:text-xs'
-                        : 'text-xs sm:text-sm'
+            {slots.map((s) => {
+              const chordLen = s.chord?.length || 0
+              return (
+                <div key={s.index} className="flex flex-col items-center justify-between px-0.5 py-0.5 min-w-0">
+                  <div className="flex items-center justify-center gap-0.5 max-w-full">
+                    <span
+                      className={cn(
+                        'font-mono text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
+                        chordLen > 6
+                          ? 'text-[9px] sm:text-[10px] font-bold tracking-tighter'
+                          : chordLen > 4
+                          ? 'text-[10px] sm:text-xs font-bold tracking-tight'
+                          : 'text-xs sm:text-sm font-black'
+                      )}
+                      title={s.chord || '/'}
+                    >
+                      {s.chord || '/'}
+                    </span>
+                    {s.accent && (
+                      <span className="text-[8px] sm:text-[9px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
                     )}
-                    title={s.chord || '/'}
-                  >
-                    {s.chord || '/'}
+                  </div>
+                  <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
+                    {s.label}
                   </span>
-                  {s.accent && (
-                    <span className="text-[9px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
-                  )}
                 </div>
-                <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
-                  {s.label}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : division === 'eighth' ? (
           /* Caso Corcheas: Tira Horizontal dinámico según slots.length */
@@ -306,19 +319,25 @@ export function MeasureCell({
               {slots.map((s) => {
                 const isOffbeat = s.label === '&'
                 const hasChord = !!s.chord
+                const chordLen = s.chord?.length || 0
 
                 return (
                   <div
                     key={s.index}
                     className={cn(
-                      'flex flex-col items-center justify-center p-0.5 rounded transition-colors',
+                      'flex flex-col items-center justify-center p-0.5 rounded transition-colors min-w-0',
                       hasChord && 'bg-primary-50 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800'
                     )}
                   >
-                    <div className="flex items-center gap-0.2">
+                    <div className="flex items-center justify-center gap-0.2">
                       <span
                         className={cn(
-                          'font-mono text-[10px] sm:text-xs font-black leading-none truncate',
+                          'font-mono leading-none whitespace-nowrap min-w-0 shrink-0 font-bold',
+                          chordLen > 5
+                            ? 'text-[8px] sm:text-[9px] tracking-tighter'
+                            : chordLen > 3
+                            ? 'text-[9px] sm:text-[10px] tracking-tight'
+                            : 'text-[10px] sm:text-xs',
                           hasChord
                             ? 'text-primary-700 dark:text-primary-300'
                             : 'text-slate-300 dark:text-slate-700'
@@ -327,7 +346,7 @@ export function MeasureCell({
                         {s.chord || (isOffbeat ? '·' : '/')}
                       </span>
                       {s.accent && (
-                        <span className="text-[8px] font-black text-amber-500 leading-none">&gt;</span>
+                        <span className="text-[7px] sm:text-[8px] font-black text-amber-500 leading-none">&gt;</span>
                       )}
                     </div>
                     <span
@@ -362,7 +381,7 @@ export function MeasureCell({
                 <div
                   key={bIdx}
                   className={cn(
-                    'flex flex-col items-center justify-between p-1 rounded-lg border transition-colors',
+                    'flex flex-col items-center justify-between p-1 rounded-lg border transition-colors min-w-0',
                     hasChordInBeat
                       ? 'border-primary-300 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-950/40'
                       : 'border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-950/30'
@@ -372,10 +391,10 @@ export function MeasureCell({
                     {beatSlots.map((s) => {
                       const isRest = s.isRest || s.chord === '%'
                       return (
-                        <div key={s.index} className="flex flex-col items-center justify-center">
+                        <div key={s.index} className="flex flex-col items-center justify-center min-w-0">
                           <span
                             className={cn(
-                              'font-mono text-[9px] font-black leading-none truncate',
+                              'font-mono leading-none whitespace-nowrap min-w-0 shrink-0 font-bold text-[8px] sm:text-[9px] tracking-tighter',
                               s.chord
                                 ? isRest
                                   ? 'text-rose-500'
@@ -423,19 +442,25 @@ export function MeasureCell({
               {slots.map((s) => {
                 const hasChord = !!s.chord
                 const isRest = s.isRest || s.chord === '%'
+                const chordLen = s.chord?.length || 0
 
                 return (
                   <div
                     key={s.index}
                     className={cn(
-                      'flex flex-col items-center justify-center p-0.5 rounded transition-colors',
+                      'flex flex-col items-center justify-center p-0.5 rounded transition-colors min-w-0',
                       hasChord && 'bg-primary-50 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800'
                     )}
                   >
-                    <div className="flex items-center gap-0.2">
+                    <div className="flex items-center justify-center gap-0.2">
                       <span
                         className={cn(
-                          'font-mono text-[9px] sm:text-[11px] font-black leading-none truncate',
+                          'font-mono leading-none whitespace-nowrap min-w-0 shrink-0 font-bold',
+                          chordLen > 5
+                            ? 'text-[8px] sm:text-[9px] tracking-tighter'
+                            : chordLen > 3
+                            ? 'text-[9px] sm:text-[10px] tracking-tight'
+                            : 'text-[10px] sm:text-xs',
                           hasChord
                             ? isRest
                               ? 'text-rose-500 font-bold'
@@ -446,10 +471,10 @@ export function MeasureCell({
                         {s.chord || '/'}
                       </span>
                       {s.accent && (
-                        <span className="text-[8px] font-black text-amber-500 leading-none">&gt;</span>
+                        <span className="text-[7px] sm:text-[8px] font-black text-amber-500 leading-none">&gt;</span>
                       )}
                     </div>
-                    <span className="text-[7px] sm:text-[8px] font-mono text-slate-400 mt-0.5 truncate">
+                    <span className="text-[7px] sm:text-[8px] font-mono text-slate-400 mt-0.5">
                       {s.label}
                     </span>
                   </div>
@@ -462,7 +487,7 @@ export function MeasureCell({
 
       {/* 3. Letra Guía Rítmica Inferior */}
       {measure.guideLyric && (
-        <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+        <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800/60 shrink-0">
           <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate font-serif">
             &quot;{measure.guideLyric}&quot;
           </p>

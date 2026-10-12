@@ -18,7 +18,7 @@ import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
 import { ChordSelectorModal } from './ChordSelectorModal'
 import { normalizeChordInput } from '@/lib/chord-catalog'
-import { Copy, Split, Sparkles, Tag, Music, Sliders, VolumeX, X, Check, ChevronDown } from 'lucide-react'
+import { Copy, Split, Sparkles, Tag, Sliders, VolumeX, X, Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface MeasureInspectorProps {
@@ -141,6 +141,12 @@ export function MeasureInspector({
     handleUpdateSlotChord(slotIndex, '')
   }
 
+  // Abrir modal para un slot específico
+  const handleOpenChordModalForSlot = (slotIndex: number) => {
+    setActiveSlotIndex(slotIndex)
+    setIsChordModalOpen(true)
+  }
+
   // Asignar o desasignar cadencia
   const handleSelectCadence = (cad: CadenceDefinition | null) => {
     if (!cad) {
@@ -163,7 +169,7 @@ export function MeasureInspector({
   const divisionBracket = getDivisionBracket(currentDivision)
 
   return (
-    <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-lg animate-in fade-in space-y-5">
+    <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-lg animate-in fade-in space-y-4">
       {/* 1. Barra Superior del Inspector: Controles Generales */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-2 flex-wrap">
@@ -176,7 +182,7 @@ export function MeasureInspector({
             </span>
           )}
           <span className="text-xs text-slate-500 font-medium">
-            Configuración armónica y rítmica a nivel del compás completo
+            Configuración armónica y rítmica del compás
           </span>
         </div>
 
@@ -202,7 +208,7 @@ export function MeasureInspector({
           <button
             type="button"
             onClick={() => onDuplicate(selectedMeasure.id)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-2xs"
             title="Clonar este compás"
           >
             <Copy className="w-3.5 h-3.5" /> Duplicar
@@ -216,7 +222,7 @@ export function MeasureInspector({
               const c2 = diatonicChords[4] || 'G'
               onSplitMeasure(selectedMeasure.id, c1, c2)
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 hover:bg-primary-50 dark:hover:bg-primary-950/50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800 hover:bg-primary-50 dark:hover:bg-primary-950/50 transition-colors shadow-2xs"
             title="Dividir en 2 acordes de 2 tiempos"
           >
             <Split className="w-3.5 h-3.5" /> 2 Acordes
@@ -227,7 +233,7 @@ export function MeasureInspector({
             type="button"
             onClick={() => onToggleRepeat(selectedMeasure.id, 'start')}
             className={cn(
-              'px-2 py-1 rounded-lg text-xs font-mono font-bold border transition-colors shadow-sm',
+              'px-2 py-1 rounded-lg text-xs font-mono font-bold border transition-colors shadow-2xs',
               selectedMeasure.repeatStart
                 ? 'bg-primary-600 text-white border-primary-600'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -240,7 +246,7 @@ export function MeasureInspector({
             type="button"
             onClick={() => onToggleRepeat(selectedMeasure.id, 'end')}
             className={cn(
-              'px-2 py-1 rounded-lg text-xs font-mono font-bold border transition-colors shadow-sm',
+              'px-2 py-1 rounded-lg text-xs font-mono font-bold border transition-colors shadow-2xs',
               selectedMeasure.repeatEnd
                 ? 'bg-primary-600 text-white border-primary-600'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -255,7 +261,7 @@ export function MeasureInspector({
             type="button"
             onClick={() => onToggleVolta(selectedMeasure.id, 1)}
             className={cn(
-              'px-2 py-1 rounded-lg text-xs font-bold border transition-colors shadow-sm',
+              'px-2 py-1 rounded-lg text-xs font-bold border transition-colors shadow-2xs',
               selectedMeasure.volta === 1
                 ? 'bg-amber-600 text-white border-amber-600'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -267,7 +273,7 @@ export function MeasureInspector({
             type="button"
             onClick={() => onToggleVolta(selectedMeasure.id, 2)}
             className={cn(
-              'px-2 py-1 rounded-lg text-xs font-bold border transition-colors shadow-sm',
+              'px-2 py-1 rounded-lg text-xs font-bold border transition-colors shadow-2xs',
               selectedMeasure.volta === 2
                 ? 'bg-amber-600 text-white border-amber-600'
                 : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -281,7 +287,7 @@ export function MeasureInspector({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors shadow-xs ml-1"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors shadow-2xs ml-1"
               title="Cerrar inspector (Escape o clic fuera)"
             >
               <X className="w-3.5 h-3.5" /> Cerrar
@@ -290,26 +296,26 @@ export function MeasureInspector({
         </div>
       </div>
 
-      {/* 2. SELECTOR PROMINENTE: Subdivisión Rítmica a Nivel del Compás Completo */}
-      <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+      {/* 2. SELECTOR DE DIVISIÓN RÍTMICA Y SLOTS INTERACTIVOS */}
+      <div className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
           <label className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
             <Sliders className="w-4 h-4 text-primary-500" />
-            <span>División / Métrica del Compás Completo:</span>
+            <span>Métrica y Subdivisión del Compás:</span>
           </label>
 
           <span className="text-xs font-semibold text-primary-600 dark:text-primary-400">
-            {currentSlots.length} {currentSlots.length === 1 ? 'Slot' : 'Slots'} en el compás
+            {currentSlots.length} {currentSlots.length === 1 ? 'Slot' : 'Slots'} • Toca cualquier slot para asignar acorde
           </span>
         </div>
 
         {/* Dropdown Maestro de División del Compás */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
           <div className="md:col-span-2">
             <select
               value={currentDivision}
               onChange={(e) => handleSelectDivision(e.target.value as MeasureDivision)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs"
             >
               <optgroup label={`1. Regulares / Estándar (${effectiveTimeSig})`}>
                 {divisionOptions
@@ -347,52 +353,91 @@ export function MeasureInspector({
             </select>
           </div>
 
-          <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
             {divisionOptions.find((d) => d.id === currentDivision)?.description ||
               MEASURE_DIVISIONS.find((d) => d.id === currentDivision)?.description}
           </div>
         </div>
 
-        {/* 3. TIRA / GRID DE SLOTS CALCULADOS AUTOMÁTICAMENTE */}
-        <div className="pt-2">
+        {/* 3. TIRA / GRID DE SLOTS INTERACTIVOS (SELECTORES TIPO BOTÓN) */}
+        <div className="pt-1">
           {currentDivision === 'whole' ? (
-            /* Caso Redonda: 1 Caja Central Grande para Todo el Compás */
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-primary-200 dark:border-primary-900/60 flex flex-col items-center justify-center gap-2 text-center">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Acorde para Todo el Compás ({formatTimeSignaturePulseMarks(effectiveTimeSig)})
-              </span>
-
-              <div className="flex items-center gap-2 max-w-xs w-full">
-                <input
-                  key={`${selectedMeasure.id}-${currentDivision}-whole-${currentSlots[0]?.chord || ''}`}
-                  type="text"
-                  defaultValue={currentSlots[0]?.chord || ''}
-                  placeholder="Ej: C, G/B, Am7..."
-                  onFocus={() => setActiveSlotIndex(0)}
-                  onBlur={(e) => handleUpdateSlotChord(0, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleUpdateSlotChord(0, (e.target as HTMLInputElement).value)
-                    }
-                  }}
-                  className="w-full text-center px-4 py-2 text-xl font-mono font-black rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 uppercase shadow-inner"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => handleToggleSlotAccent(0)}
-                  className={cn(
-                    'p-2.5 rounded-xl text-xs font-black border transition-colors shadow-sm',
-                    currentSlots[0]?.accent
-                      ? 'bg-amber-500 text-white border-amber-600'
-                      : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'
+            /* Caso Redonda: 1 Slot Central Grande para Todo el Compás */
+            <div className="p-3 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-primary-200 dark:border-primary-900/60 flex flex-col items-center justify-center gap-2.5 text-center">
+              <div className="flex items-center justify-between w-full max-w-sm px-1 text-xs font-bold text-slate-500">
+                <span className="uppercase tracking-wider">
+                  Acorde para Todo el Compás ({formatTimeSignaturePulseMarks(effectiveTimeSig)})
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSlotAccent(0)}
+                    className={cn(
+                      'px-2 py-0.5 rounded-md text-[10px] font-black border transition-colors',
+                      currentSlots[0]?.accent
+                        ? 'bg-amber-500 text-white border-amber-600'
+                        : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+                    )}
+                    title="Acento rítmico (>)"
+                  >
+                    &gt; Acento
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSlotRest(0)}
+                    className={cn(
+                      'px-2 py-0.5 rounded-md text-[10px] font-black border transition-colors',
+                      currentSlots[0]?.isRest
+                        ? 'bg-rose-500 text-white border-rose-600'
+                        : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+                    )}
+                    title="Silencio (%)"
+                  >
+                    % Silencio
+                  </button>
+                  {currentSlots[0]?.chord && (
+                    <button
+                      type="button"
+                      onClick={() => handleClearSlot(0)}
+                      className="p-1 rounded-md text-slate-400 hover:text-rose-500 transition-colors"
+                      title="Borrar acorde"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   )}
-                  title="Acento rítmico (>)"
-                >
-                  &gt;
-                </button>
+                </div>
               </div>
+
+              {/* Botón Selector Principal del Slot Único */}
+              <button
+                type="button"
+                onClick={() => handleOpenChordModalForSlot(0)}
+                className={cn(
+                  'w-full max-w-sm py-4 px-4 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 group shadow-sm active:scale-98',
+                  currentSlots[0]?.chord && !currentSlots[0]?.isRest
+                    ? 'border-primary-400 bg-white dark:bg-slate-900 hover:border-primary-500 hover:bg-primary-50/30 dark:hover:bg-primary-950/30'
+                    : currentSlots[0]?.isRest
+                    ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-950/30 hover:border-rose-500'
+                    : 'border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-primary-400 hover:bg-primary-50/20'
+                )}
+              >
+                {currentSlots[0]?.chord ? (
+                  <span className="font-mono text-2xl sm:text-3xl font-black text-slate-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 whitespace-nowrap min-w-0">
+                    {currentSlots[0].chord}
+                  </span>
+                ) : currentSlots[0]?.isRest ? (
+                  <span className="font-mono text-xl font-black text-rose-500">
+                    % (Silencio)
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-slate-400 dark:text-slate-500 group-hover:text-primary-600 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-primary-500" /> Tocar para seleccionar acorde
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {currentSlots[0]?.chord ? 'Toca para abrir catálogo de acordes' : 'Abre el selector con 1 clic'}
+                </span>
+              </button>
             </div>
           ) : (
             /* Casos Múltiples Slots: Blancas (2), Negras (4), Corcheas (8), Semicorcheas (16), etc. */
@@ -415,27 +460,28 @@ export function MeasureInspector({
                 {currentSlots.map((slot) => {
                   const isOffbeat = slot.label === '&'
                   const isRest = slot.isRest || slot.chord === '%'
+                  const hasChord = !!slot.chord && !isRest
+                  const isActive = activeSlotIndex === slot.index
 
                   return (
                     <div
                       key={slot.index}
-                      onClick={() => setActiveSlotIndex(slot.index)}
                       className={cn(
-                        'flex flex-col gap-1 p-2 rounded-xl border transition-all text-center cursor-pointer',
-                        activeSlotIndex === slot.index
-                          ? 'ring-2 ring-primary-500 border-primary-500'
-                          : slot.chord && !isRest
-                          ? 'border-primary-300 dark:border-primary-800/80 bg-primary-50/30 dark:bg-primary-950/20'
+                        'flex flex-col gap-1.5 p-2 rounded-xl border transition-all text-center',
+                        isActive
+                          ? 'ring-2 ring-primary-500 border-primary-500 bg-primary-50/30 dark:bg-primary-950/20'
+                          : hasChord
+                          ? 'border-primary-300 dark:border-primary-800/80 bg-white dark:bg-slate-900'
                           : isRest
-                          ? 'border-amber-300 dark:border-amber-800/80 bg-amber-50/30 dark:bg-amber-950/20'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60'
+                          ? 'border-rose-300 dark:border-rose-800/80 bg-rose-50/20 dark:bg-rose-950/20'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60'
                       )}
                     >
-                      {/* Cabecera del Slot: Etiqueta y Botones de Acento / Silencio */}
+                      {/* Cabecera del Slot: Etiqueta y Controles Rápidos */}
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
                         <span
                           className={cn(
-                            'font-mono px-1 py-0.2 rounded',
+                            'font-mono px-1.5 py-0.5 rounded text-[10px] font-black',
                             isOffbeat
                               ? 'text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-950'
                               : 'text-slate-700 dark:text-slate-300'
@@ -448,10 +494,7 @@ export function MeasureInspector({
                           {/* Toggle Acento */}
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleToggleSlotAccent(slot.index)
-                            }}
+                            onClick={() => handleToggleSlotAccent(slot.index)}
                             className={cn(
                               'w-4 h-4 rounded text-[9px] font-black flex items-center justify-center transition-colors',
                               slot.accent
@@ -466,10 +509,7 @@ export function MeasureInspector({
                           {/* Toggle Silencio / Corte */}
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleToggleSlotRest(slot.index)
-                            }}
+                            onClick={() => handleToggleSlotRest(slot.index)}
                             className={cn(
                               'w-4 h-4 rounded text-[9px] font-black flex items-center justify-center transition-colors',
                               isRest
@@ -480,25 +520,49 @@ export function MeasureInspector({
                           >
                             %
                           </button>
+
+                          {/* Borrar acorde */}
+                          {slot.chord && (
+                            <button
+                              type="button"
+                              onClick={() => handleClearSlot(slot.index)}
+                              className="w-4 h-4 rounded text-[9px] font-black flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors"
+                              title="Borrar acorde"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Input de Acorde del Slot */}
-                      <input
-                        key={`${selectedMeasure.id}-${currentDivision}-${slot.index}-${slot.chord || ''}`}
-                        type="text"
-                        defaultValue={slot.chord || ''}
-                        placeholder={slot.label}
-                        onFocus={() => setActiveSlotIndex(slot.index)}
-                        onBlur={(e) => handleUpdateSlotChord(slot.index, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            handleUpdateSlotChord(slot.index, (e.target as HTMLInputElement).value)
-                          }
-                        }}
-                        className="w-full text-center px-1.5 py-1 text-xs font-mono font-black rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500 uppercase"
-                      />
+                      {/* Botón Selector Interactivo del Slot */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenChordModalForSlot(slot.index)}
+                        className={cn(
+                          'w-full py-2.5 px-1 rounded-lg border text-center transition-all flex flex-col items-center justify-center group active:scale-95 shadow-2xs cursor-pointer',
+                          hasChord
+                            ? 'border-primary-200 dark:border-primary-800/80 bg-primary-50/50 dark:bg-primary-950/40 hover:border-primary-400 hover:bg-primary-100/50 dark:hover:bg-primary-900/40'
+                            : isRest
+                            ? 'border-rose-200 dark:border-rose-800/80 bg-rose-50/50 dark:bg-rose-950/40 hover:border-rose-400'
+                            : 'border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-primary-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                        )}
+                        title={`Tocar para seleccionar acorde para ${slot.label}`}
+                      >
+                        {hasChord ? (
+                          <span className="font-mono font-black text-xs sm:text-sm text-primary-700 dark:text-primary-300 group-hover:text-primary-800 dark:group-hover:text-primary-200 whitespace-nowrap min-w-0">
+                            {slot.chord}
+                          </span>
+                        ) : isRest ? (
+                          <span className="font-mono font-black text-xs text-rose-500 whitespace-nowrap min-w-0">
+                            %
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[11px] font-bold text-slate-400 dark:text-slate-500 group-hover:text-primary-600 whitespace-nowrap">
+                            + Acorde
+                          </span>
+                        )}
+                      </button>
                     </div>
                   )
                 })}
@@ -508,111 +572,20 @@ export function MeasureInspector({
         </div>
       </div>
 
-      {/* 4. Catálogo y Selección de Acordes (Básicos y Avanzados) */}
-      <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Music className="w-4 h-4 text-primary-500" />
-              <span>Catálogo de Acordes:</span>
-            </span>
-            <span className="text-[11px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/80 px-2 py-0.5 rounded-lg border border-primary-200 dark:border-primary-800">
-              Destino: {currentSlots[activeSlotIndex]?.label || `Slot ${activeSlotIndex + 1}`}
-            </span>
-          </div>
-
-          {/* Botón Maestro del Modal Selector Completo */}
-          <button
-            type="button"
-            onClick={() => setIsChordModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-primary-600 text-white hover:bg-primary-500 shadow-sm shadow-primary-900/30 transition-all hover:scale-[1.02]"
-            title="Abrir constructor avanzado de tríadas, séptimas, tensiones y slash chords"
-          >
-            <Sparkles className="w-3.5 h-3.5" /> ✦ Selector Avanzado (Tríadas, Séptimas, Jazz, Alterados, Slash)
-          </button>
-        </div>
-
-        {/* Fila 1: Acordes Diatónicos en la Tonalidad Actual */}
-        {diatonicChords.length > 0 && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                Grados Diatónicos en {currentKey}:
-              </span>
-              <span className="text-[10px] text-slate-400">Inserción en 1 clic</span>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {diatonicChords.map((chord) => (
-                <button
-                  key={chord}
-                  type="button"
-                  onClick={() => {
-                    handleUpdateSlotChord(activeSlotIndex, chord)
-                  }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-primary-50 dark:hover:bg-primary-950/60 hover:border-primary-300 dark:hover:border-primary-700 hover:text-primary-600 transition-colors shadow-xs"
-                  title={`Asignar ${chord} al slot ${currentSlots[activeSlotIndex]?.label || activeSlotIndex + 1}`}
-                >
-                  {chord}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Fila 2: Extensiones y Calidades Frecuentes sobre la Tónica */}
-        <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800/80">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[11px] font-bold text-slate-500">
-              Extensiones y Familias sobre {currentKey}:
-            </span>
-            <span className="text-[10px] text-slate-400">Pop, Jazz & Gospel</span>
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              `${currentKey}maj7`,
-              `${currentKey}7`,
-              `${currentKey}m7`,
-              `${currentKey}9`,
-              `${currentKey}maj9`,
-              `${currentKey}m9`,
-              `${currentKey}11`,
-              `${currentKey}13`,
-              `${currentKey}7alt`,
-              `${currentKey}7(#9)`,
-              `${currentKey}m7b5`,
-              `${currentKey}dim7`,
-              `${currentKey}sus4`,
-              `${currentKey}/E`,
-              `${currentKey}/G`,
-              `${currentKey}/B`,
-            ].map((chordVariant) => (
-              <button
-                key={chordVariant}
-                type="button"
-                onClick={() => handleUpdateSlotChord(activeSlotIndex, chordVariant)}
-                className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-primary-50 dark:hover:bg-primary-950/60 hover:border-primary-300 hover:text-primary-600 transition-colors"
-                title={`Asignar ${chordVariant} al slot ${currentSlots[activeSlotIndex]?.label || activeSlotIndex + 1}`}
-              >
-                {chordVariant}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal / Popover del Constructor Avanzado de Acordes */}
+      {/* Modal / Selector Rápido de Acordes en 1 Clic */}
       <ChordSelectorModal
         isOpen={isChordModalOpen}
         onClose={() => setIsChordModalOpen(false)}
         onSelectChord={(chord) => handleUpdateSlotChord(activeSlotIndex, chord)}
         initialChord={currentSlots[activeSlotIndex]?.chord}
         currentKey={currentKey}
+        diatonicChords={diatonicChords}
         slotLabel={currentSlots[activeSlotIndex]?.label || `${activeSlotIndex + 1}`}
         measureNumber={selectedMeasure.measureNumber}
       />
 
-      {/* 5. Letra Guía del Compás y Atajos de Cadencias */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+      {/* 4. Letra Guía del Compás y Atajos de Cadencias */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 pt-3 border-t border-slate-200 dark:border-slate-800">
         {/* Letra rítmica guía */}
         <div>
           <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
@@ -628,13 +601,13 @@ export function MeasureInspector({
                 guideLyric: e.target.value,
               })
             }}
-            className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
           />
         </div>
 
         {/* Insignia / Atajos Rápidos de Cadencia */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1">
             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
               <Tag className="w-3.5 h-3.5 text-purple-500" /> Insignia de Cadencia en este compás:
             </label>

@@ -32,7 +32,7 @@ export async function PUT(
     
     const song = await prisma.song.update({
       where: { id: params.id },
-      data: validatedData,
+      data: validatedData as any,
     })
 
     return NextResponse.json({ song })

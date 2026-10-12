@@ -60,7 +60,7 @@ export async function createSongAction(rawData: SongInput) {
       genre: data.genre || null,
       instruments: data.instruments ?? [],
       // Persistencia completa del array de secciones con sus respectivos instruments: string[]
-      sections: data.sections ?? [],
+      sections: (data.sections as any) ?? [],
       tags: data.tags || [],
       isFavorite: data.isFavorite ?? false,
       userId: userId!,

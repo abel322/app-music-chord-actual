@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { ButtonHTMLAttributes, forwardRef } from 'react'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'gradient'
+  variant?: 'primary' | 'secondary' | 'ghost' | 'gradient' | 'outline' | 'default' | 'destructive'
   size?: 'sm' | 'md' | 'lg' | 'icon'
   isLoading?: boolean
 }
@@ -17,10 +17,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           {
-            'bg-primary-600 text-white hover:bg-primary-700 active:scale-95': variant === 'primary',
+            'bg-primary-600 text-white hover:bg-primary-700 active:scale-95': variant === 'primary' || variant === 'default',
             'bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-white': variant === 'secondary',
             'hover:bg-gray-100 dark:hover:bg-gray-800': variant === 'ghost',
             'bg-gradient-to-r from-primary-600 to-blue-600 text-white hover:shadow-lg hover:-translate-y-0.5': variant === 'gradient',
+            'border border-slate-300 dark:border-slate-700 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300': variant === 'outline',
+            'bg-red-600 text-white hover:bg-red-700 active:scale-95': variant === 'destructive',
             'px-3 py-1.5 text-sm': size === 'sm',
             'px-4 py-2': size === 'md',
             'px-6 py-3 text-lg': size === 'lg',
