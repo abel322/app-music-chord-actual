@@ -29,7 +29,9 @@ import {
   ensureSectionMeasures, 
   transposeSectionMeasures, 
   generateMeasures,
-  applyProgressionToMeasures 
+  applyProgressionToMeasures,
+  getSectionBadge,
+  getSectionDefaultName
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
@@ -60,7 +62,7 @@ const SECTION_OPTIONS = [
   { value: 'prechorus', label: 'Pre-Coro' },
   { value: 'chorus', label: 'Coro' },
   { value: 'bridge', label: 'Puente' },
-  { value: 'instrumental', label: 'Instrumental' },
+  { value: 'interlude', label: 'Interludio' },
   { value: 'solo', label: 'Solo' },
   { value: 'outro', label: 'Outro' },
 ]
@@ -213,9 +215,14 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   // Agregar una nueva sección completa (Intro, Estrofa, Coro, etc.)
   const handleAddSection = (type: string) => {
-    const typeObj = SECTION_OPTIONS.find((s) => s.value === type)
-    const countSameType = sections.filter((s) => s.type === type).length
-    const label = `${typeObj?.label || 'Sección'} ${countSameType + 1}`
+    const defaultName = getSectionDefaultName(type)
+    const countSameType = sections.filter((s) => {
+      if (type === 'interlude' || type === 'instrumental') {
+        return s.type === 'interlude' || s.type === 'instrumental'
+      }
+      return s.type === type
+    }).length
+    const label = `${defaultName} ${countSameType + 1}`
 
     // Determinar siguiente número de compás
     const allMeasuresCount = sections.reduce((acc, s) => acc + s.measures.length, 0)
@@ -444,7 +451,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase">
-                    {section.type.slice(0, 3)}
+                    {getSectionBadge(section.type)}
                   </div>
                   <div>
                     <h2 className="font-black text-lg text-slate-900 dark:text-white leading-tight">

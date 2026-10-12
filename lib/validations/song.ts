@@ -46,6 +46,7 @@ export const SectionTypeSchema = z.enum([
   'prechorus',
   'chorus',
   'bridge',
+  'interlude',
   'instrumental',
   'solo',
   'outro',

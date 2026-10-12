@@ -381,3 +381,77 @@ export function ensureSectionMeasures(
     lines: rawSection.lines,
   }
 }
+
+/**
+ * Obtiene la insignia / prefijo de 3 letras para una sección evitando colisiones.
+ * - Intro: INT
+ * - Interludio / Instrumental: ITL (o INS para legacy si se prefiere)
+ * - Verso / Estrofa: EST (o VER)
+ * - Pre-Coro: PRE
+ * - Coro: COR
+ * - Puente: PUE (o BRI)
+ * - Solo: SOL
+ * - Outro: OUT
+ */
+export function getSectionBadge(type: string): string {
+  const normalized = (type || '').toLowerCase().trim()
+  switch (normalized) {
+    case 'intro':
+      return 'INT'
+    case 'interlude':
+    case 'interludio':
+    case 'instrumental':
+      return 'ITL'
+    case 'verse':
+    case 'estrofa':
+      return 'EST'
+    case 'prechorus':
+    case 'pre-coro':
+      return 'PRE'
+    case 'chorus':
+    case 'coro':
+      return 'COR'
+    case 'bridge':
+    case 'puente':
+      return 'PUE'
+    case 'solo':
+      return 'SOL'
+    case 'outro':
+      return 'OUT'
+    default:
+      return normalized.slice(0, 3).toUpperCase() || 'SEC'
+  }
+}
+
+/**
+ * Obtiene el nombre por defecto legible de la sección según su tipo
+ */
+export function getSectionDefaultName(type: string): string {
+  const normalized = (type || '').toLowerCase().trim()
+  switch (normalized) {
+    case 'intro':
+      return 'Intro'
+    case 'interlude':
+    case 'interludio':
+    case 'instrumental':
+      return 'Interludio'
+    case 'verse':
+    case 'estrofa':
+      return 'Estrofa'
+    case 'prechorus':
+    case 'pre-coro':
+      return 'Pre-Coro'
+    case 'chorus':
+    case 'coro':
+      return 'Coro'
+    case 'bridge':
+    case 'puente':
+      return 'Puente'
+    case 'solo':
+      return 'Solo'
+    case 'outro':
+      return 'Outro'
+    default:
+      return 'Sección'
+  }
+}
