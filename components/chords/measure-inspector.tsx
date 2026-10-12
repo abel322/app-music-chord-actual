@@ -171,18 +171,32 @@ export function MeasureInspector({
     <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-lg animate-in fade-in space-y-4">
       {/* 1. Barra Superior del Inspector: Controles Generales */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-3 py-1 rounded-xl text-xs font-black bg-primary-600 text-white shadow-md shadow-primary-900/30">
-            Compás #{selectedMeasure.measureNumber}
-          </span>
-          {divisionBracket && (
-            <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-black bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
-              {divisionBracket}
+        <div className="flex items-center justify-between gap-2 flex-wrap w-full lg:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-3 py-1 rounded-xl text-xs font-black bg-primary-600 text-white shadow-md shadow-primary-900/30">
+              Compás #{selectedMeasure.measureNumber}
             </span>
+            {divisionBracket && (
+              <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-black bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                {divisionBracket}
+              </span>
+            )}
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Configuración armónica y rítmica del compás
+            </span>
+          </div>
+
+          {/* Botón Cerrar directo en mobile */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="lg:hidden inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors shadow-2xs ml-auto"
+              title="Cerrar inspector"
+            >
+              <X className="w-3.5 h-3.5" /> Cerrar
+            </button>
           )}
-          <span className="text-xs text-slate-500 font-medium">
-            Configuración armónica y rítmica del compás
-          </span>
         </div>
 
         {/* Acciones Rápidas */}
@@ -288,7 +302,7 @@ export function MeasureInspector({
               type="button"
               onClick={onClose}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors shadow-2xs ml-1"
-              title="Cerrar inspector (Escape o clic fuera)"
+              title="Cerrar inspector (Escape)"
             >
               <X className="w-3.5 h-3.5" /> Cerrar
             </button>
