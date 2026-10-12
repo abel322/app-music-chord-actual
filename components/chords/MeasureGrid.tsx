@@ -189,6 +189,7 @@ export function MeasureGrid({
           timeSignature={timeSignature}
           diatonicChords={diatonicChords}
           onUpdateMeasure={handleUpdateMeasure}
+          onUpdateAllMeasures={onUpdateMeasures}
           onDuplicate={handleDuplicate}
           onSplitMeasure={handleSplitMeasure}
           onApplyProgression={handleApplyProgressionFromHere}

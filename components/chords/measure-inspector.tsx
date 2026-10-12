@@ -13,7 +13,7 @@ import {
   getDivisionOptionsForTimeSignature,
   formatTimeSignaturePulseMarks
 } from '@/lib/rhythm-utils'
-import { getBeatsPerMeasure } from '@/lib/measure-utils'
+import { getBeatsPerMeasure, applyCadenceToMeasure } from '@/lib/measure-utils'
 import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
 import { ChordSelectorModal } from './ChordSelectorModal'
@@ -28,6 +28,7 @@ interface MeasureInspectorProps {
   timeSignature?: string
   diatonicChords?: string[]
   onUpdateMeasure: (updated: Measure) => void
+  onUpdateAllMeasures?: (measures: Measure[]) => void
   onDuplicate: (measureId: string) => void
   onSplitMeasure: (measureId: string, c1: string, c2: string) => void
   onApplyProgression: (measureId: string, prog: HarmonicProgression) => void
@@ -43,6 +44,7 @@ export function MeasureInspector({
   timeSignature = '4/4',
   diatonicChords = [],
   onUpdateMeasure,
+  onUpdateAllMeasures,
   onDuplicate,
   onSplitMeasure,
   onApplyProgression,
@@ -147,22 +149,19 @@ export function MeasureInspector({
     setIsChordModalOpen(true)
   }
 
-  // Asignar o desasignar cadencia
+  // Asignar o desasignar cadencia e inyectar acordes armónicos automáticamente
   const handleSelectCadence = (cad: CadenceDefinition | null) => {
-    if (!cad) {
-      onUpdateMeasure({
-        ...selectedMeasure,
-        cadence: undefined,
-        cadenceLabel: undefined,
-        cadenceColor: undefined,
-      })
+    const { updatedMeasures, targetUpdatedMeasure } = applyCadenceToMeasure(
+      measures,
+      selectedMeasure.id,
+      cad,
+      currentKey,
+      effectiveTimeSig
+    )
+    if (onUpdateAllMeasures) {
+      onUpdateAllMeasures(updatedMeasures)
     } else {
-      onUpdateMeasure({
-        ...selectedMeasure,
-        cadence: cad.id || cad.type,
-        cadenceLabel: `${cad.name} (${cad.degrees})`,
-        cadenceColor: cad.colorBadge,
-      })
+      onUpdateMeasure(targetUpdatedMeasure)
     }
   }
 
@@ -198,6 +197,7 @@ export function MeasureInspector({
 
           {/* Cadencia Modular */}
           <CadencePicker
+            currentKey={currentKey}
             currentCadenceId={selectedMeasure.cadence}
             buttonLabel="✦ Marcar Cadencia"
             buttonVariant="subtle"

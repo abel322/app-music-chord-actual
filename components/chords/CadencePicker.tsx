@@ -3,12 +3,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, Plus, Tag, ChevronDown, Trash2, X, Check } from 'lucide-react'
-import { CadenceDefinition } from '@/lib/harmonic-theory'
+import { CadenceDefinition, getCadenceChords } from '@/lib/harmonic-theory'
 import { useHarmonicsLibrary } from '@/lib/custom-harmonics'
 import { CreateCadenceModal } from './CreateCadenceModal'
 import { cn } from '@/lib/utils'
 
 interface CadencePickerProps {
+  currentKey?: string
   currentCadenceId?: string
   buttonLabel?: string
   buttonVariant?: 'default' | 'outline' | 'subtle'
@@ -17,6 +18,7 @@ interface CadencePickerProps {
 }
 
 export function CadencePicker({
+  currentKey = 'C',
   currentCadenceId,
   buttonLabel = 'Marcar Cadencia',
   buttonVariant = 'outline',
@@ -163,10 +165,21 @@ export function CadencePicker({
                     )}
                   </div>
 
-                  {/* Grados y resolución */}
-                  <p className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                    {cad.degrees}
-                  </p>
+                  {/* Grados y resolución con acordes calculados */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {cad.degrees}
+                    </span>
+                    {(() => {
+                      const dynamicChords = getCadenceChords(cad, currentKey)
+                      if (dynamicChords.length === 0) return null
+                      return (
+                        <span className="text-xs font-bold text-purple-600 dark:text-purple-400 font-mono">
+                          ({dynamicChords.join(' → ')})
+                        </span>
+                      )
+                    })()}
+                  </div>
 
                   {/* Descripción breve */}
                   {cad.description && (

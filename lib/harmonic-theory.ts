@@ -380,6 +380,7 @@ export interface CadenceDefinition {
   genre?: string
   isCustom?: boolean
   createdAt?: string
+  chordDegrees?: string[] // Fórmulas explícitas de grados armónicos (ej. ['IV', 'I'], ['V', 'I'], ['V'])
 }
 
 /**
@@ -390,67 +391,141 @@ export const PRESET_CADENCES: CadenceDefinition[] = [
     id: 'cad-pac',
     type: 'autentica-pac',
     name: 'Cadencia Auténtica Perfecta (PAC)',
-    degrees: 'V(7) → I',
+    degrees: 'V → I',
     description: 'Resolución conclusiva máxima de tensión dominante a tónica en estado fundamental.',
     colorBadge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800',
+    chordDegrees: ['V', 'I'],
   },
   {
     id: 'cad-iac',
     type: 'autentica-iac',
     name: 'Cadencia Auténtica Imperfecta (IAC)',
-    degrees: 'V → I (inv.) / vii° → I',
+    degrees: 'V → I',
     description: 'Resolución de dominante donde uno de los acordes está invertido o soprano no reposa en tónica.',
     colorBadge: 'bg-teal-100 text-teal-800 dark:bg-teal-950/80 dark:text-teal-300 border-teal-300 dark:border-teal-800',
+    chordDegrees: ['V', 'I'],
   },
   {
     id: 'cad-plagal',
     type: 'plagal',
     name: 'Cadencia Plagal ("Amén")',
-    degrees: 'IV → I  o  iv → I',
+    degrees: 'IV → I',
     description: 'Resolución suave y solemne de la subdominante a la tónica, popular en himnos y baladas pop.',
     colorBadge: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/80 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800',
+    chordDegrees: ['IV', 'I'],
   },
   {
     id: 'cad-rota',
     type: 'rota',
     name: 'Cadencia Rota / Deceptiva',
-    degrees: 'V → vi  o  V → ♭VI',
+    degrees: 'V → vi',
     description: 'Resolución sorpresiva donde la dominante evade la tónica y reposa en la relativa menor.',
     colorBadge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300 dark:border-amber-800',
+    chordDegrees: ['V', 'vi'],
   },
   {
     id: 'cad-semicadencia',
     type: 'semicadencia',
     name: 'Semicadencia (Reposo en V)',
-    degrees: 'I / ii / IV → V',
+    degrees: 'V',
     description: 'Pausa respiratoria sobre la dominante que deja la frase abierta esperando respuesta.',
     colorBadge: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800',
+    chordDegrees: ['V'],
   },
   {
     id: 'cad-frigia',
     type: 'frigia',
     name: 'Cadencia Frigia (Andaluza)',
-    degrees: 'iv6 → V  o  ♭VI → V',
+    degrees: 'iv → V',
     description: 'Típica del modo menor y música española, con movimiento descendente de semitono al V.',
     colorBadge: 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-300 dark:border-rose-800',
+    chordDegrees: ['iv', 'V'],
   },
   {
     id: 'cad-picardia',
     type: 'picardia',
     name: 'Cadencia Picardía (Tercera de Picardía)',
-    degrees: 'V → I (en menor)',
+    degrees: 'iv → I',
     description: 'Finalización luminosa en acorde Mayor dentro de una obra o sección en tonalidad menor.',
     colorBadge: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-950/80 dark:text-fuchsia-300 border-fuchsia-300 dark:border-fuchsia-800',
+    chordDegrees: ['iv', 'I'],
   },
   {
     id: 'cad-backdoor',
     type: 'backdoor',
     name: 'Cadencia Backdoor (Jazz/Soul)',
-    degrees: '♭VII7 → Imaj7',
+    degrees: '♭VII7 → I',
     description: 'Sustitución modal elegante del jazz y soul que resuelve suavemente desde el ♭VII dominante.',
     colorBadge: 'bg-violet-100 text-violet-800 dark:bg-violet-950/80 dark:text-violet-300 border-violet-300 dark:border-violet-800',
+    chordDegrees: ['♭VII7', 'I'],
   },
 ]
+
+/**
+ * Obtiene la lista de acordes reales calculados para una tonalidad a partir de una cadencia
+ */
+export function getCadenceChords(
+  cadence: CadenceDefinition | string,
+  key: string = 'C'
+): string[] {
+  let degrees: string[] = []
+
+  let cadDef: CadenceDefinition | undefined
+  if (typeof cadence === 'string') {
+    cadDef = PRESET_CADENCES.find((c) => c.id === cadence || c.type === cadence)
+  } else {
+    cadDef = cadence
+  }
+
+  if (cadDef?.chordDegrees && cadDef.chordDegrees.length > 0) {
+    degrees = cadDef.chordDegrees
+  } else if (cadDef) {
+    switch (cadDef.type) {
+      case 'autentica-pac':
+      case 'autentica-iac':
+        degrees = ['V', 'I']
+        break
+      case 'plagal':
+        degrees = ['IV', 'I']
+        break
+      case 'rota':
+        degrees = ['V', 'vi']
+        break
+      case 'semicadencia':
+        degrees = ['V']
+        break
+      case 'frigia':
+        degrees = ['iv', 'V']
+        break
+      case 'picardia':
+        degrees = ['iv', 'I']
+        break
+      case 'backdoor':
+        degrees = ['♭VII7', 'I']
+        break
+      default:
+        degrees = cadDef.degrees
+          .replace(/→/g, ' ')
+          .replace(/->/g, ' ')
+          .replace(/-/g, ' ')
+          .replace(/,/g, ' ')
+          .split(/\s+/)
+          .filter(Boolean)
+          .filter((d) => !d.includes('(') && !d.includes(')'))
+        if (degrees.length === 0) degrees = ['V', 'I']
+    }
+  } else if (typeof cadence === 'string') {
+    degrees = cadence
+      .replace(/→/g, ' ')
+      .replace(/->/g, ' ')
+      .replace(/-/g, ' ')
+      .replace(/,/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+  }
+
+  return degrees.map((deg) => degreeToChord(deg, key))
+}
 
 /**
  * Analiza dos acordes consecutivos e identifica automáticamente la cadencia

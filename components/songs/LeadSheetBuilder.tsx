@@ -30,6 +30,7 @@ import {
   ensureSectionMeasures, 
   generateMeasures, 
   applyProgressionToMeasures, 
+  applyCadenceToSectionMeasures,
   transposeSectionMeasures,
   getBeatsPerMeasure,
   getSectionBadge,
@@ -195,20 +196,15 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     )
   }
 
-  // Marcar cadencia en el compás final de la sección
+  // Marcar e inyectar cadencia armónica en el compás final de la sección
   const handleApplySectionCadence = (sectionId: string, cad: CadenceDefinition | null) => {
     setSections((prev) =>
       prev.map((sec) => {
         if (sec.id !== sectionId || sec.measures.length === 0) return sec
-        const lastIdx = sec.measures.length - 1
-        const updatedMeasures = [...sec.measures]
-        updatedMeasures[lastIdx] = {
-          ...updatedMeasures[lastIdx],
-          cadence: cad ? cad.id || cad.type : undefined,
-          cadenceLabel: cad ? `${cad.name} (${cad.degrees})` : undefined,
-          cadenceColor: cad ? cad.colorBadge : undefined,
+        return {
+          ...sec,
+          measures: applyCadenceToSectionMeasures(sec.measures, cad, key, sec.timeSignature || timeSignature),
         }
-        return { ...sec, measures: updatedMeasures }
       })
     )
   }
@@ -554,6 +550,8 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
                   {/* Selector Desacoplado de Cadencias al cierre de sección */}
                   <CadencePicker
+                    currentKey={key}
+                    currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
                     buttonLabel="✦ Cadencia Final"
                     buttonVariant="subtle"
                     onSelectCadence={(cad) => handleApplySectionCadence(section.id, cad)}
