@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Measure, ChordBeat } from '@/types/measure'
 import { getBeatsPerMeasure, duplicateMeasure, applyProgressionFromMeasure } from '@/lib/measure-utils'
-import { HarmonicProgression, getProgressionChords } from '@/lib/harmonic-theory'
-import { MeasureCell } from './measure-cell'
+import { HarmonicProgression, getProgressionChords, detectCadence } from '@/lib/harmonic-theory'
+import { MeasureCell, CadenceBracketInfo } from './measure-cell'
 import { MeasureInspector } from './measure-inspector'
 import { Plus } from 'lucide-react'
 
@@ -122,13 +122,57 @@ export function MeasureGrid({
     handleUpdateMeasure({ ...measure, volta: newVolta })
   }
 
+  // Calcular corchetes flotantes superiores de cadencias (1 compás o 2 compases agrupados)
+  const cadenceBrackets = useMemo(() => {
+    const map: Record<string, CadenceBracketInfo> = {}
+
+    for (let i = 0; i < measures.length; i++) {
+      const m = measures[i]
+      const prevM = i > 0 ? measures[i - 1] : null
+
+      const primaryChord =
+        m.slots?.find((s) => s.chord && s.chord !== '%')?.chord ||
+        m.beats?.find((b) => b.chord)?.chord ||
+        ''
+
+      const prevChord =
+        prevM?.beats?.[prevM.beats.length - 1]?.chord ||
+        prevM?.slots?.find((s) => s.chord)?.chord ||
+        ''
+
+      const detected = detectCadence(primaryChord, prevChord, currentKey)
+      const cadenceLabel =
+        m.cadenceLabel || (detected ? `${detected.name} (${detected.degrees})` : null)
+
+      if (cadenceLabel) {
+        if (i === 0 || !prevM) {
+          // Cadencia de 1 solo compás inicial
+          map[m.id] = { type: 'single', label: cadenceLabel }
+        } else if (map[prevM.id]?.type === 'end' || map[prevM.id]?.type === 'single') {
+          // Si el compás previo ya cerró otra cadencia, tratar este como compás individual
+          map[m.id] = { type: 'single', label: cadenceLabel }
+        } else {
+          // Cadencia agrupatoria de 2 compases consecutivos (tensión i-1 -> resolución i)
+          const isWrapped = i % 4 === 0
+          const isMobileWrapped = i % 2 === 0 && i % 4 !== 0
+
+          map[prevM.id] = { type: 'start', isWrapped, isMobileWrapped }
+          map[m.id] = { type: 'end', label: cadenceLabel, isWrapped, isMobileWrapped }
+        }
+      }
+    }
+
+    return map
+  }, [measures, currentKey])
+
   return (
     <div className="space-y-4">
-      {/* Rejilla de Compases: 4 Compases por Fila en Desktop, 2 en Móvil */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3.5">
+      {/* Rejilla de Compases: 4 Compases por Fila en Desktop, 2 en Móvil con espacio superior para corchetes */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-8 sm:gap-y-9 pt-8 sm:pt-9">
         {measures.map((measure, index) => {
           const isSelected = selectedMeasureId === measure.id
           const prevMeasure = index > 0 ? measures[index - 1] : null
+          const bracket = cadenceBrackets[measure.id]
 
           return (
             <MeasureCell
@@ -140,6 +184,7 @@ export function MeasureGrid({
               isSelected={isSelected}
               isEditing={isEditing}
               prevMeasure={prevMeasure}
+              cadenceBracket={bracket}
               onClick={() => {
                 if (isEditing) setSelectedMeasureId(measure.id)
               }}

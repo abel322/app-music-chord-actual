@@ -13,6 +13,13 @@ import { getBeatsPerMeasure } from '@/lib/measure-utils'
 import { Copy, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+export interface CadenceBracketInfo {
+  type: 'single' | 'start' | 'end'
+  label?: string
+  isWrapped?: boolean
+  isMobileWrapped?: boolean
+}
+
 interface MeasureCellProps {
   measure: Measure
   timeSignature?: string
@@ -21,6 +28,7 @@ interface MeasureCellProps {
   isSelected?: boolean
   isEditing?: boolean
   prevMeasure?: Measure | null
+  cadenceBracket?: CadenceBracketInfo | null
   onClick?: () => void
   onDuplicate?: (measureId: string) => void
   onRemove?: (measureId: string) => void
@@ -34,6 +42,7 @@ export function MeasureCell({
   isSelected = false,
   isEditing = false,
   prevMeasure,
+  cadenceBracket,
   onClick,
   onDuplicate,
   onRemove,
@@ -59,16 +68,16 @@ export function MeasureCell({
   const detectedCadence = detectCadence(primaryChord, prevChord, currentKey)
   const cadenceToDisplay =
     measure.cadenceLabel || (detectedCadence ? `${detectedCadence.name} (${detectedCadence.degrees})` : null)
-  const cadenceColor =
-    measure.cadenceColor ||
-    detectedCadence?.colorBadge ||
-    'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-800'
+
+  const effectiveBracket =
+    cadenceBracket ||
+    (cadenceToDisplay ? { type: 'single', label: cadenceToDisplay } : null)
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[120px] p-2.5 sm:p-3 overflow-hidden',
+        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[120px] p-2.5 sm:p-3 overflow-visible',
         isSelected && isEditing
           ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
           : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
@@ -77,7 +86,68 @@ export function MeasureCell({
         isEditing && 'cursor-pointer hover:shadow-md'
       )}
     >
-      {/* 1. Cabecera del Compás: Número, Barra de Repetición, Badge de Cadencia, Bracket y Casillas */}
+      {/* 0. Corchete Flotante Superior de Cadencia Armónica (Estilo Partitura Tradicional) */}
+      {effectiveBracket && (
+        <>
+          {effectiveBracket.type === 'single' && (
+            <div className="absolute -top-6 left-2 right-2 pointer-events-none z-20">
+              <div className="relative w-full h-3 border-t-2 border-l-2 border-r-2 border-purple-500/70 dark:border-purple-400/70 rounded-t-sm flex items-center justify-center">
+                {effectiveBracket.label && (
+                  <span className="pointer-events-auto text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 -mt-3.5 select-none shadow-2xs border border-purple-200/80 dark:border-purple-800/80 rounded whitespace-nowrap truncate max-w-[90%]">
+                    {effectiveBracket.label}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {effectiveBracket.type === 'start' && (
+            <div
+              className={cn(
+                'absolute -top-6 left-2 pointer-events-none z-20 h-3 border-t-2 border-l-2 border-purple-500/70 dark:border-purple-400/70 rounded-tl-sm',
+                effectiveBracket.isWrapped
+                  ? 'right-2'
+                  : effectiveBracket.isMobileWrapped
+                  ? 'right-2 md:-right-[8px]'
+                  : '-right-[6px] sm:-right-[8px]'
+              )}
+            />
+          )}
+
+          {effectiveBracket.type === 'end' && (
+            <div
+              className={cn(
+                'absolute -top-6 right-2 pointer-events-none z-20 h-3 border-t-2 border-r-2 border-purple-500/70 dark:border-purple-400/70 rounded-tr-sm',
+                effectiveBracket.isWrapped
+                  ? 'left-2'
+                  : effectiveBracket.isMobileWrapped
+                  ? 'left-2 md:-left-[8px]'
+                  : '-left-[6px] sm:-left-[8px]'
+              )}
+            >
+              {/* Texto de la Cadencia Flotante interrumpiendo la línea superior */}
+              {effectiveBracket.label && (
+                <div
+                  className={cn(
+                    'absolute -top-3.5 whitespace-nowrap z-30 flex justify-center pointer-events-auto',
+                    effectiveBracket.isWrapped
+                      ? 'left-1/2 -translate-x-1/2'
+                      : effectiveBracket.isMobileWrapped
+                      ? 'left-1/2 -translate-x-1/2 md:left-0 md:-translate-x-1/2'
+                      : 'left-0 -translate-x-1/2'
+                  )}
+                >
+                  <span className="text-[10px] sm:text-xs font-semibold text-purple-600 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded shadow-2xs border border-purple-200/80 dark:border-purple-800/80 select-none truncate max-w-[200px] sm:max-w-none inline-block">
+                    {effectiveBracket.label}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 1. Cabecera del Compás: Número, Barra de Repetición, Bracket y Casillas */}
       <div className="flex items-center justify-between text-[11px] leading-none mb-1 gap-1 shrink-0">
         <div className="flex items-center gap-1.5 font-mono shrink-0">
           <span className="text-slate-400 dark:text-slate-500 font-bold">
@@ -100,21 +170,6 @@ export function MeasureCell({
             </span>
           )}
         </div>
-
-        {/* Badge de Cadencia Armónica */}
-        {cadenceToDisplay && (
-          <div className="truncate max-w-[130px] sm:max-w-[160px]">
-            <span
-              className={cn(
-                'inline-block px-1.5 py-0.5 rounded text-[9px] font-bold border tracking-tight truncate shadow-2xs',
-                cadenceColor
-              )}
-              title={cadenceToDisplay}
-            >
-              {cadenceToDisplay}
-            </span>
-          </div>
-        )}
 
         {/* Volta y Cierre de Repetición */}
         <div className="flex items-center gap-1 shrink-0">
