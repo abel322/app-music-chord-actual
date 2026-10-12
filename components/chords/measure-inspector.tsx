@@ -13,7 +13,7 @@ import {
   getDivisionOptionsForTimeSignature,
   formatTimeSignaturePulseMarks
 } from '@/lib/rhythm-utils'
-import { getBeatsPerMeasure } from '@/lib/measure-utils'
+import { getBeatsPerMeasure, applyCadenceToMeasure } from '@/lib/measure-utils'
 import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
 import { ChordSelectorModal } from './ChordSelectorModal'
@@ -151,15 +151,28 @@ export function MeasureInspector({
 
   // Asignar o desasignar cadencia (marcado visual y metadatos exclusivamente, sin tocar jamás acordes, slots ni división)
   const handleSelectCadence = (cad: CadenceDefinition | null) => {
-    onUpdateMeasure({
-      ...selectedMeasure,
-      division: selectedMeasure.division || currentDivision,
-      slots: selectedMeasure.slots || currentSlots,
-      cadence: cad ? (cad.type || cad.id) : undefined,
-      cadenceLabel: cad ? `${cad.name} (${cad.degrees})` : undefined,
-      cadenceColor: cad ? cad.colorBadge : undefined,
-      cadenceRole: cad ? 'single' : undefined,
-    })
+    if (onUpdateAllMeasures) {
+      const { updatedMeasures, targetUpdatedMeasure } = applyCadenceToMeasure(
+        measures,
+        selectedMeasure.id,
+        cad,
+        currentKey,
+        timeSignature
+      )
+      onUpdateAllMeasures(updatedMeasures)
+      onUpdateMeasure(targetUpdatedMeasure)
+    } else {
+      const isLast = measures.length > 0 && selectedMeasure.id === measures[measures.length - 1].id
+      onUpdateMeasure({
+        ...selectedMeasure,
+        division: selectedMeasure.division || currentDivision,
+        slots: selectedMeasure.slots || currentSlots,
+        cadence: cad ? (cad.type || cad.id) : undefined,
+        cadenceLabel: cad ? `${cad.name} (${cad.degrees})` : undefined,
+        cadenceColor: cad ? cad.colorBadge : undefined,
+        cadenceRole: cad ? (isLast ? 'single' : 'start') : undefined,
+      })
+    }
   }
 
   const divisionBracket = getDivisionBracket(currentDivision)

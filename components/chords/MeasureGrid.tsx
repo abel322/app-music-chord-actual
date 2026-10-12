@@ -2,9 +2,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { Measure, ChordBeat } from '@/types/measure'
-import { getBeatsPerMeasure, duplicateMeasure, applyProgressionFromMeasure } from '@/lib/measure-utils'
+import {
+  getBeatsPerMeasure,
+  duplicateMeasure,
+  applyProgressionFromMeasure,
+  getCadenceStartPercent,
+  getCadenceEndPercent,
+} from '@/lib/measure-utils'
 import { HarmonicProgression, getProgressionChords } from '@/lib/harmonic-theory'
-import { MeasureCell, CadenceBracketInfo } from './measure-cell'
+import { MeasureCell, CadenceBracketInfo, CadenceWrapType } from './measure-cell'
 import { MeasureInspector } from './measure-inspector'
 import { Plus } from 'lucide-react'
 
@@ -122,14 +128,16 @@ export function MeasureGrid({
     handleUpdateMeasure({ ...measure, volta: newVolta })
   }
 
-  // Eliminar cadencia de un compás (y de su par si es de 2 compases)
+  // Eliminar cadencia de un compás (y de su par si es un enlace inter-compás)
   const handleRemoveCadence = (measureId: string) => {
     const idx = measures.findIndex((m) => m.id === measureId)
     if (idx === -1) return
 
-    const target = measures[idx]
+    const bracket = cadenceBrackets[measureId]
+    const pairedId = bracket?.pairedMeasureId
+
     const updated = measures.map((m, i) => {
-      if (m.id === measureId) {
+      if (m.id === measureId || (pairedId && m.id === pairedId)) {
         return {
           ...m,
           cadence: undefined,
@@ -138,16 +146,8 @@ export function MeasureGrid({
           cadenceRole: undefined,
         }
       }
-      if (target.cadenceRole === 'start' && i === idx + 1 && m.cadenceRole === 'end') {
-        return {
-          ...m,
-          cadence: undefined,
-          cadenceLabel: undefined,
-          cadenceColor: undefined,
-          cadenceRole: undefined,
-        }
-      }
-      if (target.cadenceRole === 'end' && i === idx - 1 && m.cadenceRole === 'start') {
+      // Limpieza de seguridad por enlace contiguo si existía
+      if (idx !== -1 && ((i === idx + 1 && m.cadenceRole === 'end') || (i === idx - 1 && m.cadenceRole === 'start'))) {
         return {
           ...m,
           cadence: undefined,
@@ -162,45 +162,84 @@ export function MeasureGrid({
     onUpdateMeasures(updated)
   }
 
-  // Calcular corchetes flotantes superiores de cadencias MANUALES (sin detección automática)
+  // Calcular corchetes flotantes superiores de cadencias MANUALES con geometría y wrap precisos
   const cadenceBrackets = useMemo(() => {
     const map: Record<string, CadenceBracketInfo> = {}
 
     for (let i = 0; i < measures.length; i++) {
       const m = measures[i]
-      if (!m.cadence && !m.cadenceLabel) continue
+      if (!m.cadence && !m.cadenceLabel && m.cadenceRole !== 'end') continue
 
       const label = m.cadenceLabel || m.cadence
 
-      if (m.cadenceRole === 'start') {
-        map[m.id] = { type: 'start' }
-        continue
-      }
+      // Si este compás está marcado expresamente como 'end' (receptor)
       if (m.cadenceRole === 'end') {
-        map[m.id] = { type: 'end', label }
-        continue
-      }
-      if (m.cadenceRole === 'single') {
-        map[m.id] = { type: 'single', label }
+        const prevIdx = i - 1
+        const prevM = prevIdx >= 0 ? measures[prevIdx] : null
+        const wrapsOnDesktop = prevIdx >= 0 && prevIdx % 4 === 3
+        const wrapsOnMobile = prevIdx >= 0 && prevIdx % 2 === 1
+        const wrapType: CadenceWrapType = wrapsOnDesktop
+          ? 'both'
+          : wrapsOnMobile
+            ? 'mobile-only'
+            : 'none'
+
+        map[m.id] = {
+          role: 'end',
+          endPercent: getCadenceEndPercent(m, timeSignature),
+          wrapType,
+          pairedMeasureId: prevM?.id,
+        }
         continue
       }
 
-      // Compatibilidad con registros antiguos donde cadenceRole no estaba guardado:
-      if (i === 0 || m.division === 'half' || (m.slots && m.slots.length > 1)) {
-        map[m.id] = { type: 'single', label }
-      } else {
-        const prevM = measures[i - 1]
-        if (prevM && !prevM.cadence && !map[prevM.id]) {
-          map[prevM.id] = { type: 'start' }
-          map[m.id] = { type: 'end', label }
-        } else {
-          map[m.id] = { type: 'single', label }
+      // Si está marcado explícitamente como 'single' O es el último compás de la sección
+      if (m.cadenceRole === 'single' || i === measures.length - 1) {
+        map[m.id] = {
+          role: 'single',
+          label,
+          startPercent: getCadenceStartPercent(m, timeSignature),
+          endPercent: getCadenceEndPercent(m, timeSignature),
+        }
+        continue
+      }
+
+      // Inter-compás: Este compás es el emisor (tensión) y enlaza con el compás siguiente (i + 1)
+      const nextM = measures[i + 1]
+      const wrapsOnDesktop = i % 4 === 3
+      const wrapsOnMobile = i % 2 === 1
+      const wrapType: CadenceWrapType = wrapsOnDesktop
+        ? 'both'
+        : wrapsOnMobile
+          ? 'mobile-only'
+          : 'none'
+
+      const startPercent = getCadenceStartPercent(m, timeSignature)
+      const endPercent = nextM ? getCadenceEndPercent(nextM, timeSignature) : 25
+
+      // Registrar compás emisor (tensión)
+      map[m.id] = {
+        role: 'start',
+        label,
+        startPercent,
+        endPercent,
+        wrapType,
+        pairedMeasureId: nextM?.id,
+      }
+
+      // Registrar compás receptor (resolución)
+      if (nextM && !map[nextM.id]) {
+        map[nextM.id] = {
+          role: 'end',
+          endPercent,
+          wrapType,
+          pairedMeasureId: m.id,
         }
       }
     }
 
     return map
-  }, [measures])
+  }, [measures, timeSignature])
 
   return (
     <div className="space-y-4">

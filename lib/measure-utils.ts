@@ -1,6 +1,7 @@
 import { Measure, ChordBeat, SectionMeasures, BeatAccent } from '@/types/measure'
 import { transposeChord } from '@/lib/transpose'
 import { CadenceDefinition } from '@/lib/harmonic-theory'
+import { inferMeasureDivision, ensureMeasureSlots } from '@/lib/rhythm-utils'
 
 /**
  * Analiza un compás musical y devuelve la cantidad de tiempos (pulsos)
@@ -339,15 +340,98 @@ export function applyCadenceToSectionMeasures(
   }))
 
   const lastIdx = updated.length - 1
-  updated[lastIdx] = {
-    ...updated[lastIdx],
-    cadence: cadence.id || cadence.type,
-    cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-    cadenceColor: cadence.colorBadge,
-    cadenceRole: 'single',
+  if (updated.length >= 2) {
+    const penultIdx = updated.length - 2
+    updated[penultIdx] = {
+      ...updated[penultIdx],
+      cadence: cadence.id || cadence.type,
+      cadenceLabel: `${cadence.name} (${cadence.degrees})`,
+      cadenceColor: cadence.colorBadge,
+      cadenceRole: 'start',
+    }
+    updated[lastIdx] = {
+      ...updated[lastIdx],
+      cadenceRole: 'end',
+    }
+  } else {
+    updated[lastIdx] = {
+      ...updated[lastIdx],
+      cadence: cadence.id || cadence.type,
+      cadenceLabel: `${cadence.name} (${cadence.degrees})`,
+      cadenceColor: cadence.colorBadge,
+      cadenceRole: 'single',
+    }
   }
 
   return updated
+}
+
+/**
+ * Calcula el porcentaje horizontal de inicio (tensión) para el corchete de cadencia en el compás emisor.
+ * - 4 subdivisiones / negras (ej. B/D# en tiempo 4 o Bsus4 - B en tiempos 3 y 4):
+ *   - Si el acorde de tensión está solo en el pulso 4: 75%
+ *   - Si la tensión abarca los pulsos 3 y 4: 50%
+ *   - Si la tensión está en el pulso 3: 50%
+ * - 2 subdivisiones / blancas (o compás con 2 acordes): 50%
+ * - 1 acorde / redonda (whole): 50%
+ */
+export function getCadenceStartPercent(measure: Measure, timeSignature: string = '4/4'): number {
+  const effectiveTimeSig = measure.timeSignature || timeSignature || '4/4'
+  const division = inferMeasureDivision(measure)
+  const slots = ensureMeasureSlots(measure, effectiveTimeSig)
+  const numSlots = slots?.length || 1
+
+  if (division === 'quarter' || numSlots === 4) {
+    const hasChord2 = !!slots[2]?.chord && slots[2]?.chord !== '%'
+    const hasChord3 = !!slots[3]?.chord && slots[3]?.chord !== '%'
+
+    // Acorde de tensión únicamente en el pulso 4 (ej. B/D#)
+    if (hasChord3 && !hasChord2) {
+      return 75
+    }
+    // Tensión en pulsos 3 y 4 (ej. Bsus4 - B)
+    if (hasChord2 && hasChord3) {
+      return 50
+    }
+    // Tensión en pulso 3
+    if (hasChord2 && !hasChord3) {
+      return 50
+    }
+    return 50
+  }
+
+  if (division === 'half' || numSlots === 2) {
+    return 50
+  }
+
+  if (division === 'eighth' || numSlots >= 6) {
+    return 50
+  }
+
+  return 50
+}
+
+/**
+ * Calcula el porcentaje horizontal de fin (resolución) para el corchete de cadencia en el compás receptor.
+ * - 4 subdivisiones / negras: el pulso 1 ocupa el primer cuarto (25%)
+ * - 2 subdivisiones / blancas: el pulso 1 resuelve en la primera mitad (~35%)
+ * - Compás completo / redonda: resolución en el pulso 1 (~25%)
+ */
+export function getCadenceEndPercent(measure: Measure, timeSignature: string = '4/4'): number {
+  const effectiveTimeSig = measure.timeSignature || timeSignature || '4/4'
+  const division = inferMeasureDivision(measure)
+  const slots = ensureMeasureSlots(measure, effectiveTimeSig)
+  const numSlots = slots?.length || 1
+
+  if (division === 'quarter' || numSlots === 4) {
+    return 25
+  }
+
+  if (division === 'half' || numSlots === 2) {
+    return 35
+  }
+
+  return 25
 }
 
 /**
@@ -405,16 +489,27 @@ export function applyCadenceToMeasure(
   }
 
   // Asignar metadatos de cadencia respetando completamente los acordes y división actuales
+  const isLast = targetIdx === measures.length - 1
   const currentM = measures[targetIdx]
   const updatedM: Measure = {
     ...currentM,
     cadence: cadence.id || cadence.type,
     cadenceLabel: `${cadence.name} (${cadence.degrees})`,
     cadenceColor: cadence.colorBadge,
-    cadenceRole: 'single',
+    cadenceRole: isLast ? 'single' : 'start',
   }
 
-  const updatedMeasures = measures.map((m, i) => (i === targetIdx ? updatedM : m))
+  const updatedMeasures = measures.map((m, i) => {
+    if (i === targetIdx) return updatedM
+    if (!isLast && i === targetIdx + 1 && !m.cadence) {
+      return {
+        ...m,
+        cadenceRole: 'end' as const,
+      }
+    }
+    return m
+  })
+
   return { updatedMeasures, targetUpdatedMeasure: updatedM }
 }
 
