@@ -656,6 +656,33 @@ export function transposeSectionMeasures(sections: SectionMeasures[], semitones:
 }
 
 /**
+ * Transpone los compases de una única sección y opcionalmente actualiza su keySignature
+ */
+export function transposeSingleSectionMeasures(
+  section: SectionMeasures,
+  semitones: number,
+  newKeySignature?: string | null
+): SectionMeasures {
+  return {
+    ...section,
+    keySignature: newKeySignature !== undefined ? newKeySignature : (section.keySignature ?? null),
+    measures: semitones === 0 ? section.measures : transposeMeasures(section.measures, semitones),
+  }
+}
+
+/**
+ * Determina si una sección contiene al menos un acorde real en sus compases
+ */
+export function sectionHasChords(section: SectionMeasures): boolean {
+  if (!section.measures || section.measures.length === 0) return false
+  return section.measures.some((m) => {
+    const hasSlotChord = m.slots?.some((s) => s.chord && s.chord.trim() !== '' && s.chord !== '%')
+    const hasBeatChord = m.beats?.some((b) => b.chord && b.chord.trim() !== '' && b.chord !== '%')
+    return Boolean(hasSlotChord || hasBeatChord)
+  })
+}
+
+/**
  * Convierte secciones tradicionales/legadas a la estructura moderna de compases
  */
 export function ensureSectionMeasures(
@@ -722,6 +749,7 @@ export function ensureSectionMeasures(
       type: rawSection.type || 'verse',
       label: rawSection.label || `Sección ${sectionIndex + 1}`,
       timeSignature,
+      keySignature: rawSection.keySignature || null,
       instruments: Array.isArray(rawSection.instruments) ? rawSection.instruments : [],
       measures: normalizedMeasures,
       guideLyrics: rawSection.guideLyrics || '',
@@ -764,6 +792,7 @@ export function ensureSectionMeasures(
     type: rawSection.type || 'verse',
     label: rawSection.label || `Sección ${sectionIndex + 1}`,
     timeSignature,
+    keySignature: rawSection.keySignature || null,
     instruments: Array.isArray(rawSection.instruments) ? rawSection.instruments : [],
     measures,
     guideLyrics: guideLines.join('\n'),
@@ -1051,6 +1080,7 @@ export function cloneSectionMeasures(
     ...section,
     id: newSectionId,
     label: newLabel,
+    keySignature: section.keySignature ?? null,
     instruments: section.instruments ? [...section.instruments] : [],
     guideLyrics: section.guideLyrics || '',
     measures: clonedMeasures,

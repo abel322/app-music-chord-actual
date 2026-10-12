@@ -25,6 +25,7 @@ import { TapTempoButton } from '@/components/ui/TapTempoButton'
 import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
+import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
@@ -32,6 +33,7 @@ import {
   applyProgressionToMeasures, 
   applyCadenceToSectionMeasures,
   transposeSectionMeasures,
+  transposeSingleSectionMeasures,
   getBeatsPerMeasure,
   getSectionBadge,
   getSectionDefaultName,
@@ -40,6 +42,7 @@ import {
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
 import { getDiatonicChords } from '@/lib/music-theory'
+import { getSemitoneDiff } from '@/lib/transpose'
 import { createSongAction, updateSongAction } from '@/app/actions/songs'
 import { cn } from '@/lib/utils'
 
@@ -155,6 +158,25 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   const handleUpdateSectionMeasures = (sectionId: string, updatedMeasures: Measure[]) => {
     setSections((prev) =>
       prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedMeasures } : sec))
+    )
+  }
+
+  // Cambiar Tonalidad Específica de una Sección (con opción de transposición armónica de compases)
+  const handleUpdateSectionKey = (sectionId: string, newKey: string | null, transposeChords: boolean) => {
+    setSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId) return sec
+        if (!transposeChords) {
+          return {
+            ...sec,
+            keySignature: newKey,
+          }
+        }
+        const prevEffective = sec.keySignature || key
+        const newEffective = newKey || key
+        const semitones = getSemitoneDiff(prevEffective, newEffective)
+        return transposeSingleSectionMeasures(sec, semitones, newKey)
+      })
     )
   }
 
@@ -506,6 +528,17 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         </div>
 
         {sections.map((section, index) => {
+          const effectiveKey = section.keySignature || key
+          let sectionDiatonicChords = diatonicChords
+          if (section.keySignature && section.keySignature !== key) {
+            try {
+              const res = getDiatonicChords(section.keySignature)
+              sectionDiatonicChords = res.inKey.map((c) => `${c.root}${c.type}`)
+            } catch {
+              sectionDiatonicChords = diatonicChords
+            }
+          }
+
           return (
             <div
               key={section.id}
@@ -536,11 +569,19 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                   </span>
                 </div>
 
-                {/* Acciones de Sección y Selector de Progresiones */}
+                {/* Acciones de Sección, Modulación de Tono y Selector de Progresiones */}
                 <div className="flex items-center gap-2 flex-wrap justify-end">
+                  {/* Selector y Controles de Tonalidad de Sección */}
+                  <SectionKeyControl
+                    section={section}
+                    globalKey={key}
+                    isEditing={true}
+                    onUpdateSectionKey={handleUpdateSectionKey}
+                  />
+
                   {/* Selector Desacoplado de Progresiones */}
                   <ProgressionPicker
-                    currentKey={key}
+                    currentKey={effectiveKey}
                     buttonLabel="✦ Progresión de Sección"
                     buttonVariant="subtle"
                     onSelectProgression={(prog) => handleApplyProgression(section.id, prog)}
@@ -548,7 +589,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
                   {/* Selector Desacoplado de Cadencias al cierre de sección */}
                   <CadencePicker
-                    currentKey={key}
+                    currentKey={effectiveKey}
                     currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
                     buttonLabel="✦ Cadencia Final"
                     buttonVariant="subtle"
@@ -629,8 +670,8 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               <MeasureGrid
                 measures={section.measures}
                 timeSignature={section.timeSignature || timeSignature}
-                currentKey={key}
-                diatonicChords={diatonicChords}
+                currentKey={effectiveKey}
+                diatonicChords={sectionDiatonicChords}
                 isEditing={true}
                 onUpdateMeasures={(updated) => handleUpdateSectionMeasures(section.id, updated)}
                 onAddMeasures={(count) => handleAddMeasuresToSection(section.id, count)}

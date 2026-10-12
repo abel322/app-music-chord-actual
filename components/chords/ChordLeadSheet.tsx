@@ -27,10 +27,12 @@ import { TapTempoButton } from '@/components/ui/TapTempoButton'
 import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
+import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
   transposeSectionMeasures, 
+  transposeSingleSectionMeasures,
   generateMeasures,
   applyProgressionToMeasures,
   applyCadenceToSectionMeasures,
@@ -40,7 +42,7 @@ import {
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
-import { transposeChord } from '@/lib/transpose'
+import { transposeChord, getSemitoneDiff } from '@/lib/transpose'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
 import { updateSongAction } from '@/app/actions/songs'
 import { cn } from '@/lib/utils'
@@ -182,6 +184,25 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const handleUpdateSectionMeasures = (sectionId: string, updatedMeasures: Measure[]) => {
     setSections((prev) =>
       prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedMeasures } : sec))
+    )
+  }
+
+  // Cambiar Tonalidad Específica de una Sección (con opción de transposición de acordes)
+  const handleUpdateSectionKey = (sectionId: string, newKey: string | null, transposeChords: boolean) => {
+    setSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId) return sec
+        if (!transposeChords) {
+          return {
+            ...sec,
+            keySignature: newKey,
+          }
+        }
+        const prevEffective = sec.keySignature || currentKey
+        const newEffective = newKey || currentKey
+        const semitones = getSemitoneDiff(prevEffective, newEffective)
+        return transposeSingleSectionMeasures(sec, semitones, newKey)
+      })
     )
   }
 
@@ -474,6 +495,17 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       {/* Secciones de la Canción con Rejilla de Compases */}
       <div className="space-y-8">
         {sections.map((section, sIdx) => {
+          const effectiveKey = section.keySignature || currentKey
+          let sectionDiatonicChords = diatonicChords
+          if (section.keySignature && section.keySignature !== currentKey) {
+            try {
+              const res = getDiatonicChords(section.keySignature)
+              sectionDiatonicChords = res.inKey.map((c) => `${c.root}${c.type}`)
+            } catch {
+              sectionDiatonicChords = diatonicChords
+            }
+          }
+
           return (
             <div
               key={section.id}
@@ -487,23 +519,35 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                       {getSectionBadge(section.type, section.label)}
                     </div>
                     <div>
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={section.label}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            setSections((prev) =>
-                              prev.map((s) => (s.id === section.id ? { ...s, label: val } : s))
-                            )
-                          }}
-                          className="font-black text-lg text-slate-900 dark:text-white bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1 -ml-1 leading-tight"
-                        />
-                      ) : (
-                        <h2 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
-                          {section.label}
-                        </h2>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={section.label}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setSections((prev) =>
+                                prev.map((s) => (s.id === section.id ? { ...s, label: val } : s))
+                              )
+                            }}
+                            className="font-black text-lg text-slate-900 dark:text-white bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1 -ml-1 leading-tight"
+                          />
+                        ) : (
+                          <h2 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
+                            {section.label}
+                          </h2>
+                        )}
+
+                        {/* Badge de modulación en modo lectura */}
+                        {!isEditing && (
+                          <SectionKeyControl
+                            section={section}
+                            globalKey={currentKey}
+                            isEditing={false}
+                            onUpdateSectionKey={handleUpdateSectionKey}
+                          />
+                        )}
+                      </div>
                       <span className="text-[11px] font-medium text-slate-400 block">
                         {section.measures.length} compases • {section.timeSignature || timeSignature}
                       </span>
@@ -511,10 +555,18 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   </div>
 
                   {isEditing && (
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {/* Controles de Tonalidad de Sección (Selector + ♭ -1 / ♯ +1 + Badge) */}
+                      <SectionKeyControl
+                        section={section}
+                        globalKey={currentKey}
+                        isEditing={true}
+                        onUpdateSectionKey={handleUpdateSectionKey}
+                      />
+
                       {/* Selector Desacoplado de Progresiones */}
                       <ProgressionPicker
-                        currentKey={currentKey}
+                        currentKey={effectiveKey}
                         buttonLabel="✦ Progresión de Sección"
                         buttonVariant="subtle"
                         onSelectProgression={(prog) => handleApplyProgression(section.id, prog)}
@@ -522,7 +574,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
                       {/* Selector Desacoplado de Cadencias al cierre de sección */}
                       <CadencePicker
-                        currentKey={currentKey}
+                        currentKey={effectiveKey}
                         currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
                         buttonLabel="✦ Cadencia Final"
                         buttonVariant="subtle"
@@ -611,8 +663,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               <MeasureGrid
                 measures={section.measures}
                 timeSignature={section.timeSignature || timeSignature}
-                currentKey={currentKey}
-                diatonicChords={diatonicChords}
+                currentKey={effectiveKey}
+                diatonicChords={sectionDiatonicChords}
                 isEditing={isEditing}
                 onUpdateMeasures={(updatedMeasures) =>
                   handleUpdateSectionMeasures(section.id, updatedMeasures)
