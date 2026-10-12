@@ -34,7 +34,8 @@ import {
   transposeSectionMeasures,
   getBeatsPerMeasure,
   getSectionBadge,
-  getSectionDefaultName
+  getSectionDefaultName,
+  cloneSectionMeasures
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
@@ -238,22 +239,17 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     setSections([...sections, newSection])
   }
 
-  // Duplicar una sección completa
+  // Duplicar una sección completa inmediatamente después de la original
   const handleDuplicateSection = (sectionId: string) => {
-    const sec = sections.find((s) => s.id === sectionId)
-    if (!sec) return
+    const originalIndex = sections.findIndex((s) => s.id === sectionId)
+    if (originalIndex === -1) return
 
-    const duplicated: SectionMeasures = {
-      ...sec,
-      id: `sec-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      label: `${sec.label} (Copia)`,
-      measures: sec.measures.map((m) => ({
-        ...m,
-        id: `m-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      })),
-    }
+    const originalSection = sections[originalIndex]
+    const duplicatedSection = cloneSectionMeasures(originalSection, sections)
 
-    setSections([...sections, duplicated])
+    const updated = [...sections]
+    updated.splice(originalIndex + 1, 0, duplicatedSection)
+    setSections(updated)
   }
 
   // Eliminar una sección
@@ -561,45 +557,47 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                     onSelectCadence={(cad) => handleApplySectionCadence(section.id, cad)}
                   />
 
-                  {/* Duplicar Sección */}
-                  <button
-                    type="button"
-                    onClick={() => handleDuplicateSection(section.id)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    title="Duplicar sección completa"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Mover Arriba / Abajo */}
+                    <button
+                      type="button"
+                      onClick={() => handleMoveSectionUp(index)}
+                      disabled={index === 0}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+                      title="Mover sección arriba"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveSectionDown(index)}
+                      disabled={index === sections.length - 1}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+                      title="Mover sección abajo"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
 
-                  {/* Mover Arriba / Abajo */}
-                  <button
-                    type="button"
-                    onClick={() => handleMoveSectionUp(index)}
-                    disabled={index === 0}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
-                    title="Mover sección arriba"
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMoveSectionDown(index)}
-                    disabled={index === sections.length - 1}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
-                    title="Mover sección abajo"
-                  >
-                    <ArrowDown className="w-4 h-4" />
-                  </button>
+                    {/* Duplicar Sección */}
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicateSection(section.id)}
+                      className="p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                      title="Duplicar sección"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
 
-                  {/* Eliminar Sección */}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSection(section.id)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                    title="Eliminar sección"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    {/* Eliminar Sección */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSection(section.id)}
+                      className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:text-slate-400 dark:hover:text-red-400 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                      title="Eliminar sección"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

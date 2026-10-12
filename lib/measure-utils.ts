@@ -844,3 +844,141 @@ export function getSectionDefaultName(type: string): string {
       return 'Sección'
   }
 }
+
+/**
+ * Genera un identificador único seguro para compases, beats o secciones.
+ */
+export function generateUniqueMeasureId(prefix: string = 'id'): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/**
+ * Genera un nombre inteligente para una sección duplicada:
+ * - Si termina en número (ej. "Estrofa 1"), busca el número más alto existente y asigna el siguiente (ej. "Estrofa 2").
+ * - Si se llama "Coro" (o "Chorus"), asigna "Coro 2" (o incrementa secuencialmente si ya existen).
+ * - Si no tiene número explícito, asigna "${originalLabel} (Copia)" (o "(Copia 2)" si ya existe).
+ */
+export function getDuplicatedSectionLabel(
+  originalLabel: string,
+  existingSections: Array<{ label: string }> = []
+): string {
+  const trimmed = (originalLabel || '').trim() || 'Sección'
+
+  // Caso 1: Termina con número (ej. "Estrofa 1", "Verso 2", "Coro 1")
+  const numberMatch = trimmed.match(/^(.*?)\s+(\d+)$/)
+  if (numberMatch) {
+    const base = numberMatch[1].trim()
+    const currentNum = parseInt(numberMatch[2], 10)
+    const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`^${escapedBase}\\s+(\\d+)$`, 'i')
+
+    let maxNum = currentNum
+    for (const sec of existingSections) {
+      const match = (sec.label || '').trim().match(regex)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        if (num > maxNum) {
+          maxNum = num
+        }
+      }
+    }
+
+    return `${base} ${maxNum + 1}`
+  }
+
+  // Caso 2: Se llama "Coro" o "Chorus"
+  if (/^coro$/i.test(trimmed) || /^chorus$/i.test(trimmed)) {
+    const base = trimmed
+    const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`^${escapedBase}\\s+(\\d+)$`, 'i')
+
+    let maxNum = 1 // Partimos de Coro 1 implícito
+    for (const sec of existingSections) {
+      const match = (sec.label || '').trim().match(regex)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        if (num > maxNum) {
+          maxNum = num
+        }
+      }
+    }
+
+    return `${base} ${maxNum + 1}`
+  }
+
+  // Caso 3: Sin número explícito -> "${nombreOriginal} (Copia)"
+  const baseCopy = `${trimmed} (Copia)`
+  const existsExact = existingSections.some(
+    (s) => (s.label || '').trim().toLowerCase() === baseCopy.toLowerCase()
+  )
+  if (!existsExact) {
+    return baseCopy
+  }
+
+  let counter = 2
+  while (
+    existingSections.some(
+      (s) =>
+        (s.label || '').trim().toLowerCase() === `${trimmed} (Copia ${counter})`.toLowerCase()
+    )
+  ) {
+    counter++
+  }
+
+  return `${trimmed} (Copia ${counter})`
+}
+
+/**
+ * Realiza una clonación profunda (deep clone) de una sección y todos sus compases,
+ * slots, pulsos y metadatos, generando nuevos IDs únicos y renombrando inteligentemente.
+ */
+export function cloneSectionMeasures(
+  section: SectionMeasures,
+  existingSections: Array<{ label: string }> = []
+): SectionMeasures {
+  const newSectionId = generateUniqueMeasureId('sec')
+  const newLabel = getDuplicatedSectionLabel(section.label, existingSections)
+
+  const clonedMeasures: Measure[] = (section.measures || []).map((m, idx) => {
+    const newMeasureId = generateUniqueMeasureId('m')
+
+    const clonedSlots = m.slots
+      ? m.slots.map((slot) => ({
+          ...slot,
+        }))
+      : undefined
+
+    const clonedBeats: ChordBeat[] = (m.beats || []).map((beat) => ({
+      ...beat,
+      id: generateUniqueMeasureId('beat'),
+      subSlots: beat.subSlots
+        ? beat.subSlots.map((sub) => ({
+            ...sub,
+            id: generateUniqueMeasureId('subbeat'),
+          }))
+        : undefined,
+    }))
+
+    return {
+      ...m,
+      id: newMeasureId,
+      measureNumber: m.measureNumber ?? idx + 1,
+      slots: clonedSlots,
+      beats: clonedBeats,
+    }
+  })
+
+  return {
+    ...section,
+    id: newSectionId,
+    label: newLabel,
+    instruments: section.instruments ? [...section.instruments] : [],
+    guideLyrics: section.guideLyrics || '',
+    measures: clonedMeasures,
+    lines: section.lines ? JSON.parse(JSON.stringify(section.lines)) : undefined,
+  }
+}
+

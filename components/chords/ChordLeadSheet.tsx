@@ -13,6 +13,7 @@ import {
   Music, 
   Layers, 
   Trash2, 
+  Copy,
   GripVertical,
   Check,
   ChevronDown,
@@ -32,7 +33,8 @@ import {
   applyProgressionToMeasures,
   applyCadenceToSectionMeasures,
   getSectionBadge,
-  getSectionDefaultName
+  getSectionDefaultName,
+  cloneSectionMeasures
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
@@ -235,6 +237,19 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     }
 
     setSections([...sections, newSection])
+  }
+
+  // Duplicar una sección completa inmediatamente después de la original
+  const handleDuplicateSection = (sectionId: string) => {
+    const originalIndex = sections.findIndex((s) => s.id === sectionId)
+    if (originalIndex === -1) return
+
+    const originalSection = sections[originalIndex]
+    const duplicatedSection = cloneSectionMeasures(originalSection, sections)
+
+    const updated = [...sections]
+    updated.splice(originalIndex + 1, 0, duplicatedSection)
+    setSections(updated)
   }
 
   // Eliminar una sección
@@ -494,14 +509,27 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                         onSelectCadence={(cad) => handleApplySectionCadence(section.id, cad)}
                       />
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSection(section.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                        title="Eliminar sección"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Duplicar Sección */}
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateSection(section.id)}
+                          className="p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                          title="Duplicar sección"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+
+                        {/* Eliminar Sección */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSection(section.id)}
+                          className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 dark:text-slate-400 dark:hover:text-red-400 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+                          title="Eliminar sección"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
