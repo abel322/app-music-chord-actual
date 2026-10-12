@@ -460,7 +460,7 @@ export function getCadenceDisplayLabels(cadenceIdOrType?: string, originalLabel?
   }
   if (normalized.includes('rota') || normalized.includes('deceptiv')) {
     return {
-      full: 'Cadencia Rota (V → vi)',
+      full: 'Cadencia Rota / Deceptiva (V → vi)',
       short: 'Rota (V → vi)',
     }
   }
@@ -470,10 +470,10 @@ export function getCadenceDisplayLabels(cadenceIdOrType?: string, originalLabel?
       short: 'Plagal (IV → I)',
     }
   }
-  if (normalized.includes('semicadencia')) {
+  if (normalized.includes('semicadencia') || normalized.includes('semi')) {
     return {
-      full: 'Semicadencia (V)',
-      short: 'Semi (V)',
+      full: 'Semicadencia (→ V)',
+      short: 'Semicadencia (→ V)',
     }
   }
   if (normalized.includes('frigia')) {
@@ -482,7 +482,7 @@ export function getCadenceDisplayLabels(cadenceIdOrType?: string, originalLabel?
       short: 'Frigia (iv → V)',
     }
   }
-  if (normalized.includes('picardia')) {
+  if (normalized.includes('picardia') || normalized.includes('picard')) {
     return {
       full: 'Cadencia Picardía (iv → I)',
       short: 'Picardía (iv → I)',
@@ -496,26 +496,30 @@ export function getCadenceDisplayLabels(cadenceIdOrType?: string, originalLabel?
   }
 
   if (rawLabel) {
-    if (rawLabel.includes('PAC') || (rawLabel.includes('Auténtica') && rawLabel.includes('Perfecta'))) {
-      return { full: rawLabel, short: 'PAC (V → I)' }
+    const rawLower = rawLabel.toLowerCase()
+    if (rawLabel.includes('PAC') || (rawLower.includes('auténtica') && rawLower.includes('perfecta')) || (rawLower.includes('autentica') && rawLower.includes('perfecta'))) {
+      return { full: 'Cadencia Auténtica Perfecta (PAC) (V → I)', short: 'PAC (V → I)' }
     }
-    if (rawLabel.includes('IAC') || (rawLabel.includes('Auténtica') && rawLabel.includes('Imperfecta'))) {
-      return { full: rawLabel, short: 'IAC (V → I)' }
+    if (rawLabel.includes('IAC') || (rawLower.includes('auténtica') && rawLower.includes('imperfecta')) || (rawLower.includes('autentica') && rawLower.includes('imperfecta'))) {
+      return { full: 'Cadencia Auténtica Imperfecta (IAC) (V → I)', short: 'IAC (V → I)' }
     }
-    if (rawLabel.toLowerCase().includes('rota') || rawLabel.toLowerCase().includes('deceptiv')) {
-      return { full: rawLabel, short: 'Rota (V → vi)' }
+    if (rawLower.includes('rota') || rawLower.includes('deceptiv')) {
+      return { full: 'Cadencia Rota / Deceptiva (V → vi)', short: 'Rota (V → vi)' }
     }
-    if (rawLabel.toLowerCase().includes('plagal')) {
-      return { full: rawLabel, short: 'Plagal (IV → I)' }
+    if (rawLower.includes('plagal')) {
+      return { full: 'Cadencia Plagal (IV → I)', short: 'Plagal (IV → I)' }
     }
-    if (rawLabel.toLowerCase().includes('semicadencia')) {
-      return { full: rawLabel, short: 'Semi (V)' }
+    if (rawLower.includes('semicadencia') || rawLower.includes('semi')) {
+      return { full: 'Semicadencia (→ V)', short: 'Semicadencia (→ V)' }
     }
-    if (rawLabel.toLowerCase().includes('frigia')) {
-      return { full: rawLabel, short: 'Frigia (iv → V)' }
+    if (rawLower.includes('frigia')) {
+      return { full: 'Cadencia Frigia (iv → V)', short: 'Frigia (iv → V)' }
     }
-    if (rawLabel.toLowerCase().includes('picard')) {
-      return { full: rawLabel, short: 'Picardía (iv → I)' }
+    if (rawLower.includes('picard')) {
+      return { full: 'Cadencia Picardía (iv → I)', short: 'Picardía (iv → I)' }
+    }
+    if (rawLower.includes('backdoor')) {
+      return { full: 'Cadencia Backdoor (♭VII7 → I)', short: 'Backdoor (♭VII7 → I)' }
     }
     const cleanShort = rawLabel
       .replace(/^Cadencia\s+/i, '')

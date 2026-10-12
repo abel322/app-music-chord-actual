@@ -127,25 +127,17 @@ export function MeasureCell({
                 right: isLastInRowDesktop ? 0 : `${100 - endPercent}%`,
               }}
             >
-              {fullLabel && (
+              {shortLabel && (
                 <div
                   className={cn(
-                    'absolute bottom-full mb-1 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm max-w-[calc(100%-4px)]',
+                    'absolute bottom-full mb-1 z-30 pointer-events-auto inline-flex items-center gap-1.5 whitespace-nowrap w-max px-2 py-0.5 rounded text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 shadow-sm border border-purple-200 dark:border-purple-800 select-none',
                     isLastInRowDesktop || isLastInRowMobile
-                      ? 'right-0 left-auto translate-x-0 pr-1 justify-end'
+                      ? 'right-2 left-auto translate-x-0'
                       : 'left-1/2 -translate-x-1/2'
                   )}
+                  title={fullLabel}
                 >
-                  <span
-                    className={cn(
-                      'text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate inline-block',
-                      isLastInRowDesktop ? 'max-w-[130px] sm:max-w-[170px]' : 'max-w-[140px] sm:max-w-[200px]'
-                    )}
-                    title={fullLabel}
-                  >
-                    <span className={isLastInRowDesktop ? 'hidden' : 'hidden sm:inline'}>{fullLabel}</span>
-                    <span className={isLastInRowDesktop ? 'inline' : 'inline sm:hidden'}>{shortLabel}</span>
-                  </span>
+                  <span>{shortLabel}</span>
                   {onRemoveCadence && (
                     <button
                       type="button"
@@ -153,7 +145,7 @@ export function MeasureCell({
                         e.stopPropagation()
                         onRemoveCadence(measure.id)
                       }}
-                      className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
+                      className="p-0.5 rounded-full text-purple-400 hover:text-red-500 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors flex items-center justify-center shrink-0"
                       title="Quitar cadencia"
                     >
                       <X className="w-3 h-3" />
@@ -167,21 +159,18 @@ export function MeasureCell({
           {/* Caso 2: Compás de origen (Tensión: inicia en startPercent y se proyecta a la derecha) */}
           {bracketRole === 'start' && (
             <>
-              {/* 2A: Misma fila en mobile y desktop (wrapType === 'none') */}
+              {/* 2A: Misma fila en mobile y desktop (wrapType === 'none') -> Compás intermedio (ej. Compás 1 a 2) */}
               {wrapType === 'none' && (
                 <div
                   className="absolute -top-6 sm:-top-6.5 -right-[5px] sm:-right-[7px] pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm"
                   style={{ left: `${startPercent}%` }}
                 >
-                  {fullLabel && (
-                    <div className="absolute bottom-full mb-1 left-[calc(100%+5px)] sm:left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm max-w-[calc(100%-8px)]">
-                      <span
-                        className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[130px] sm:max-w-[210px] inline-block"
-                        title={fullLabel}
-                      >
-                        <span className="hidden sm:inline">{fullLabel}</span>
-                        <span className="inline sm:hidden">{shortLabel}</span>
-                      </span>
+                  {shortLabel && (
+                    <div
+                      className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-30 pointer-events-auto inline-flex items-center gap-1.5 whitespace-nowrap w-max px-2 py-0.5 rounded text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 shadow-sm border border-purple-200 dark:border-purple-800 select-none"
+                      title={fullLabel}
+                    >
+                      <span>{shortLabel}</span>
                       {onRemoveCadence && (
                         <button
                           type="button"
@@ -189,7 +178,7 @@ export function MeasureCell({
                             e.stopPropagation()
                             onRemoveCadence(measure.id)
                           }}
-                          className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
+                          className="p-0.5 rounded-full text-purple-400 hover:text-red-500 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors flex items-center justify-center shrink-0"
                           title="Quitar cadencia"
                         >
                           <X className="w-3 h-3" />
@@ -200,7 +189,7 @@ export function MeasureCell({
                 </div>
               )}
 
-              {/* 2B: Salto de renglón en ambos (wrapType === 'both' -> ej. Compás 4 al final de fila) */}
+              {/* 2B: Salto de renglón en ambos (wrapType === 'both') -> Último compás de fila (ej. Compás 4) */}
               {wrapType === 'both' && (
                 <div
                   className="absolute -top-6 sm:-top-6.5 right-0 pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm max-w-full"
@@ -209,16 +198,12 @@ export function MeasureCell({
                   <span className="absolute -top-2 right-0.5 text-[10px] sm:text-[11px] font-bold text-purple-500/80 select-none leading-none">
                     →
                   </span>
-                  {fullLabel && (
+                  {shortLabel && (
                     <div
-                      className="absolute bottom-full mb-1 right-0 left-auto translate-x-0 pr-1 max-w-[calc(100%-4px)] whitespace-nowrap z-30 pointer-events-auto flex items-center justify-end gap-1 shadow-sm"
+                      className="absolute bottom-full mb-1 right-2 left-auto translate-x-0 z-30 pointer-events-auto inline-flex items-center gap-1.5 whitespace-nowrap w-max px-2 py-0.5 rounded text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 shadow-sm border border-purple-200 dark:border-purple-800 select-none"
+                      title={fullLabel}
                     >
-                      <span
-                        className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[130px] sm:max-w-[170px] inline-block"
-                        title={fullLabel}
-                      >
-                        {shortLabel}
-                      </span>
+                      <span>{shortLabel}</span>
                       {onRemoveCadence && (
                         <button
                           type="button"
@@ -226,7 +211,7 @@ export function MeasureCell({
                             e.stopPropagation()
                             onRemoveCadence(measure.id)
                           }}
-                          className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
+                          className="p-0.5 rounded-full text-purple-400 hover:text-red-500 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors flex items-center justify-center shrink-0"
                           title="Quitar cadencia"
                         >
                           <X className="w-3 h-3" />
@@ -237,7 +222,7 @@ export function MeasureCell({
                 </div>
               )}
 
-              {/* 2C: Salto en móvil, misma fila en desktop (wrapType === 'mobile-only') */}
+              {/* 2C: Salto en móvil, misma fila en desktop (wrapType === 'mobile-only' -> ej. Compás 2) */}
               {wrapType === 'mobile-only' && (
                 <div
                   className="absolute -top-6 sm:-top-6.5 right-0 md:-right-[7px] pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm"
@@ -246,57 +231,26 @@ export function MeasureCell({
                   <span className="block md:hidden absolute -top-2 right-0.5 text-[10px] sm:text-[11px] font-bold text-purple-500/80 select-none leading-none">
                     →
                   </span>
-                  {fullLabel && (
-                    <>
-                      {/* Mobile: Último compás de fila en 2 columnas -> Alineado estrictamente a la derecha con shortLabel */}
-                      <div
-                        className="md:hidden absolute bottom-full mb-1 right-0 left-auto translate-x-0 pr-1 max-w-[calc(100%-4px)] whitespace-nowrap z-30 pointer-events-auto flex items-center justify-end gap-1 shadow-sm"
-                      >
-                        <span
-                          className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[120px] inline-block"
-                          title={fullLabel}
+                  {shortLabel && (
+                    <div
+                      className="absolute bottom-full mb-1 right-2 md:right-auto md:left-1/2 translate-x-0 md:-translate-x-1/2 z-30 pointer-events-auto inline-flex items-center gap-1.5 whitespace-nowrap w-max px-2 py-0.5 rounded text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 shadow-sm border border-purple-200 dark:border-purple-800 select-none"
+                      title={fullLabel}
+                    >
+                      <span>{shortLabel}</span>
+                      {onRemoveCadence && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onRemoveCadence(measure.id)
+                          }}
+                          className="p-0.5 rounded-full text-purple-400 hover:text-red-500 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors flex items-center justify-center shrink-0"
+                          title="Quitar cadencia"
                         >
-                          {shortLabel}
-                        </span>
-                        {onRemoveCadence && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onRemoveCadence(measure.id)
-                            }}
-                            className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
-                            title="Quitar cadencia"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Desktop: Compás intermedio en 4 columnas -> Centrado sobre el gap inter-compás */}
-                      <div className="hidden md:flex absolute bottom-full mb-1 left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto items-center gap-1 shadow-sm">
-                        <span
-                          className="text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[190px] inline-block"
-                          title={fullLabel}
-                        >
-                          <span className="hidden lg:inline">{fullLabel}</span>
-                          <span className="inline lg:hidden">{shortLabel}</span>
-                        </span>
-                        {onRemoveCadence && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onRemoveCadence(measure.id)
-                            }}
-                            className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
-                            title="Quitar cadencia"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </>
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
