@@ -272,12 +272,12 @@ function splitMeasureIntoTwoChords(
     slots: [
       {
         index: 0,
-        label: 'Mitad 1 (T. 1)',
+        label: 'T. 1-2',
         chord: chord1,
       },
       {
         index: 1,
-        label: 'Mitad 2 (T. 3)',
+        label: 'T. 3-4',
         chord: chord2,
       },
     ],

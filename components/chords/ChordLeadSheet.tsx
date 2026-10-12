@@ -230,6 +230,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       label,
       timeSignature,
       instruments: [],
+      guideLyrics: '',
       measures: newMeasures,
     }
 
@@ -444,49 +445,89 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all"
             >
               {/* Encabezado de la Sección */}
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800/80">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase">
-                    {getSectionBadge(section.type)}
+              <div className="pb-3 mb-4 border-b border-slate-100 dark:border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase shrink-0">
+                      {getSectionBadge(section.type)}
+                    </div>
+                    <div>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={section.label}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setSections((prev) =>
+                              prev.map((s) => (s.id === section.id ? { ...s, label: val } : s))
+                            )
+                          }}
+                          className="font-black text-lg text-slate-900 dark:text-white bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1 -ml-1 leading-tight"
+                        />
+                      ) : (
+                        <h2 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
+                          {section.label}
+                        </h2>
+                      )}
+                      <span className="text-[11px] font-medium text-slate-400 block">
+                        {section.measures.length} compases • {section.timeSignature || timeSignature}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
-                      {section.label}
-                    </h2>
-                    <span className="text-[11px] font-medium text-slate-400">
-                      {section.measures.length} compases • {section.timeSignature || timeSignature}
-                    </span>
-                  </div>
+
+                  {isEditing && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Selector Desacoplado de Progresiones */}
+                      <ProgressionPicker
+                        currentKey={currentKey}
+                        buttonLabel="✦ Progresión de Sección"
+                        buttonVariant="subtle"
+                        onSelectProgression={(prog) => handleApplyProgression(section.id, prog)}
+                      />
+
+                      {/* Selector Desacoplado de Cadencias al cierre de sección */}
+                      <CadencePicker
+                        currentKey={currentKey}
+                        currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
+                        buttonLabel="✦ Cadencia Final"
+                        buttonVariant="subtle"
+                        onSelectCadence={(cad) => handleApplySectionCadence(section.id, cad)}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSection(section.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                        title="Eliminar sección"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {isEditing && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Selector Desacoplado de Progresiones */}
-                    <ProgressionPicker
-                      currentKey={currentKey}
-                      buttonLabel="✦ Progresión de Sección"
-                      buttonVariant="subtle"
-                      onSelectProgression={(prog) => handleApplyProgression(section.id, prog)}
+                {/* Letra de Guía Rítmica / Frase Lírica de la Sección */}
+                {isEditing ? (
+                  <div className="pt-0.5">
+                    <input
+                      type="text"
+                      value={section.guideLyrics || ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setSections((prev) =>
+                          prev.map((s) => (s.id === section.id ? { ...s, guideLyrics: val } : s))
+                        )
+                      }}
+                      placeholder="Añadir frase de letra de guía para esta sección (ej: 'Vengo a rendirme a tus pies...')"
+                      className="w-full text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 italic focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors"
                     />
-
-                    {/* Selector Desacoplado de Cadencias al cierre de sección */}
-                    <CadencePicker
-                      currentKey={currentKey}
-                      currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
-                      buttonLabel="✦ Cadencia Final"
-                      buttonVariant="subtle"
-                      onSelectCadence={(cad) => handleApplySectionCadence(section.id, cad)}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSection(section.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                      title="Eliminar sección"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
+                ) : (
+                  section.guideLyrics?.trim() ? (
+                    <p className="text-xs sm:text-sm text-slate-400 italic mb-2 tracking-wide">
+                      {section.guideLyrics.trim()}
+                    </p>
+                  ) : null
                 )}
               </div>
 

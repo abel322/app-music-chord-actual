@@ -441,8 +441,8 @@ export function generateSlotsForDivision(
         ]
       }
       return [
-        { index: 0, label: 'Mitad 1 (T. 1-2)', chord: existingChords[0] || null },
-        { index: 1, label: 'Mitad 2 (T. 3-4)', chord: existingChords[1] || null },
+        { index: 0, label: 'T. 1-2', chord: existingChords[0] || null },
+        { index: 1, label: 'T. 3-4', chord: existingChords[1] || null },
       ]
 
     case 'quarter':

@@ -501,7 +501,7 @@ export function MeasureInspector({
                               : 'text-slate-700 dark:text-slate-300'
                           )}
                         >
-                          {slot.label}
+                          {slot.label.replace(/^Mitad\s*\d+\s*\(?/i, '').replace(/\)$/, '').trim() || slot.label}
                         </span>
 
                         <div className="flex items-center gap-0.5">

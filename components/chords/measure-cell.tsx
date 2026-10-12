@@ -45,6 +45,10 @@ export function MeasureCell({
   const slots = ensureMeasureSlots(measure, effectiveTimeSig)
   const divisionBracket = getDivisionBracket(division)
 
+  const halfCount = Math.max(1, Math.ceil(actualBeats / 2))
+  const firstHalfBeats = Array.from({ length: halfCount }, (_, i) => i + 1)
+  const secondHalfBeats = Array.from({ length: Math.max(1, actualBeats - halfCount) }, (_, i) => halfCount + i + 1)
+
   // Acorde principal (para detección de cadencia y vista completa)
   const primaryChord = slots.find((s) => s.chord && s.chord !== '%')?.chord || 
     measure.beats.find((b) => b.chord)?.chord || ''
@@ -213,13 +217,17 @@ export function MeasureCell({
             )}
           </div>
         ) : division === 'half' ? (
-          /* Caso Blancas: 2 Mitades con División Central */
-          <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 text-center items-center py-1">
+          /* Caso Blancas: 2 Mitades con División Central y Notación Rítmica Profesional */
+          <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 text-center items-center py-0.5">
+            {/* Primera mitad (Acorde 1, tiempos 1 y 2) */}
             <div className="flex flex-col items-center justify-center px-1 min-w-0">
               <div className="flex items-center justify-center gap-0.5 max-w-full">
                 <span
                   className={cn(
-                    'font-mono text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
+                    'font-mono leading-none whitespace-nowrap min-w-0 shrink-0',
+                    slots[0]?.isRest || slots[0]?.chord === '%'
+                      ? 'text-rose-500 dark:text-rose-400 font-black'
+                      : 'text-slate-900 dark:text-white',
                     (slots[0]?.chord?.length || 0) > 7
                       ? 'text-xs sm:text-sm font-bold'
                       : (slots[0]?.chord?.length || 0) > 4
@@ -234,16 +242,30 @@ export function MeasureCell({
                   <span className="text-[10px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
                 )}
               </div>
-              <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
-                {slots[0]?.label || 'T. 1-2'}
-              </span>
+              {/* Notación rítmica estándar: barras / con números 1 y 2 alineados debajo */}
+              <div className="flex items-center justify-center gap-3 sm:gap-3.5 font-mono leading-none mt-1">
+                {firstHalfBeats.map((beatNum) => (
+                  <div key={beatNum} className="flex flex-col items-center justify-center">
+                    <span className="text-slate-300 dark:text-slate-600 font-black text-xs sm:text-[13px] leading-none">
+                      /
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold mt-0.5 leading-none">
+                      {beatNum}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
+            {/* Segunda mitad (Acorde 2, tiempos 3 y 4) */}
             <div className="flex flex-col items-center justify-center px-1 min-w-0">
               <div className="flex items-center justify-center gap-0.5 max-w-full">
                 <span
                   className={cn(
-                    'font-mono text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
+                    'font-mono leading-none whitespace-nowrap min-w-0 shrink-0',
+                    slots[1]?.isRest || slots[1]?.chord === '%'
+                      ? 'text-rose-500 dark:text-rose-400 font-black'
+                      : 'text-slate-900 dark:text-white',
                     (slots[1]?.chord?.length || 0) > 7
                       ? 'text-xs sm:text-sm font-bold'
                       : (slots[1]?.chord?.length || 0) > 4
@@ -258,9 +280,19 @@ export function MeasureCell({
                   <span className="text-[10px] font-black text-amber-500 leading-none shrink-0">&gt;</span>
                 )}
               </div>
-              <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
-                {slots[1]?.label || 'T. 3-4'}
-              </span>
+              {/* Notación rítmica estándar: barras / con números 3 y 4 alineados debajo */}
+              <div className="flex items-center justify-center gap-3 sm:gap-3.5 font-mono leading-none mt-1">
+                {secondHalfBeats.map((beatNum) => (
+                  <div key={beatNum} className="flex flex-col items-center justify-center">
+                    <span className="text-slate-300 dark:text-slate-600 font-black text-xs sm:text-[13px] leading-none">
+                      /
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold mt-0.5 leading-none">
+                      {beatNum}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : division === 'quarter' ? (

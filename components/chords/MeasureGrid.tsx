@@ -88,8 +88,8 @@ export function MeasureGrid({
       ...measure,
       division: 'half',
       slots: [
-        { index: 0, label: 'Mitad 1 (T. 1)', chord: chord1 || 'C' },
-        { index: 1, label: 'Mitad 2 (T. 3)', chord: chord2 || 'G' },
+        { index: 0, label: 'T. 1-2', chord: chord1 || 'C' },
+        { index: 1, label: 'T. 3-4', chord: chord2 || 'G' },
       ],
       beats: newBeats,
     })

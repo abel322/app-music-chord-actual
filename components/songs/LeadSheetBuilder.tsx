@@ -102,6 +102,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           label: 'Intro',
           timeSignature: initialData?.timeSignature || '4/4',
           instruments: [],
+          guideLyrics: '',
           measures: generateMeasures(4, 1, initialData?.timeSignature || '4/4', [initialData?.key || 'C']),
         },
         {
@@ -110,6 +111,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           label: 'Estrofa 1',
           timeSignature: initialData?.timeSignature || '4/4',
           instruments: [],
+          guideLyrics: '',
           measures: generateMeasures(4, 5, initialData?.timeSignature || '4/4', [initialData?.key || 'C']),
         },
       ]
@@ -229,6 +231,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
       label,
       timeSignature,
       instruments: [],
+      guideLyrics: '',
       measures: newMeasures,
     }
 
@@ -299,6 +302,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
       const extractedLyrics = sections
         .flatMap((s) => [
           `[${s.label}]`,
+          ...(s.guideLyrics ? [s.guideLyrics.trim()] : []),
           ...s.measures.map((m) => m.guideLyric?.trim()).filter(Boolean),
           '',
         ])
@@ -597,6 +601,24 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+
+              {/* Frase de Letra de Guía para la Sección */}
+              <div className="-mt-2">
+                <input
+                  type="text"
+                  value={section.guideLyrics || ''}
+                  onChange={(e) => {
+                    const updatedVal = e.target.value
+                    setSections(
+                      sections.map((s) =>
+                        s.id === section.id ? { ...s, guideLyrics: updatedVal } : s
+                      )
+                    )
+                  }}
+                  placeholder="Añadir frase de letra de guía para esta sección (ej: 'Vengo a rendirme a tus pies...')"
+                  className="w-full text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 italic focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors"
+                />
               </div>
 
               {/* Rejilla de Compases Interactiva */}
