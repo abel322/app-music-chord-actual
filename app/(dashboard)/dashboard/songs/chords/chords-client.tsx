@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
   Music, 
   FileText, 
@@ -11,9 +12,12 @@ import {
   Layers, 
   SlidersHorizontal, 
   ExternalLink,
-  Star
+  Star,
+  Trash2,
+  CheckCircle2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DeleteSongModal } from '@/components/songs/DeleteSongModal'
 
 interface SerializedSong {
   id: string
@@ -40,11 +44,19 @@ interface ChordsClientProps {
 const COMMON_KEYS = ['Todas', 'C', 'D', 'E', 'F', 'G', 'A', 'B']
 
 export function ChordsClient({ initialSongs }: ChordsClientProps) {
+  const router = useRouter()
+  const [songs, setSongs] = useState<SerializedSong[]>(initialSongs)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedKey, setSelectedKey] = useState('Todas')
+  const [songToDelete, setSongToDelete] = useState<SerializedSong | null>(null)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    setSongs(initialSongs)
+  }, [initialSongs])
 
   const filteredSongs = useMemo(() => {
-    return initialSongs.filter((song) => {
+    return songs.filter((song) => {
       const matchesSearch =
         song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (song.artist && song.artist.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -56,7 +68,7 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
 
       return matchesSearch && matchesKey
     })
-  }, [initialSongs, searchQuery, selectedKey])
+  }, [songs, searchQuery, selectedKey])
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -261,22 +273,58 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
                   </div>
                 </div>
 
-                {/* Botón de Acción a Editor de Acordes */}
+                {/* Botón de Acción a Editor de Acordes y Eliminación */}
                 <div className="pt-2 border-t border-gray-100 dark:border-slate-800/60 flex items-center justify-between">
                   <span className="text-[11px] text-gray-400">
                     Modificado recientemente
                   </span>
-                  <Link
-                    href={`/dashboard/songs/chords/${song.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 border border-primary-200/60 dark:border-primary-800/50 transition-colors"
-                  >
-                    <span>Ver Acordes</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        setSongToDelete(song)
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800/50"
+                      title="Eliminar canción"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+
+                    <Link
+                      href={`/dashboard/songs/chords/${song.id}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 border border-primary-200/60 dark:border-primary-800/50 transition-colors"
+                    >
+                      <span>Ver Acordes</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Eliminación */}
+      <DeleteSongModal
+        isOpen={!!songToDelete}
+        song={songToDelete}
+        onClose={() => setSongToDelete(null)}
+        onSuccess={(deletedId, title) => {
+          setSongs((prev) => prev.filter((s) => s.id !== deletedId))
+          router.refresh()
+          setToastMessage(`Canción «${title}» eliminada correctamente`)
+          setTimeout(() => setToastMessage(null), 3500)
+        }}
+      />
+
+      {/* Notificación Toast Flotante */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xl border border-slate-800 dark:border-slate-200 text-xs font-semibold animate-in slide-in-from-bottom duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>

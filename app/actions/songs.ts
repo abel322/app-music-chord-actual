@@ -141,3 +141,37 @@ export async function upsertSongAction(payload: SongInput & { id?: string }) {
   }
   return createSongAction(payload)
 }
+
+/**
+ * Server Action para eliminar una canción de la base de datos de forma permanente.
+ */
+export async function deleteSongAction(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) {
+    throw new Error('No autorizado: sesión requerida')
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true },
+  })
+  if (!user) throw new Error('Usuario no encontrado')
+
+  const existingSong = await prisma.song.findFirst({
+    where: { id, userId: user.id },
+  })
+  if (!existingSong) {
+    throw new Error('Canción no encontrada o no tienes permisos para eliminarla')
+  }
+
+  await prisma.song.delete({
+    where: { id },
+  })
+
+  revalidatePath('/dashboard/songs')
+  revalidatePath('/dashboard/songs/chords')
+  revalidatePath('/dashboard/songs/lyrics')
+
+  return { success: true }
+}
+
