@@ -42,6 +42,8 @@ export function TapTempoModal({
   const [isTapping, setIsTapping] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
 
+  // Total acumulado de taps para el ciclo infinito de compás (independiente de la ventana de timestamps)
+  const totalTapsRef = useRef<number>(0)
   const tapTimesRef = useRef<number[]>([])
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -69,9 +71,9 @@ export function TapTempoModal({
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
 
-      // Frecuencia más aguda en el pulso 1 para marcar el compás
+      // Frecuencia más aguda y mayor ganancia en el pulso 1 (downbeat) para marcar el compás
       osc.frequency.setValueAtTime(isFirstBeat ? 880 : 587.33, ctx.currentTime)
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.setValueAtTime(isFirstBeat ? 0.35 : 0.22, ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05)
 
       osc.connect(gain)
@@ -95,37 +97,42 @@ export function TapTempoModal({
     const times = tapTimesRef.current
     const lastTap = times[times.length - 1]
 
-    // Si pasaron más de 2 segundos, reiniciar ciclo para nueva medición limpia
-    if (lastTap && now - lastTap > 2000) {
-      tapTimesRef.current = [now]
-      setActiveBeat(1)
+    // Detección de pausa: Si pasaron más de 2.5 segundos, reiniciar para una nueva medición limpia desde T.1
+    if (lastTap && now - lastTap > 2500) {
+      tapTimesRef.current = []
+      totalTapsRef.current = 0
+      setBpm(null)
+      setActiveBeat(0)
       setCompletedCycles(0)
-      playClick(true)
-      return
     }
 
-    times.push(now)
-    // Conservar las últimas 8 pulsaciones para máxima precisión y estabilidad
-    if (times.length > 8) {
-      times.shift()
+    // Registrar nuevo tap
+    tapTimesRef.current.push(now)
+    totalTapsRef.current += 1
+
+    // Para el cálculo estable de BPM, conservar una ventana deslizante de las últimas 10 pulsaciones
+    if (tapTimesRef.current.length > 10) {
+      tapTimesRef.current.shift()
     }
 
-    // Progreso del ciclo del compás
-    const currentTapIndex = times.length
-    const beatInCycle = ((currentTapIndex - 1) % cycleBeats) + 1
-    setActiveBeat(beatInCycle)
+    // 1. Ciclo Infinito de Compás (Módulo Cíclico):
+    // El pulso activo se calcula siempre con el operador módulo respecto a los pulsos por compás
+    const currentTapCount = totalTapsRef.current
+    const currentBeatInMeasure = ((currentTapCount - 1) % cycleBeats) + 1
+    const completedMeasures = Math.floor(currentTapCount / cycleBeats)
 
-    if (beatInCycle === cycleBeats) {
-      setCompletedCycles((c) => c + 1)
-    }
+    setActiveBeat(currentBeatInMeasure)
+    setCompletedCycles(completedMeasures)
 
-    playClick(beatInCycle === 1)
+    const isDownbeat = currentBeatInMeasure === 1
+    playClick(isDownbeat)
 
     // Calcular BPM a partir de 2 o más pulsaciones consecutivas
-    if (times.length >= 2) {
+    const recentTimes = tapTimesRef.current
+    if (recentTimes.length >= 2) {
       const intervals: number[] = []
-      for (let i = 1; i < times.length; i++) {
-        intervals.push(times[i] - times[i - 1])
+      for (let i = 1; i < recentTimes.length; i++) {
+        intervals.push(recentTimes[i] - recentTimes[i - 1])
       }
 
       const avgInterval = intervals.reduce((sum, val) => sum + val, 0) / intervals.length
@@ -136,16 +143,20 @@ export function TapTempoModal({
       }
     }
 
-    // Auto-reset del contador si no hay actividad en 2 segundos
+    // 2. Detección de Pausa (Reset Automático por Inactividad tras 2.5s)
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => {
       setActiveBeat(0)
-    }, 2000)
+      setCompletedCycles(0)
+      totalTapsRef.current = 0
+      tapTimesRef.current = []
+    }, 2500)
   }, [cycleBeats, playClick])
 
   // Reiniciar medición
   const handleReset = () => {
     tapTimesRef.current = []
+    totalTapsRef.current = 0
     setBpm(null)
     setActiveBeat(0)
     setCompletedCycles(0)
@@ -160,6 +171,17 @@ export function TapTempoModal({
       onClose()
     }
   }
+
+  // Resetear estados al abrir o cerrar modal
+  useEffect(() => {
+    if (!isOpen) {
+      tapTimesRef.current = []
+      totalTapsRef.current = 0
+      setActiveBeat(0)
+      setCompletedCycles(0)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [isOpen])
 
   // Atajos de teclado: Espacio o 'T' para tap, Escape para cerrar
   useEffect(() => {
@@ -258,26 +280,42 @@ export function TapTempoModal({
             {pulseMarks}
           </div>
 
-          {/* Indicadores Visuales de Progreso (Dots por Pulso) */}
+          {/* Indicadores Visuales de Progreso (Dots por Pulso con acento en T.1 Downbeat) */}
           <div className="pt-2 flex items-center justify-center gap-3">
             {Array.from({ length: cycleBeats }).map((_, idx) => {
               const beatNumber = idx + 1
               const isActive = activeBeat === beatNumber
+              const isDownbeat = beatNumber === 1
 
               return (
-                <div key={idx} className="flex flex-col items-center gap-1">
+                <div key={idx} className="flex flex-col items-center gap-1.5">
                   <div
                     className={cn(
-                      'w-8 h-8 rounded-full flex items-center justify-center font-mono font-black text-xs transition-all duration-150 border-2',
-                      isActive
-                        ? 'bg-primary-500 text-white border-primary-400 ring-4 ring-primary-500/30 scale-110 shadow-md'
+                      'w-9 h-9 rounded-full flex items-center justify-center font-mono font-black text-xs transition-all duration-150 border-2 select-none',
+                      isActive && isDownbeat
+                        ? 'bg-amber-500 text-white border-amber-300 ring-4 ring-amber-400/50 scale-125 shadow-lg shadow-amber-500/40 animate-pulse'
+                        : isActive
+                        ? 'bg-primary-500 text-white border-primary-300 ring-4 ring-primary-500/30 scale-110 shadow-md'
+                        : isDownbeat
+                        ? 'bg-amber-50/70 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-300/80 dark:border-amber-700/80'
                         : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-700'
                     )}
                   >
                     {beatNumber}
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">
-                    {beatNumber === 1 ? 'Tierra' : `T. ${beatNumber}`}
+                  <span
+                    className={cn(
+                      'text-[10px] font-bold transition-colors whitespace-nowrap',
+                      isActive && isDownbeat
+                        ? 'text-amber-600 dark:text-amber-400 font-black'
+                        : isActive
+                        ? 'text-primary-600 dark:text-primary-400 font-extrabold'
+                        : isDownbeat
+                        ? 'text-amber-600/70 dark:text-amber-400/70'
+                        : 'text-slate-400'
+                    )}
+                  >
+                    {isDownbeat ? 'T.1 (Tierra)' : `T.${beatNumber}`}
                   </span>
                 </div>
               )
@@ -285,8 +323,11 @@ export function TapTempoModal({
           </div>
 
           {completedCycles > 0 && (
-            <div className="text-[11px] font-bold text-primary-600 dark:text-primary-400 pt-1">
-              {completedCycles} {completedCycles === 1 ? 'compás completado' : 'compases completados'}
+            <div className="text-[11px] font-bold text-primary-600 dark:text-primary-400 pt-1 flex items-center justify-center gap-1.5 animate-in fade-in">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>
+                {completedCycles} {completedCycles === 1 ? 'compás completado' : 'compases completados'}
+              </span>
             </div>
           )}
         </div>
@@ -298,7 +339,9 @@ export function TapTempoModal({
             onClick={handleTap}
             className={cn(
               'w-36 h-36 sm:w-40 sm:h-40 rounded-full mx-auto flex flex-col items-center justify-center gap-1.5 transition-all select-none cursor-pointer border-4 shadow-xl',
-              isTapping
+              isTapping && activeBeat === 1
+                ? 'scale-95 bg-amber-500 border-amber-300 text-white ring-8 ring-amber-400/40 shadow-amber-500/40'
+                : isTapping
                 ? 'scale-95 bg-primary-600 border-primary-400 text-white ring-8 ring-primary-500/40 shadow-primary-500/30'
                 : 'bg-gradient-to-br from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 border-primary-300 dark:border-primary-600 text-white hover:scale-102 hover:shadow-2xl'
             )}
