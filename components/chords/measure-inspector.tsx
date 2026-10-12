@@ -17,6 +17,7 @@ import { getBeatsPerMeasure, applyCadenceToMeasure } from '@/lib/measure-utils'
 import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
 import { ChordSelectorModal } from './ChordSelectorModal'
+import { DivisionPicker } from './DivisionPicker'
 import { normalizeChordInput } from '@/lib/chord-catalog'
 import { Copy, Split, Sparkles, Tag, Sliders, VolumeX, X, Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -336,45 +337,12 @@ export function MeasureInspector({
         {/* Dropdown Maestro de División del Compás */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
           <div className="md:col-span-2">
-            <select
-              value={currentDivision}
-              onChange={(e) => handleSelectDivision(e.target.value as MeasureDivision)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-2xs"
-            >
-              <optgroup label={`1. Regulares / Estándar (${effectiveTimeSig})`}>
-                {divisionOptions
-                  .filter((d) => d.category === 'regular')
-                  .map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.name}
-                    </option>
-                  ))}
-              </optgroup>
-
-              {divisionOptions.some((d) => d.category === 'irregular') && (
-                <optgroup label="2. Irregulares / Polirritmias en el Compás">
-                  {divisionOptions
-                    .filter((d) => d.category === 'irregular')
-                    .map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.name}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-
-              {divisionOptions.some((d) => d.category === 'amalgam') && (
-                <optgroup label="3. Compases Compuestos y Amalgamas Rítmicas">
-                  {divisionOptions
-                    .filter((d) => d.category === 'amalgam')
-                    .map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.name}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
+            <DivisionPicker
+              currentDivision={currentDivision}
+              timeSignature={effectiveTimeSig}
+              divisionOptions={divisionOptions}
+              onSelectDivision={handleSelectDivision}
+            />
           </div>
 
           <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
