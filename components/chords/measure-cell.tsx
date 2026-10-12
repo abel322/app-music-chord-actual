@@ -9,7 +9,7 @@ import {
   getMetricPulseGroups
 } from '@/lib/rhythm-utils'
 import { getBeatsPerMeasure, getCadenceDisplayLabels } from '@/lib/measure-utils'
-import { Copy, Trash2, X } from 'lucide-react'
+import { Copy, Trash2, X, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type CadenceWrapType = 'none' | 'both' | 'mobile-only'
@@ -27,7 +27,7 @@ export interface CadenceBracketInfo {
   isLastInRowMobile?: boolean
 }
 
-interface MeasureCellProps {
+export interface MeasureCellProps {
   measure: Measure
   timeSignature?: string
   beatsPerMeasure?: number
@@ -40,6 +40,8 @@ interface MeasureCellProps {
   onDuplicate?: (measureId: string) => void
   onRemove?: (measureId: string) => void
   onRemoveCadence?: (measureId: string) => void
+  dragHandleProps?: Record<string, any>
+  isDragging?: boolean
 }
 
 export function MeasureCell({
@@ -55,6 +57,8 @@ export function MeasureCell({
   onDuplicate,
   onRemove,
   onRemoveCadence,
+  dragHandleProps,
+  isDragging = false,
 }: MeasureCellProps) {
   const effectiveTimeSig = measure.timeSignature || timeSignature || (beatsPerMeasure ? `${beatsPerMeasure}/4` : '4/4')
   const actualBeats = getBeatsPerMeasure(effectiveTimeSig)
@@ -109,7 +113,8 @@ export function MeasureCell({
           : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
         measure.repeatStart && 'border-l-[5px] border-l-primary-600 dark:border-l-primary-500',
         measure.repeatEnd && 'border-r-[5px] border-r-primary-600 dark:border-r-primary-500',
-        isEditing && 'cursor-pointer hover:shadow-md'
+        isEditing && 'cursor-pointer hover:shadow-md',
+        isDragging && 'opacity-40 border-dashed border-purple-400 dark:border-purple-500'
       )}
     >
       {/* 0. Corchete Flotante Superior de Cadencia Armónica (Renderizado Geométrico Preciso y Delimitado) */}
@@ -337,9 +342,23 @@ export function MeasureCell({
             </span>
           )}
 
-          {/* Acciones Rápidas en Hover (Modo Edición) */}
+          {/* Acciones Rápidas (Modo Edición) */}
           {isEditing && (
-            <div className="hidden group-hover:flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 shrink-0">
+              {/* Manija de Agarre / Drag Handle para reordenar con touch-none */}
+              {dragHandleProps && (
+                <button
+                  type="button"
+                  {...dragHandleProps}
+                  onClick={(e) => e.stopPropagation()}
+                  className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 p-1 rounded touch-none transition-colors"
+                  title="Arrastrar para reordenar compás"
+                  aria-label="Arrastrar para reordenar compás"
+                >
+                  <GripVertical className="w-3.5 h-3.5" />
+                </button>
+              )}
+
               {onDuplicate && (
                 <button
                   type="button"
@@ -347,10 +366,10 @@ export function MeasureCell({
                     e.stopPropagation()
                     onDuplicate(measure.id)
                   }}
-                  className="p-0.5 rounded text-slate-400 hover:text-primary-600 transition-colors"
+                  className="p-1 rounded text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors hidden sm:block group-hover:block"
                   title="Duplicar compás"
                 >
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3.5 h-3.5" />
                 </button>
               )}
               {onRemove && (
@@ -360,10 +379,10 @@ export function MeasureCell({
                     e.stopPropagation()
                     onRemove(measure.id)
                   }}
-                  className="p-0.5 rounded text-slate-400 hover:text-red-500 transition-colors"
+                  className="p-1 rounded text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors hidden sm:block group-hover:block"
                   title="Eliminar compás"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

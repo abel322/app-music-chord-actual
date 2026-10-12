@@ -11,9 +11,70 @@ import {
   getCadenceDisplayLabels,
 } from '@/lib/measure-utils'
 import { HarmonicProgression, getProgressionChords } from '@/lib/harmonic-theory'
-import { MeasureCell, CadenceBracketInfo, CadenceWrapType } from './measure-cell'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { MeasureCell, MeasureCellProps, CadenceBracketInfo, CadenceWrapType } from './measure-cell'
 import { MeasureInspector } from './measure-inspector'
 import { Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+interface SortableMeasureCellProps extends MeasureCellProps {
+  id: string
+}
+
+function SortableMeasureCell(props: SortableMeasureCellProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: props.id,
+    disabled: !props.isEditing,
+  })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'relative h-full transition-shadow',
+        isDragging && 'opacity-40 border-2 border-dashed border-purple-400 dark:border-purple-500 rounded-xl bg-purple-50/40 dark:bg-purple-950/30'
+      )}
+    >
+      <MeasureCell
+        {...props}
+        dragHandleProps={props.isEditing ? { ...attributes, ...listeners } : undefined}
+        isDragging={isDragging}
+      />
+    </div>
+  )
+}
 
 interface MeasureGridProps {
   measures: Measure[]
@@ -38,6 +99,60 @@ export function MeasureGrid({
 }: MeasureGridProps) {
   const beatsPerMeasure = getBeatsPerMeasure(timeSignature)
   const [selectedMeasureId, setSelectedMeasureId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  const activeMeasure = useMemo(
+    () => measures.find((m) => m.id === activeId) || null,
+    [measures, activeId]
+  )
+
+  // Sensores configurados para evitar conflictos con clic y scroll de pantalla
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  })
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 200,
+      tolerance: 6,
+    },
+  })
+
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  })
+
+  const sensors = useSensors(pointerSensor, touchSensor, keyboardSensor)
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (over && active.id !== over.id) {
+      const oldIndex = measures.findIndex((m) => m.id === active.id)
+      const newIndex = measures.findIndex((m) => m.id === over.id)
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove(measures, oldIndex, newIndex)
+        // Renumeración secuencial de los compases manteniendo la integridad completa de datos
+        const renumbered = reordered.map((m, idx) => ({
+          ...m,
+          measureNumber: idx + 1,
+        }))
+        onUpdateMeasures(renumbered)
+      }
+    }
+  }
+
+  const handleDragCancel = () => {
+    setActiveId(null)
+  }
 
   // Cierre opcional con tecla Escape en teclados físicos (sin click outside para evitar cierres accidentales)
   useEffect(() => {
@@ -260,34 +375,61 @@ export function MeasureGrid({
 
   return (
     <div className="space-y-4">
-      {/* Rejilla de Compases: 4 Compases por Fila en Desktop, 2 en Móvil con espacio superior para corchetes */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-9 sm:pt-10">
-        {measures.map((measure, index) => {
-          const isSelected = selectedMeasureId === measure.id
-          const prevMeasure = index > 0 ? measures[index - 1] : null
-          const bracket = cadenceBrackets[measure.id]
+      {/* Rejilla de Compases con DnD Scoped a la Sección Actual */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SortableContext items={measures.map((m) => m.id)} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-9 sm:pt-10">
+            {measures.map((measure, index) => {
+              const isSelected = selectedMeasureId === measure.id
+              const prevMeasure = index > 0 ? measures[index - 1] : null
+              const bracket = cadenceBrackets[measure.id]
 
-          return (
-            <MeasureCell
-              key={measure.id}
-              measure={measure}
-              timeSignature={timeSignature}
-              beatsPerMeasure={beatsPerMeasure}
-              currentKey={currentKey}
-              isSelected={isSelected}
-              isEditing={isEditing}
-              prevMeasure={prevMeasure}
-              cadenceBracket={bracket}
-              onClick={() => {
-                if (isEditing) setSelectedMeasureId(measure.id)
-              }}
-              onDuplicate={isEditing ? handleDuplicate : undefined}
-              onRemove={isEditing && onRemoveMeasure ? onRemoveMeasure : undefined}
-              onRemoveCadence={isEditing ? handleRemoveCadence : undefined}
-            />
-          )
-        })}
-      </div>
+              return (
+                <SortableMeasureCell
+                  key={measure.id}
+                  id={measure.id}
+                  measure={measure}
+                  timeSignature={timeSignature}
+                  beatsPerMeasure={beatsPerMeasure}
+                  currentKey={currentKey}
+                  isSelected={isSelected}
+                  isEditing={isEditing}
+                  prevMeasure={prevMeasure}
+                  cadenceBracket={bracket}
+                  onClick={() => {
+                    if (isEditing) setSelectedMeasureId(measure.id)
+                  }}
+                  onDuplicate={isEditing ? handleDuplicate : undefined}
+                  onRemove={isEditing && onRemoveMeasure ? onRemoveMeasure : undefined}
+                  onRemoveCadence={isEditing ? handleRemoveCadence : undefined}
+                />
+              )
+            })}
+          </div>
+        </SortableContext>
+
+        {/* Feedback Visual: Celda flotante elevada durante el arrastre */}
+        <DragOverlay adjustScale={false}>
+          {activeMeasure ? (
+            <div className="scale-105 opacity-90 shadow-2xl ring-2 ring-purple-500 rounded-xl bg-white dark:bg-slate-900 pointer-events-none cursor-grabbing">
+              <MeasureCell
+                measure={activeMeasure}
+                timeSignature={timeSignature}
+                beatsPerMeasure={beatsPerMeasure}
+                currentKey={currentKey}
+                isSelected={false}
+                isEditing={false}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* Inspector Detallado del Compás Seleccionado en Modo Edición */}
       {isEditing && selectedMeasure && (
