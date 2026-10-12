@@ -1,6 +1,6 @@
 import { Measure, ChordBeat, SectionMeasures, BeatAccent } from '@/types/measure'
 import { transposeChord } from '@/lib/transpose'
-import { CadenceDefinition, getCadenceChords } from '@/lib/harmonic-theory'
+import { CadenceDefinition } from '@/lib/harmonic-theory'
 
 /**
  * Analiza un compás musical y devuelve la cantidad de tiempos (pulsos)
@@ -314,8 +314,8 @@ function splitMeasureIntoTwoChords(
 export function applyCadenceToSectionMeasures(
   measures: Measure[],
   cadence: CadenceDefinition | null,
-  key: string = 'C',
-  timeSignature: string = '4/4'
+  _key: string = 'C',
+  _timeSignature: string = '4/4'
 ): Measure[] {
   if (measures.length === 0) return measures
 
@@ -330,9 +330,6 @@ export function applyCadenceToSectionMeasures(
     }))
   }
 
-  const cadenceChords = getCadenceChords(cadence, key)
-  if (cadenceChords.length === 0) return measures
-
   const updated: Measure[] = measures.map((m) => ({
     ...m,
     cadence: undefined,
@@ -342,51 +339,12 @@ export function applyCadenceToSectionMeasures(
   }))
 
   const lastIdx = updated.length - 1
-
-  if (cadenceChords.length === 1) {
-    // Semicadencia (1 acorde de reposo en el último compás)
-    const chord = cadenceChords[0]
-    updated[lastIdx] = {
-      ...setMeasureWholeChord(updated[lastIdx], chord, timeSignature),
-      cadence: cadence.id || cadence.type,
-      cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-      cadenceColor: cadence.colorBadge,
-      cadenceRole: 'single',
-    }
-  } else {
-    // Cadencias de 2 acordes (tensión -> resolución)
-    const c1 = cadenceChords[cadenceChords.length - 2]
-    const c2 = cadenceChords[cadenceChords.length - 1]
-
-    if (updated.length >= 2) {
-      const penultIdx = lastIdx - 1
-      // Penúltimo compás: acorde de tensión/acercamiento (ej. IV o V)
-      updated[penultIdx] = {
-        ...setMeasureWholeChord(updated[penultIdx], c1, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'start',
-      }
-
-      // Último compás: acorde de resolución (ej. I) con bracket de cadencia
-      updated[lastIdx] = {
-        ...setMeasureWholeChord(updated[lastIdx], c2, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'end',
-      }
-    } else {
-      // Si la sección solo tiene 1 compás, dividir en 2 tiempos/mitades
-      updated[lastIdx] = {
-        ...splitMeasureIntoTwoChords(updated[lastIdx], c1, c2, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'single',
-      }
-    }
+  updated[lastIdx] = {
+    ...updated[lastIdx],
+    cadence: cadence.id || cadence.type,
+    cadenceLabel: `${cadence.name} (${cadence.degrees})`,
+    cadenceColor: cadence.colorBadge,
+    cadenceRole: 'single',
   }
 
   return updated
@@ -394,18 +352,14 @@ export function applyCadenceToSectionMeasures(
 
 /**
  * Aplica una cadencia armónica a un compás específico dentro de una lista de compases.
- * - Si la cadencia tiene 2 acordes (ej. IV -> I):
- *   - Si el compás ya está dividido en 2 mitades o más: asigna chord 1 y chord 2 en ese compás ('single').
- *   - Si el compás es whole y le sigue otro compás: asigna tensión en el actual ('start') y resolución en el siguiente ('end').
- *   - Si es el último compás y hay anterior: asigna tensión en el anterior ('start') y resolución en el actual ('end').
- * - Si la cadencia tiene 1 acorde (ej. Semicadencia): asigna V en el compás actual ('single').
+ * Actúa estrictamente como marcado visual y metadatos, preservando 100% los acordes, slots y división existentes.
  */
 export function applyCadenceToMeasure(
   measures: Measure[],
   targetMeasureId: string,
   cadence: CadenceDefinition | null,
-  key: string = 'C',
-  timeSignature: string = '4/4'
+  _key: string = 'C',
+  _timeSignature: string = '4/4'
 ): { updatedMeasures: Measure[]; targetUpdatedMeasure: Measure } {
   const targetIdx = measures.findIndex((m) => m.id === targetMeasureId)
   if (targetIdx === -1) {
@@ -450,92 +404,18 @@ export function applyCadenceToMeasure(
     return { updatedMeasures, targetUpdatedMeasure: updatedMeasures[targetIdx] }
   }
 
-  const cadenceChords = getCadenceChords(cadence, key)
-  const updated = [...measures]
-  const currentM = updated[targetIdx]
-  const isLastMeasure = targetIdx === updated.length - 1
-
-  if (cadenceChords.length === 1) {
-    // Semicadencia (reposo en V en el compás actual)
-    const chord = cadenceChords[0]
-    const updatedM: Measure = {
-      ...setMeasureWholeChord(currentM, chord, timeSignature),
-      cadence: cadence.id || cadence.type,
-      cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-      cadenceColor: cadence.colorBadge,
-      cadenceRole: 'single',
-    }
-    updated[targetIdx] = updatedM
-    return { updatedMeasures: updated, targetUpdatedMeasure: updatedM }
-  } else {
-    // Cadencia de 2 acordes
-    const c1 = cadenceChords[cadenceChords.length - 2]
-    const c2 = cadenceChords[cadenceChords.length - 1]
-
-    // Si el compás ya está dividido en 2 slots
-    if (currentM.division === 'half' || (currentM.slots && currentM.slots.length === 2)) {
-      const updatedM: Measure = {
-        ...splitMeasureIntoTwoChords(currentM, c1, c2, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'single',
-      }
-      updated[targetIdx] = updatedM
-      return { updatedMeasures: updated, targetUpdatedMeasure: updatedM }
-    } else if (!isLastMeasure) {
-      // Si le sigue otro compás: compás actual recibe tensión (start), compás siguiente recibe resolución (end)
-      const nextIdx = targetIdx + 1
-      const updatedCurrent: Measure = {
-        ...setMeasureWholeChord(currentM, c1, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'start',
-      }
-      const updatedNext: Measure = {
-        ...setMeasureWholeChord(updated[nextIdx], c2, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'end',
-      }
-      updated[targetIdx] = updatedCurrent
-      updated[nextIdx] = updatedNext
-      return { updatedMeasures: updated, targetUpdatedMeasure: updatedCurrent }
-    } else if (isLastMeasure && targetIdx > 0) {
-      // Si es el último compás de la sección y hay anterior: anterior recibe tensión (start), actual recibe resolución (end)
-      const prevIdx = targetIdx - 1
-      const updatedPrev: Measure = {
-        ...setMeasureWholeChord(updated[prevIdx], c1, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'start',
-      }
-      const updatedCurrent: Measure = {
-        ...setMeasureWholeChord(currentM, c2, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'end',
-      }
-      updated[prevIdx] = updatedPrev
-      updated[targetIdx] = updatedCurrent
-      return { updatedMeasures: updated, targetUpdatedMeasure: updatedCurrent }
-    } else {
-      // Sección de 1 solo compás
-      const updatedM: Measure = {
-        ...splitMeasureIntoTwoChords(currentM, c1, c2, timeSignature),
-        cadence: cadence.id || cadence.type,
-        cadenceLabel: `${cadence.name} (${cadence.degrees})`,
-        cadenceColor: cadence.colorBadge,
-        cadenceRole: 'single',
-      }
-      updated[targetIdx] = updatedM
-      return { updatedMeasures: updated, targetUpdatedMeasure: updatedM }
-    }
+  // Asignar metadatos de cadencia respetando completamente los acordes y división actuales
+  const currentM = measures[targetIdx]
+  const updatedM: Measure = {
+    ...currentM,
+    cadence: cadence.id || cadence.type,
+    cadenceLabel: `${cadence.name} (${cadence.degrees})`,
+    cadenceColor: cadence.colorBadge,
+    cadenceRole: 'single',
   }
+
+  const updatedMeasures = measures.map((m, i) => (i === targetIdx ? updatedM : m))
+  return { updatedMeasures, targetUpdatedMeasure: updatedM }
 }
 
 /**

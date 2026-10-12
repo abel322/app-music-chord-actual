@@ -2,9 +2,9 @@
 
 import React from 'react'
 import { Measure, MeasureSlot, MeasureDivision } from '@/types/measure'
-import { 
-  inferMeasureDivision, 
-  ensureMeasureSlots, 
+import {
+  inferMeasureDivision,
+  ensureMeasureSlots,
   getDivisionBracket,
   getMetricPulseGroups
 } from '@/lib/rhythm-utils'
@@ -69,9 +69,9 @@ export function MeasureCell({
     cadenceBracket ||
     (measure.cadence || measure.cadenceLabel
       ? {
-          type: (measure.cadenceRole as 'single' | 'start' | 'end') || 'single',
-          label: measure.cadenceRole === 'start' ? undefined : (measure.cadenceLabel || measure.cadence),
-        }
+        type: (measure.cadenceRole as 'single' | 'start' | 'end') || 'single',
+        label: measure.cadenceRole === 'start' ? undefined : (measure.cadenceLabel || measure.cadence),
+      }
       : null)
 
   return (
@@ -243,8 +243,8 @@ export function MeasureCell({
                       primaryChord.length > 9
                         ? 'text-base sm:text-lg'
                         : primaryChord.length > 6
-                        ? 'text-lg sm:text-xl'
-                        : 'text-xl sm:text-2xl'
+                          ? 'text-lg sm:text-xl'
+                          : 'text-xl sm:text-2xl'
                     )}
                     title={primaryChord}
                   >
@@ -293,8 +293,8 @@ export function MeasureCell({
                     (slots[0]?.chord?.length || 0) > 7
                       ? 'text-xs sm:text-sm font-bold'
                       : (slots[0]?.chord?.length || 0) > 4
-                      ? 'text-sm sm:text-base font-bold'
-                      : 'text-base sm:text-lg font-black'
+                        ? 'text-sm sm:text-base font-bold'
+                        : 'text-base sm:text-lg font-black'
                   )}
                   title={slots[0]?.chord || '/'}
                 >
@@ -331,8 +331,8 @@ export function MeasureCell({
                     (slots[1]?.chord?.length || 0) > 7
                       ? 'text-xs sm:text-sm font-bold'
                       : (slots[1]?.chord?.length || 0) > 4
-                      ? 'text-sm sm:text-base font-bold'
-                      : 'text-base sm:text-lg font-black'
+                        ? 'text-sm sm:text-base font-bold'
+                        : 'text-base sm:text-lg font-black'
                   )}
                   title={slots[1]?.chord || '/'}
                 >
@@ -379,8 +379,8 @@ export function MeasureCell({
                         chordLen > 6
                           ? 'text-[9px] sm:text-[10px] font-bold tracking-tighter'
                           : chordLen > 4
-                          ? 'text-[10px] sm:text-xs font-bold tracking-tight'
-                          : 'text-xs sm:text-sm font-black'
+                            ? 'text-[10px] sm:text-xs font-bold tracking-tight'
+                            : 'text-xs sm:text-sm font-black'
                       )}
                       title={s.chord || '/'}
                     >
@@ -430,8 +430,8 @@ export function MeasureCell({
                           chordLen > 5
                             ? 'text-[8px] sm:text-[9px] tracking-tighter'
                             : chordLen > 3
-                            ? 'text-[9px] sm:text-[10px] tracking-tight'
-                            : 'text-[10px] sm:text-xs',
+                              ? 'text-[9px] sm:text-[10px] tracking-tight'
+                              : 'text-[10px] sm:text-xs',
                           hasChord
                             ? 'text-primary-700 dark:text-primary-300'
                             : 'text-slate-300 dark:text-slate-700'
@@ -553,8 +553,8 @@ export function MeasureCell({
                           chordLen > 5
                             ? 'text-[8px] sm:text-[9px] tracking-tighter'
                             : chordLen > 3
-                            ? 'text-[9px] sm:text-[10px] tracking-tight'
-                            : 'text-[10px] sm:text-xs',
+                              ? 'text-[9px] sm:text-[10px] tracking-tight'
+                              : 'text-[10px] sm:text-xs',
                           hasChord
                             ? isRest
                               ? 'text-rose-500 font-bold'

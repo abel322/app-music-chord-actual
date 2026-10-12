@@ -13,7 +13,7 @@ import {
   getDivisionOptionsForTimeSignature,
   formatTimeSignaturePulseMarks
 } from '@/lib/rhythm-utils'
-import { getBeatsPerMeasure, applyCadenceToMeasure } from '@/lib/measure-utils'
+import { getBeatsPerMeasure } from '@/lib/measure-utils'
 import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
 import { ChordSelectorModal } from './ChordSelectorModal'
@@ -149,19 +149,23 @@ export function MeasureInspector({
     setIsChordModalOpen(true)
   }
 
-  // Asignar o desasignar cadencia e inyectar acordes armónicos automáticamente
+  // Asignar o desasignar cadencia (estrictamente metadatos y marcado visual, sin modificar slots, división ni acordes)
   const handleSelectCadence = (cad: CadenceDefinition | null) => {
-    const { updatedMeasures, targetUpdatedMeasure } = applyCadenceToMeasure(
-      measures,
-      selectedMeasure.id,
-      cad,
-      currentKey,
-      effectiveTimeSig
-    )
+    const updatedMeasure: Measure = {
+      ...selectedMeasure,
+      cadence: cad ? (cad.id || cad.type) : undefined,
+      cadenceLabel: cad ? `${cad.name} (${cad.degrees})` : undefined,
+      cadenceColor: cad ? cad.colorBadge : undefined,
+      cadenceRole: cad ? 'single' : undefined,
+    }
+
+    onUpdateMeasure(updatedMeasure)
+
     if (onUpdateAllMeasures) {
-      onUpdateAllMeasures(updatedMeasures)
-    } else {
-      onUpdateMeasure(targetUpdatedMeasure)
+      const updatedList = measures.map((m) =>
+        m.id === selectedMeasure.id ? updatedMeasure : m
+      )
+      onUpdateAllMeasures(updatedList)
     }
   }
 
