@@ -435,6 +435,105 @@ export function getCadenceEndPercent(measure: Measure, timeSignature: string = '
 }
 
 /**
+ * Genera el formato completo y la variante compacta/corta de la etiqueta de cadencia
+ * para evitar desbordamientos en pantallas pequeñas o al final de las filas.
+ * Ej: "Cadencia Auténtica Perfecta (PAC) (V → I)" -> full / "PAC (V → I)" -> short
+ */
+export function getCadenceDisplayLabels(cadenceIdOrType?: string, originalLabel?: string): {
+  full: string
+  short: string
+} {
+  const normalized = (cadenceIdOrType || '').toLowerCase()
+  const rawLabel = originalLabel || ''
+
+  if (normalized.includes('pac')) {
+    return {
+      full: 'Cadencia Auténtica Perfecta (PAC) (V → I)',
+      short: 'PAC (V → I)',
+    }
+  }
+  if (normalized.includes('iac')) {
+    return {
+      full: 'Cadencia Auténtica Imperfecta (IAC) (V → I)',
+      short: 'IAC (V → I)',
+    }
+  }
+  if (normalized.includes('rota') || normalized.includes('deceptiv')) {
+    return {
+      full: 'Cadencia Rota (V → vi)',
+      short: 'Rota (V → vi)',
+    }
+  }
+  if (normalized.includes('plagal')) {
+    return {
+      full: 'Cadencia Plagal (IV → I)',
+      short: 'Plagal (IV → I)',
+    }
+  }
+  if (normalized.includes('semicadencia')) {
+    return {
+      full: 'Semicadencia (V)',
+      short: 'Semi (V)',
+    }
+  }
+  if (normalized.includes('frigia')) {
+    return {
+      full: 'Cadencia Frigia (iv → V)',
+      short: 'Frigia (iv → V)',
+    }
+  }
+  if (normalized.includes('picardia')) {
+    return {
+      full: 'Cadencia Picardía (iv → I)',
+      short: 'Picardía (iv → I)',
+    }
+  }
+  if (normalized.includes('backdoor')) {
+    return {
+      full: 'Cadencia Backdoor (♭VII7 → I)',
+      short: 'Backdoor (♭VII7 → I)',
+    }
+  }
+
+  if (rawLabel) {
+    if (rawLabel.includes('PAC') || (rawLabel.includes('Auténtica') && rawLabel.includes('Perfecta'))) {
+      return { full: rawLabel, short: 'PAC (V → I)' }
+    }
+    if (rawLabel.includes('IAC') || (rawLabel.includes('Auténtica') && rawLabel.includes('Imperfecta'))) {
+      return { full: rawLabel, short: 'IAC (V → I)' }
+    }
+    if (rawLabel.toLowerCase().includes('rota') || rawLabel.toLowerCase().includes('deceptiv')) {
+      return { full: rawLabel, short: 'Rota (V → vi)' }
+    }
+    if (rawLabel.toLowerCase().includes('plagal')) {
+      return { full: rawLabel, short: 'Plagal (IV → I)' }
+    }
+    if (rawLabel.toLowerCase().includes('semicadencia')) {
+      return { full: rawLabel, short: 'Semi (V)' }
+    }
+    if (rawLabel.toLowerCase().includes('frigia')) {
+      return { full: rawLabel, short: 'Frigia (iv → V)' }
+    }
+    if (rawLabel.toLowerCase().includes('picard')) {
+      return { full: rawLabel, short: 'Picardía (iv → I)' }
+    }
+    const cleanShort = rawLabel
+      .replace(/^Cadencia\s+/i, '')
+      .replace(/\s*\([^)]*\)\s*\(([^)]+)\)$/, ' ($1)')
+      .trim()
+    return {
+      full: rawLabel,
+      short: cleanShort || rawLabel,
+    }
+  }
+
+  return {
+    full: 'Cadencia',
+    short: 'Cad.',
+  }
+}
+
+/**
  * Aplica una cadencia armónica a un compás específico dentro de una lista de compases.
  * Actúa estrictamente como marcado visual y metadatos, preservando 100% los acordes, slots y división existentes.
  */

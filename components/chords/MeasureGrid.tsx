@@ -8,6 +8,7 @@ import {
   applyProgressionFromMeasure,
   getCadenceStartPercent,
   getCadenceEndPercent,
+  getCadenceDisplayLabels,
 } from '@/lib/measure-utils'
 import { HarmonicProgression, getProgressionChords } from '@/lib/harmonic-theory'
 import { MeasureCell, CadenceBracketInfo, CadenceWrapType } from './measure-cell'
@@ -170,7 +171,11 @@ export function MeasureGrid({
       const m = measures[i]
       if (!m.cadence && !m.cadenceLabel && m.cadenceRole !== 'end') continue
 
-      const label = m.cadenceLabel || m.cadence
+      const rawLabel = m.cadenceLabel || m.cadence
+      const { full: label, short: shortLabel } = getCadenceDisplayLabels(m.cadence, rawLabel)
+
+      const isLastInRowDesktop = (i + 1) % 4 === 0 || i === measures.length - 1
+      const isLastInRowMobile = (i + 1) % 2 === 0 || i === measures.length - 1
 
       // Si este compás está marcado expresamente como 'end' (receptor)
       if (m.cadenceRole === 'end') {
@@ -189,6 +194,8 @@ export function MeasureGrid({
           endPercent: getCadenceEndPercent(m, timeSignature),
           wrapType,
           pairedMeasureId: prevM?.id,
+          isLastInRowDesktop,
+          isLastInRowMobile,
         }
         continue
       }
@@ -198,8 +205,11 @@ export function MeasureGrid({
         map[m.id] = {
           role: 'single',
           label,
+          shortLabel,
           startPercent: getCadenceStartPercent(m, timeSignature),
           endPercent: getCadenceEndPercent(m, timeSignature),
+          isLastInRowDesktop,
+          isLastInRowMobile,
         }
         continue
       }
@@ -221,19 +231,26 @@ export function MeasureGrid({
       map[m.id] = {
         role: 'start',
         label,
+        shortLabel,
         startPercent,
         endPercent,
         wrapType,
         pairedMeasureId: nextM?.id,
+        isLastInRowDesktop,
+        isLastInRowMobile,
       }
 
       // Registrar compás receptor (resolución)
       if (nextM && !map[nextM.id]) {
+        const nextIsLastDesktop = (i + 2) % 4 === 0 || i + 1 === measures.length - 1
+        const nextIsLastMobile = (i + 2) % 2 === 0 || i + 1 === measures.length - 1
         map[nextM.id] = {
           role: 'end',
           endPercent,
           wrapType,
           pairedMeasureId: m.id,
+          isLastInRowDesktop: nextIsLastDesktop,
+          isLastInRowMobile: nextIsLastMobile,
         }
       }
     }

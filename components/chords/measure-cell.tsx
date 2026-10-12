@@ -8,7 +8,7 @@ import {
   getDivisionBracket,
   getMetricPulseGroups
 } from '@/lib/rhythm-utils'
-import { getBeatsPerMeasure } from '@/lib/measure-utils'
+import { getBeatsPerMeasure, getCadenceDisplayLabels } from '@/lib/measure-utils'
 import { Copy, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,10 +18,13 @@ export interface CadenceBracketInfo {
   role?: 'single' | 'start' | 'end'
   type?: 'single' | 'start' | 'end'
   label?: string
+  shortLabel?: string
   startPercent?: number
   endPercent?: number
   wrapType?: CadenceWrapType
   pairedMeasureId?: string
+  isLastInRowDesktop?: boolean
+  isLastInRowMobile?: boolean
 }
 
 interface MeasureCellProps {
@@ -88,6 +91,13 @@ export function MeasureCell({
   const startPercent = effectiveBracket?.startPercent ?? 50
   const endPercent = effectiveBracket?.endPercent ?? 25
   const wrapType = effectiveBracket?.wrapType ?? 'none'
+  const isLastInRowDesktop = effectiveBracket?.isLastInRowDesktop ?? false
+  const isLastInRowMobile = effectiveBracket?.isLastInRowMobile ?? false
+
+  const rawLabel = effectiveBracket?.label || (measure.cadenceRole === 'start' ? undefined : (measure.cadenceLabel || measure.cadence))
+  const { full: parsedFull, short: parsedShort } = getCadenceDisplayLabels(measure.cadence, rawLabel)
+  const fullLabel = effectiveBracket?.label || parsedFull
+  const shortLabel = effectiveBracket?.shortLabel || parsedShort
 
   return (
     <div
@@ -102,22 +112,39 @@ export function MeasureCell({
         isEditing && 'cursor-pointer hover:shadow-md'
       )}
     >
-      {/* 0. Corchete Flotante Superior de Cadencia Armónica (Renderizado Geométrico Preciso) */}
+      {/* 0. Corchete Flotante Superior de Cadencia Armónica (Renderizado Geométrico Preciso y Delimitado) */}
       {effectiveBracket && (
         <>
           {/* Caso 1: Compás individual (Semicadencia o cadencia en un solo compás) */}
           {bracketRole === 'single' && (
             <div
-              className="absolute -top-6 sm:-top-6.5 pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-r-2 border-purple-500/80 dark:border-purple-400/80 rounded-t-sm"
+              className={cn(
+                'absolute -top-6 sm:-top-6.5 pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-r-2 border-purple-500/80 dark:border-purple-400/80 rounded-t-sm',
+                isLastInRowDesktop && 'right-0 max-w-full'
+              )}
               style={{
                 left: `${startPercent}%`,
-                right: `${100 - endPercent}%`,
+                right: isLastInRowDesktop ? 0 : `${100 - endPercent}%`,
               }}
             >
-              {effectiveBracket.label && (
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm">
-                  <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[170px] sm:max-w-none inline-block">
-                    {effectiveBracket.label}
+              {fullLabel && (
+                <div
+                  className={cn(
+                    'absolute bottom-full mb-1 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm max-w-[calc(100%-4px)]',
+                    isLastInRowDesktop || isLastInRowMobile
+                      ? 'right-0 left-auto translate-x-0 pr-1 justify-end'
+                      : 'left-1/2 -translate-x-1/2'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate inline-block',
+                      isLastInRowDesktop ? 'max-w-[130px] sm:max-w-[170px]' : 'max-w-[140px] sm:max-w-[200px]'
+                    )}
+                    title={fullLabel}
+                  >
+                    <span className={isLastInRowDesktop ? 'hidden' : 'hidden sm:inline'}>{fullLabel}</span>
+                    <span className={isLastInRowDesktop ? 'inline' : 'inline sm:hidden'}>{shortLabel}</span>
                   </span>
                   {onRemoveCadence && (
                     <button
@@ -146,10 +173,14 @@ export function MeasureCell({
                   className="absolute -top-6 sm:-top-6.5 -right-[5px] sm:-right-[7px] pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm"
                   style={{ left: `${startPercent}%` }}
                 >
-                  {effectiveBracket.label && (
-                    <div className="absolute bottom-full mb-1 left-[calc(100%+5px)] sm:left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm">
-                      <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[170px] sm:max-w-none inline-block">
-                        {effectiveBracket.label}
+                  {fullLabel && (
+                    <div className="absolute bottom-full mb-1 left-[calc(100%+5px)] sm:left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm max-w-[calc(100%-8px)]">
+                      <span
+                        className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[130px] sm:max-w-[210px] inline-block"
+                        title={fullLabel}
+                      >
+                        <span className="hidden sm:inline">{fullLabel}</span>
+                        <span className="inline sm:hidden">{shortLabel}</span>
                       </span>
                       {onRemoveCadence && (
                         <button
@@ -169,22 +200,24 @@ export function MeasureCell({
                 </div>
               )}
 
-              {/* 2B: Salto de renglón en ambos (wrapType === 'both') */}
+              {/* 2B: Salto de renglón en ambos (wrapType === 'both' -> ej. Compás 4 al final de fila) */}
               {wrapType === 'both' && (
                 <div
-                  className="absolute -top-6 sm:-top-6.5 right-0 pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm"
+                  className="absolute -top-6 sm:-top-6.5 right-0 pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm max-w-full"
                   style={{ left: `${startPercent}%` }}
                 >
-                  <span className="absolute -top-2 -right-1 text-[11px] font-bold text-purple-500/80 select-none leading-none">
+                  <span className="absolute -top-2 right-0.5 text-[10px] sm:text-[11px] font-bold text-purple-500/80 select-none leading-none">
                     →
                   </span>
-                  {effectiveBracket.label && (
+                  {fullLabel && (
                     <div
-                      className="absolute bottom-full mb-1 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm"
-                      style={{ left: `calc(${startPercent}% + (100% - ${startPercent}%) / 2)` }}
+                      className="absolute bottom-full mb-1 right-0 left-auto translate-x-0 pr-1 max-w-[calc(100%-4px)] whitespace-nowrap z-30 pointer-events-auto flex items-center justify-end gap-1 shadow-sm"
                     >
-                      <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[170px] sm:max-w-none inline-block">
-                        {effectiveBracket.label}
+                      <span
+                        className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[130px] sm:max-w-[170px] inline-block"
+                        title={fullLabel}
+                      >
+                        {shortLabel}
                       </span>
                       {onRemoveCadence && (
                         <button
@@ -210,18 +243,20 @@ export function MeasureCell({
                   className="absolute -top-6 sm:-top-6.5 right-0 md:-right-[7px] pointer-events-none z-20 h-2.5 sm:h-3 border-t-2 border-l-2 border-purple-500/80 dark:border-purple-400/80 rounded-tl-sm"
                   style={{ left: `${startPercent}%` }}
                 >
-                  <span className="block md:hidden absolute -top-2 -right-1 text-[11px] font-bold text-purple-500/80 select-none leading-none">
+                  <span className="block md:hidden absolute -top-2 right-0.5 text-[10px] sm:text-[11px] font-bold text-purple-500/80 select-none leading-none">
                     →
                   </span>
-                  {effectiveBracket.label && (
+                  {fullLabel && (
                     <>
-                      {/* Mobile: Centrado sobre la tensión del compás emisor */}
+                      {/* Mobile: Último compás de fila en 2 columnas -> Alineado estrictamente a la derecha con shortLabel */}
                       <div
-                        className="md:hidden absolute bottom-full mb-1 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm"
-                        style={{ left: `calc(${startPercent}% + (100% - ${startPercent}%) / 2)` }}
+                        className="md:hidden absolute bottom-full mb-1 right-0 left-auto translate-x-0 pr-1 max-w-[calc(100%-4px)] whitespace-nowrap z-30 pointer-events-auto flex items-center justify-end gap-1 shadow-sm"
                       >
-                        <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[150px] inline-block">
-                          {effectiveBracket.label}
+                        <span
+                          className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[120px] inline-block"
+                          title={fullLabel}
+                        >
+                          {shortLabel}
                         </span>
                         {onRemoveCadence && (
                           <button
@@ -238,10 +273,14 @@ export function MeasureCell({
                         )}
                       </div>
 
-                      {/* Desktop: Centrado horizontalmente justo sobre el espacio inter-compás */}
+                      {/* Desktop: Compás intermedio en 4 columnas -> Centrado sobre el gap inter-compás */}
                       <div className="hidden md:flex absolute bottom-full mb-1 left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto items-center gap-1 shadow-sm">
-                        <span className="text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[180px] inline-block">
-                          {effectiveBracket.label}
+                        <span
+                          className="text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[190px] inline-block"
+                          title={fullLabel}
+                        >
+                          <span className="hidden lg:inline">{fullLabel}</span>
+                          <span className="inline lg:hidden">{shortLabel}</span>
                         </span>
                         {onRemoveCadence && (
                           <button
