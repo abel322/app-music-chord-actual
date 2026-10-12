@@ -39,6 +39,8 @@ export interface ChordQuality {
   symbol: string
   description: string
   category: ChordCategory
+  intervals?: string[]
+  semitones?: number[]
 }
 
 export const CHORD_QUALITIES: ChordQuality[] = [
@@ -116,6 +118,16 @@ export const CHORD_QUALITIES: ChordQuality[] = [
     symbol: 'm7',
     description: 'Color menor con séptima (1, ♭3, 5, ♭7)',
     category: 'sevenths',
+  },
+  {
+    id: '7sus4',
+    suffix: '7sus4',
+    name: 'Séptima 4ª suspendida',
+    symbol: '7sus4',
+    description: 'Dominante Sus4 / Tensión hacia resolución (1, 4, 5, ♭7)',
+    category: 'sevenths',
+    intervals: ['1', '4', '5', 'b7'],
+    semitones: [0, 5, 7, 10],
   },
   {
     id: 'm7b5',

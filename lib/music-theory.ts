@@ -113,6 +113,7 @@ export function getAllChordTypes() {
     { value: '7', label: '7', category: 'seventh' },
     { value: 'maj7', label: 'Maj7', category: 'seventh' },
     { value: 'm7', label: 'm7', category: 'seventh' },
+    { value: '7sus4', label: '7sus4', category: 'seventh' },
     { value: 'sus4', label: 'sus4', category: 'suspended' },
     { value: 'sus2', label: 'sus2', category: 'suspended' },
     { value: 'dim', label: 'dim', category: 'altered' },

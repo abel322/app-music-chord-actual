@@ -45,6 +45,9 @@ const ROOT_INVERSIONS: Record<string, { third: string; fifth: string; seventh: s
   B: { third: 'D#', fifth: 'F#', seventh: 'A', minorThird: 'D' },
 }
 
+const RECENT_CHORDS_KEY = 'musicchord_recent_chords'
+const MAX_RECENT_CHORDS = 10
+
 export function ChordSelectorModal({
   isOpen,
   onClose,
@@ -69,6 +72,56 @@ export function ChordSelectorModal({
   const [activeCategory, setActiveCategory] = useState<ChordCategory>('triads')
   const [freeInput, setFreeInput] = useState<string>('')
   const [selectedCustomBass, setSelectedCustomBass] = useState<string>('')
+  const [recentChords, setRecentChords] = useState<string[]>([])
+
+  // Cargar historial de acordes recientes desde localStorage al abrir
+  useEffect(() => {
+    if (!isOpen) return
+    try {
+      const stored = localStorage.getItem(RECENT_CHORDS_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          setRecentChords(parsed.slice(0, MAX_RECENT_CHORDS))
+        }
+      }
+    } catch {
+      // Ignorar errores en parseo de localStorage
+    }
+  }, [isOpen])
+
+  // Guardar acorde en historial reciente con LRU Cache (máx. 10)
+  const saveRecentChord = (chord: string) => {
+    const trimmed = chord.trim()
+    if (!trimmed || trimmed === '%') return
+
+    try {
+      let current: string[] = []
+      const stored = localStorage.getItem(RECENT_CHORDS_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          current = parsed
+        }
+      }
+      const updated = [trimmed, ...current.filter((c) => c !== trimmed)].slice(0, MAX_RECENT_CHORDS)
+      setRecentChords(updated)
+      localStorage.setItem(RECENT_CHORDS_KEY, JSON.stringify(updated))
+    } catch {
+      setRecentChords((prev) => [trimmed, ...prev.filter((c) => c !== trimmed)].slice(0, MAX_RECENT_CHORDS))
+    }
+  }
+
+  // Vaciar historial de recientes
+  const handleClearRecentChords = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    try {
+      localStorage.removeItem(RECENT_CHORDS_KEY)
+    } catch {
+      // ignore
+    }
+    setRecentChords([])
+  }
 
   // Sincronizar al abrir
   useEffect(() => {
@@ -139,6 +192,9 @@ export function ChordSelectorModal({
   const handleSelectChord = (chord: string) => {
     const normalized = normalizeChordInput(chord)
     if (normalized !== undefined) {
+      if (normalized && normalized !== '%') {
+        saveRecentChord(normalized)
+      }
       onSelectChord(normalized)
       onClose()
     }
@@ -226,6 +282,40 @@ export function ChordSelectorModal({
 
         {/* 3. Contenedor Principal con Scroll */}
         <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-4">
+          {/* Bloque: Acordes Recientes (LRU Cache, máx. 10) */}
+          {recentChords.length > 0 && (
+            <div className="p-2.5 sm:p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[11px] font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
+                  <span>🕒</span>
+                  <span>Recientes:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearRecentChords}
+                  className="text-[11px] text-slate-400 hover:text-red-500 cursor-pointer transition-colors"
+                  title="Limpiar historial de acordes recientes"
+                >
+                  Limpiar
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 items-center max-h-20 overflow-y-auto">
+                {recentChords.map((chord) => (
+                  <button
+                    key={chord}
+                    type="button"
+                    onClick={() => handleSelectChord(chord)}
+                    className="px-2.5 py-1 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800/80 rounded-lg transition-colors active:scale-95"
+                    title={`Insertar ${chord} en 1 clic`}
+                  >
+                    {chord}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Bloque A: Acordes Diatónicos en la Tonalidad Actual (1 Clic) */}
           {diatonicChordsList.length > 0 && (
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 space-y-2">
