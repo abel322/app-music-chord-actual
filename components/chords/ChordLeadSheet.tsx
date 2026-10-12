@@ -14,6 +14,8 @@ import {
   Layers, 
   Trash2, 
   Copy,
+  ArrowUp,
+  ArrowDown,
   GripVertical,
   Check,
   ChevronDown,
@@ -258,6 +260,24 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections(sections.filter((s) => s.id !== sectionId))
   }
 
+  // Mover sección arriba
+  const handleMoveSectionUp = (index: number) => {
+    if (index <= 0) return
+    const updated = [...sections]
+    const [moved] = updated.splice(index, 1)
+    updated.splice(index - 1, 0, moved)
+    setSections(updated)
+  }
+
+  // Mover sección abajo
+  const handleMoveSectionDown = (index: number) => {
+    if (index >= sections.length - 1) return
+    const updated = [...sections]
+    const [moved] = updated.splice(index, 1)
+    updated.splice(index + 1, 0, moved)
+    setSections(updated)
+  }
+
   // Guardar en la base de datos
   const handleSave = async () => {
     setIsSaving(true)
@@ -464,7 +484,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase shrink-0">
-                      {getSectionBadge(section.type)}
+                      {getSectionBadge(section.type, section.label)}
                     </div>
                     <div>
                       {isEditing ? (
@@ -510,6 +530,34 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                       />
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Mover Arriba */}
+                        <button
+                          type="button"
+                          onClick={() => handleMoveSectionUp(sIdx)}
+                          disabled={sIdx === 0}
+                          className={cn(
+                            'p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700',
+                            sIdx === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                          )}
+                          title="Mover sección arriba"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+
+                        {/* Mover Abajo */}
+                        <button
+                          type="button"
+                          onClick={() => handleMoveSectionDown(sIdx)}
+                          disabled={sIdx === sections.length - 1}
+                          className={cn(
+                            'p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700',
+                            sIdx === sections.length - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                          )}
+                          title="Mover sección abajo"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+
                         {/* Duplicar Sección */}
                         <button
                           type="button"

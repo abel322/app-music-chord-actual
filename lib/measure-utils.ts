@@ -782,15 +782,88 @@ export function ensureSectionMeasures(
  * - Solo: SOL
  * - Outro: OUT
  */
-export function getSectionBadge(type: string): string {
+export function getSectionBadge(type: string, label?: string): string {
+  const normLabel = (label || '').toLowerCase().trim()
   const normalized = (type || '').toLowerCase().trim()
+
+  // Si el nombre o tipo es Interludio / Interlude, devolver INT
+  if (
+    normLabel.includes('interludio') ||
+    normLabel.includes('interlude') ||
+    normalized === 'interlude' ||
+    normalized === 'interludio'
+  ) {
+    return 'INT'
+  }
+
+  // Si el nombre o tipo es Intro
+  if (normLabel.includes('intro') || normalized === 'intro') {
+    return 'INT'
+  }
+
+  // Pre-Coro
+  if (
+    normLabel.includes('pre-coro') ||
+    normLabel.includes('precoro') ||
+    normLabel.includes('pre-chorus') ||
+    normalized === 'prechorus' ||
+    normalized === 'pre-coro'
+  ) {
+    return 'PRE'
+  }
+
+  // Coro
+  if (
+    normLabel.includes('coro') ||
+    normLabel.includes('chorus') ||
+    normalized === 'chorus' ||
+    normalized === 'coro'
+  ) {
+    return 'COR'
+  }
+
+  // Puente
+  if (
+    normLabel.includes('puente') ||
+    normLabel.includes('bridge') ||
+    normalized === 'bridge' ||
+    normalized === 'puente'
+  ) {
+    return 'PUE'
+  }
+
+  // Solo
+  if (normLabel.includes('solo') || normalized === 'solo') {
+    return 'SOL'
+  }
+
+  // Outro
+  if (
+    normLabel.includes('outro') ||
+    normLabel.includes('final') ||
+    normalized === 'outro'
+  ) {
+    return 'OUT'
+  }
+
+  // Estrofa / Verso
+  if (
+    normLabel.includes('estrofa') ||
+    normLabel.includes('verso') ||
+    normLabel.includes('verse') ||
+    normalized === 'verse' ||
+    normalized === 'estrofa'
+  ) {
+    return 'EST'
+  }
+
   switch (normalized) {
     case 'intro':
-      return 'INT'
     case 'interlude':
     case 'interludio':
+      return 'INT'
     case 'instrumental':
-      return 'ITL'
+      return 'INS'
     case 'verse':
     case 'estrofa':
       return 'EST'
@@ -808,6 +881,9 @@ export function getSectionBadge(type: string): string {
     case 'outro':
       return 'OUT'
     default:
+      if (normLabel) {
+        return normLabel.slice(0, 3).toUpperCase()
+      }
       return normalized.slice(0, 3).toUpperCase() || 'SEC'
   }
 }

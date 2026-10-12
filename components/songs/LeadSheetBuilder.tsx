@@ -264,11 +264,10 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
   // Mover sección arriba
   const handleMoveSectionUp = (index: number) => {
-    if (index === 0) return
+    if (index <= 0) return
     const updated = [...sections]
-    const temp = updated[index]
-    updated[index] = updated[index - 1]
-    updated[index - 1] = temp
+    const [moved] = updated.splice(index, 1)
+    updated.splice(index - 1, 0, moved)
     setSections(updated)
   }
 
@@ -276,9 +275,8 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   const handleMoveSectionDown = (index: number) => {
     if (index >= sections.length - 1) return
     const updated = [...sections]
-    const temp = updated[index]
-    updated[index] = updated[index + 1]
-    updated[index + 1] = temp
+    const [moved] = updated.splice(index, 1)
+    updated.splice(index + 1, 0, moved)
     setSections(updated)
   }
 
@@ -517,7 +515,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase">
-                    {getSectionBadge(section.type)}
+                    {getSectionBadge(section.type, section.label)}
                   </div>
 
                   <input
@@ -558,21 +556,29 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                   />
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Mover Arriba / Abajo */}
+                    {/* Mover Arriba */}
                     <button
                       type="button"
                       onClick={() => handleMoveSectionUp(index)}
                       disabled={index === 0}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+                      className={cn(
+                        'p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700',
+                        index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                      )}
                       title="Mover sección arriba"
                     >
                       <ArrowUp className="w-4 h-4" />
                     </button>
+
+                    {/* Mover Abajo */}
                     <button
                       type="button"
                       onClick={() => handleMoveSectionDown(index)}
                       disabled={index === sections.length - 1}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 transition-colors"
+                      className={cn(
+                        'p-2 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700',
+                        index === sections.length - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                      )}
                       title="Mover sección abajo"
                     >
                       <ArrowDown className="w-4 h-4" />
