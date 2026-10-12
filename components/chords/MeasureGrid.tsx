@@ -164,6 +164,7 @@ export function MeasureGrid({
             <MeasureCell
               key={measure.id}
               measure={measure}
+              timeSignature={timeSignature}
               beatsPerMeasure={beatsPerMeasure}
               currentKey={currentKey}
               isSelected={isSelected}

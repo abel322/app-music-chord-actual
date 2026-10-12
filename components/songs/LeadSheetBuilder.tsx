@@ -466,7 +466,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                 onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-center"
               />
-              <TapTempoButton onTempoChange={(bpm) => setTempo(bpm)} currentTempo={tempo} />
+              <TapTempoButton onTempoChange={(bpm) => setTempo(bpm)} currentTempo={tempo} timeSignature={timeSignature} />
             </div>
           </div>
 

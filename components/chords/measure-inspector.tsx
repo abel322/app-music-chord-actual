@@ -10,7 +10,8 @@ import {
   ensureMeasureSlots, 
   inferMeasureDivision,
   getDivisionBracket,
-  getDivisionOptionsForTimeSignature
+  getDivisionOptionsForTimeSignature,
+  formatTimeSignaturePulseMarks
 } from '@/lib/rhythm-utils'
 import { getBeatsPerMeasure } from '@/lib/measure-utils'
 import { ProgressionPicker } from './ProgressionPicker'
@@ -358,11 +359,7 @@ export function MeasureInspector({
             /* Caso Redonda: 1 Caja Central Grande para Todo el Compás */
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-primary-200 dark:border-primary-900/60 flex flex-col items-center justify-center gap-2 text-center">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Acorde para Todo el Compás ({effectiveBeats} {effectiveBeats === 1 ? 'Tiempo' : 'Tiempos'}{' '}
-                {Array.from({ length: effectiveBeats })
-                  .map(() => '/')
-                  .join(' ')}
-                )
+                Acorde para Todo el Compás ({formatTimeSignaturePulseMarks(effectiveTimeSig)})
               </span>
 
               <div className="flex items-center gap-2 max-w-xs w-full">

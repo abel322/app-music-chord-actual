@@ -412,6 +412,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 <TapTempoButton
                   onTempoChange={(bpm) => setTempo(bpm)}
                   currentTempo={tempo}
+                  timeSignature={timeSignature}
                   className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
                 />
               </div>

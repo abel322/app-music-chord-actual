@@ -734,16 +734,16 @@ export function updateSectionsTimeSignature(
   return sections.map((section) => ({
     ...section,
     timeSignature: newTimeSignature,
-    measures: section.measures.map((measure) => {
+    measures: (section.measures || []).map((measure) => {
       // Extraer los acordes que ya estuvieran ingresados respetando el orden
       const existingChords: (string | null)[] = []
       if (Array.isArray(measure.slots) && measure.slots.length > 0) {
         measure.slots.forEach((s) => {
-          if (s.chord) existingChords.push(s.chord)
+          if (s && s.chord) existingChords.push(s.chord)
         })
       } else if (Array.isArray(measure.beats) && measure.beats.length > 0) {
         measure.beats.forEach((b) => {
-          if (b.chord) existingChords.push(b.chord)
+          if (b && b.chord) existingChords.push(b.chord)
         })
       }
 
@@ -755,9 +755,94 @@ export function updateSectionsTimeSignature(
         ...measure,
         timeSignature: newTimeSignature,
         division: currentDivision,
-        slots: newSlots,
+        slots: newSlots && newSlots.length > 0 ? newSlots : generateSlotsForDivision('whole', existingChords, newTimeSignature),
         beats: newBeats,
       }
     }),
   }))
+}
+
+export interface PulseGroup {
+  pulseIndex: number
+  slashesCount: number
+}
+
+/**
+ * Devuelve la estructura de pulsos y marcas de tiempo (slashes) para la métrica activa:
+ * - 6/8: 2 grupos de 3 corcheas (/ / /   / / /)
+ * - 12/8: 4 grupos de 3 corcheas (/ / /   / / /   / / /   / / /)
+ * - 9/8: 3 grupos de 3 corcheas (/ / /   / / /   / / /)
+ * - 3/4: 1 grupo de 3 negras (/ / /)
+ * - 2/4: 1 grupo de 2 negras (/ /)
+ * - 4/4: 1 grupo de 4 negras (/ / / /)
+ */
+export function getMetricPulseGroups(timeSignature: string = '4/4'): PulseGroup[] {
+  if (timeSignature === '6/8') {
+    return [
+      { pulseIndex: 1, slashesCount: 3 },
+      { pulseIndex: 2, slashesCount: 3 },
+    ]
+  }
+
+  if (timeSignature === '12/8') {
+    return [
+      { pulseIndex: 1, slashesCount: 3 },
+      { pulseIndex: 2, slashesCount: 3 },
+      { pulseIndex: 3, slashesCount: 3 },
+      { pulseIndex: 4, slashesCount: 3 },
+    ]
+  }
+
+  if (timeSignature === '9/8') {
+    return [
+      { pulseIndex: 1, slashesCount: 3 },
+      { pulseIndex: 2, slashesCount: 3 },
+      { pulseIndex: 3, slashesCount: 3 },
+    ]
+  }
+
+  if (timeSignature === '3/4') {
+    return [{ pulseIndex: 1, slashesCount: 3 }]
+  }
+
+  if (timeSignature === '2/4') {
+    return [{ pulseIndex: 1, slashesCount: 2 }]
+  }
+
+  const beats = getBeatsPerMeasure(timeSignature)
+  return [{ pulseIndex: 1, slashesCount: beats > 0 ? beats : 4 }]
+}
+
+/**
+ * Representación en texto de las marcas de tiempo (slashes) agrupadas
+ */
+export function formatTimeSignaturePulseMarks(timeSignature: string = '4/4'): string {
+  const groups = getMetricPulseGroups(timeSignature)
+  return groups
+    .map((g) => Array.from({ length: g.slashesCount }).map(() => '/').join(' '))
+    .join('   ')
+}
+
+/**
+ * Devuelve la cantidad de pulsos/clics que componen un compás para el detector de Tap Tempo
+ */
+export function getCycleBeatsForTimeSignature(timeSignature: string = '4/4'): number {
+  if (timeSignature === '6/8') return 2 // 2 pulsos compuestos principales
+  if (timeSignature === '12/8') return 4 // 4 pulsos compuestos principales
+  if (timeSignature === '9/8') return 3 // 3 pulsos compuestos principales
+  if (timeSignature === '3/4') return 3
+  if (timeSignature === '2/4') return 2
+  return 4 // 4/4 u otros
+}
+
+/**
+ * Descripción textual del ciclo de pulsos del compás
+ */
+export function getTimeSignatureCycleDescription(timeSignature: string = '4/4'): string {
+  if (timeSignature === '6/8') return '2 pulsos compuestos (/ / /   / / /)'
+  if (timeSignature === '12/8') return '4 pulsos compuestos (/ / /   / / /   / / /   / / /)'
+  if (timeSignature === '9/8') return '3 pulsos compuestos (/ / /   / / /   / / /)'
+  if (timeSignature === '3/4') return '3 pulsos (1 - 2 - 3)'
+  if (timeSignature === '2/4') return '2 pulsos (1 - 2)'
+  return '4 pulsos (1 - 2 - 3 - 4)'
 }

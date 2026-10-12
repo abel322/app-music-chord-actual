@@ -6,7 +6,8 @@ import { detectCadence } from '@/lib/harmonic-theory'
 import { 
   inferMeasureDivision, 
   ensureMeasureSlots, 
-  getDivisionBracket 
+  getDivisionBracket,
+  getMetricPulseGroups
 } from '@/lib/rhythm-utils'
 import { getBeatsPerMeasure } from '@/lib/measure-utils'
 import { Copy, Trash2 } from 'lucide-react'
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 
 interface MeasureCellProps {
   measure: Measure
+  timeSignature?: string
   beatsPerMeasure?: number
   currentKey?: string
   isSelected?: boolean
@@ -26,6 +28,7 @@ interface MeasureCellProps {
 
 export function MeasureCell({
   measure,
+  timeSignature,
   beatsPerMeasure = 4,
   currentKey = 'C',
   isSelected = false,
@@ -35,8 +38,9 @@ export function MeasureCell({
   onDuplicate,
   onRemove,
 }: MeasureCellProps) {
-  const effectiveTimeSig = measure.timeSignature || (beatsPerMeasure ? `${beatsPerMeasure}/4` : '4/4')
+  const effectiveTimeSig = measure.timeSignature || timeSignature || (beatsPerMeasure ? `${beatsPerMeasure}/4` : '4/4')
   const actualBeats = getBeatsPerMeasure(effectiveTimeSig)
+  const pulseGroups = getMetricPulseGroups(effectiveTimeSig)
   const division = inferMeasureDivision(measure)
   const slots = ensureMeasureSlots(measure, effectiveTimeSig)
   const divisionBracket = getDivisionBracket(division)
@@ -162,29 +166,47 @@ export function MeasureCell({
       {/* 2. Cuerpo Armónico y Rítmico según la División Global */}
       <div className="flex-1 flex flex-col justify-center my-1">
         {division === 'whole' ? (
-          /* Caso Redonda: 1 Acorde Centrado Grande con Slashes / / / / */
+          /* Caso Redonda / Métrica Completa: Acorde Centrado y Marcas de Pulso Agrupadas */
           <div className="flex flex-col items-center justify-center">
-            <div className="flex items-center gap-1 max-w-full">
-              <span
-                className={cn(
-                  'font-mono font-black tracking-tight text-slate-900 dark:text-white leading-none truncate max-w-full',
-                  ((slots[0]?.chord || primaryChord || '').length > 8)
-                    ? 'text-lg sm:text-xl'
-                    : 'text-xl sm:text-2xl'
-                )}
-                title={slots[0]?.chord || primaryChord || '/'}
-              >
-                {slots[0]?.chord || primaryChord || '/'}
-              </span>
-              {slots[0]?.accent && (
-                <span className="text-xs font-black text-amber-500 leading-none shrink-0">&gt;</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 text-slate-300 dark:text-slate-600 font-mono text-[11px] font-bold mt-1">
-              {Array.from({ length: actualBeats }).map((_, i) => (
-                <span key={i}>/</span>
-              ))}
-            </div>
+            {primaryChord ? (
+              <>
+                <div className="flex items-center gap-1 max-w-full">
+                  <span
+                    className={cn(
+                      'font-mono font-black tracking-tight text-slate-900 dark:text-white leading-none truncate max-w-full',
+                      primaryChord.length > 8 ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl'
+                    )}
+                    title={primaryChord}
+                  >
+                    {primaryChord}
+                  </span>
+                  {slots[0]?.accent && (
+                    <span className="text-xs font-black text-amber-500 leading-none shrink-0">&gt;</span>
+                  )}
+                </div>
+                {/* Marcas de pulso agrupadas debajo del acorde (ej. / / /   / / /) */}
+                <div className="flex items-center justify-center gap-3 text-slate-300 dark:text-slate-600 font-mono text-[11px] font-bold mt-1">
+                  {pulseGroups.map((group, gIdx) => (
+                    <div key={gIdx} className="flex items-center gap-1">
+                      {Array.from({ length: group.slashesCount }).map((_, sIdx) => (
+                        <span key={sIdx}>/</span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* Compás vacío: marcas de pulso agrupadas centradas y visibles */
+              <div className="flex items-center justify-center gap-3 text-slate-300 dark:text-slate-600 font-mono text-sm sm:text-base font-black py-1">
+                {pulseGroups.map((group, gIdx) => (
+                  <div key={gIdx} className="flex items-center gap-1">
+                    {Array.from({ length: group.slashesCount }).map((_, sIdx) => (
+                      <span key={sIdx}>/</span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : division === 'half' ? (
           /* Caso Blancas: 2 Mitades con División Central */
