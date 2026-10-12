@@ -4,7 +4,8 @@
  * Figuras Regulares, Irregulares / Polirritmias y Amalgamas Asimétricas.
  */
 
-import { MeasureDivision, MeasureSlot, ChordBeat, Measure, BeatAccent } from '@/types/measure'
+import { MeasureDivision, MeasureSlot, ChordBeat, Measure, BeatAccent, SectionMeasures } from '@/types/measure'
+import { getBeatsPerMeasure } from '@/lib/measure-utils'
 
 export interface MeasureDivisionOption {
   id: MeasureDivision
@@ -162,6 +163,230 @@ export const MEASURE_DIVISIONS: MeasureDivisionOption[] = [
 ]
 
 /**
+ * Devuelve las opciones de subdivisión relevantes y adaptadas a la cifra de compás activa
+ */
+export function getDivisionOptionsForTimeSignature(timeSignature: string = '4/4'): MeasureDivisionOption[] {
+  if (timeSignature === '3/4') {
+    return [
+      {
+        id: 'whole',
+        name: 'Redonda con Puntillo (1 Acorde / Todo el compás - 3 tiempos)',
+        category: 'regular',
+        slotsCount: 1,
+        description: '1 solo acorde abarca los 3 tiempos del compás (/ / /)',
+      },
+      {
+        id: 'half',
+        name: 'Blanca + Negra (2 Partes: T. 1-2 y T. 3)',
+        category: 'regular',
+        slotsCount: 2,
+        description: '2 slots: acorde en tiempos 1-2 y cambio armónico en el tiempo 3',
+      },
+      {
+        id: 'quarter',
+        name: '3 Negras (Pulsos 1, 2, 3 estándar)',
+        category: 'regular',
+        slotsCount: 3,
+        description: '3 slots individuales para cada pulso de negra (/ / /)',
+      },
+      {
+        id: 'eighth',
+        name: '6 Corcheas (1 & 2 & 3 &)',
+        category: 'regular',
+        slotsCount: 6,
+        description: '6 subdivisiones de corchea en métrica ternaria',
+      },
+      {
+        id: 'sixteenth',
+        name: '12 Semicorcheas (Subdivisión fina)',
+        category: 'regular',
+        slotsCount: 12,
+        description: '12 semicorcheas para arpegios rápidos y cortes',
+      },
+      {
+        id: 'triplet_half',
+        name: 'Dosillo [ 2 ] (2 partes en compás de 3/4)',
+        category: 'irregular',
+        slotsCount: 2,
+        bracketLabel: '[ 2 ]',
+        description: '2 partes iguales dividiendo el compás de 3/4 (polirritmia 2 contra 3)',
+      },
+      {
+        id: 'triplet_quarter',
+        name: 'Tresillos en 3/4 [ 3 ]',
+        category: 'irregular',
+        slotsCount: 3,
+        bracketLabel: '[ 3 ]',
+        description: '3 partes uniformes en el compás',
+      },
+      {
+        id: 'quintuplet',
+        name: 'Cincillo [ 5 ]',
+        category: 'irregular',
+        slotsCount: 5,
+        bracketLabel: '[ 5 ]',
+        description: '5 partes iguales en compás de 3/4',
+      },
+      {
+        id: 'sextuplet',
+        name: 'Seisillo [ 6 ]',
+        category: 'irregular',
+        slotsCount: 6,
+        bracketLabel: '[ 6 ]',
+        description: '6 divisiones uniformes en compás de 3/4',
+      },
+    ]
+  }
+
+  if (timeSignature === '2/4') {
+    return [
+      {
+        id: 'whole',
+        name: 'Blanca (1 Acorde / Todo el compás - 2 tiempos)',
+        category: 'regular',
+        slotsCount: 1,
+        description: '1 solo acorde abarca los 2 tiempos del compás (/ /)',
+      },
+      {
+        id: 'half',
+        name: '2 Pulsos (T. 1 y T. 2)',
+        category: 'regular',
+        slotsCount: 2,
+        description: '2 slots individuales para cada pulso de negra (/ /)',
+      },
+      {
+        id: 'quarter',
+        name: '2 Negras (Pulsos 1 y 2 estándar)',
+        category: 'regular',
+        slotsCount: 2,
+        description: '2 slots individuales para cada pulso del compás',
+      },
+      {
+        id: 'eighth',
+        name: '4 Corcheas (1 & 2 &)',
+        category: 'regular',
+        slotsCount: 4,
+        description: '4 subdivisiones de corchea en compás binario',
+      },
+      {
+        id: 'sixteenth',
+        name: '8 Semicorcheas (1 e & a 2 e & a)',
+        category: 'regular',
+        slotsCount: 8,
+        description: '8 subdivisiones de semicorchea',
+      },
+      {
+        id: 'triplet_quarter',
+        name: 'Tresillo [ 3 ] (3 partes en el compás)',
+        category: 'irregular',
+        slotsCount: 3,
+        bracketLabel: '[ 3 ]',
+        description: 'Tresillo de negra abarcando los 2 tiempos (3:2)',
+      },
+      {
+        id: 'quintuplet',
+        name: 'Cincillo [ 5 ]',
+        category: 'irregular',
+        slotsCount: 5,
+        bracketLabel: '[ 5 ]',
+        description: '5 divisiones uniformes en compás de 2/4',
+      },
+    ]
+  }
+
+  if (timeSignature === '6/8') {
+    return [
+      {
+        id: 'whole',
+        name: 'Todo el Compás (1 Acorde / 2 Pulsos Compuestos)',
+        category: 'regular',
+        slotsCount: 1,
+        description: '1 solo acorde que abarca los 2 pulsos con puntillo (6 corcheas)',
+      },
+      {
+        id: 'half',
+        name: '2 Pulsos Compuestos (T. 1-3 y T. 4-6)',
+        category: 'regular',
+        slotsCount: 2,
+        description: '2 mitades compuestas (Pulso 1: corcheas 1-3, Pulso 2: corcheas 4-6)',
+      },
+      {
+        id: 'quarter',
+        name: '2 Pulsos Principales (Pulso 1 y Pulso 2)',
+        category: 'regular',
+        slotsCount: 2,
+        description: '2 slots para los pulsos principales con puntillo (/ /)',
+      },
+      {
+        id: 'eighth',
+        name: '6 Corcheas (1 2 3 4 5 6)',
+        category: 'regular',
+        slotsCount: 6,
+        description: '6 slots individuales de corchea para compás compuesto',
+      },
+      {
+        id: 'sixteenth',
+        name: '12 Semicorcheas',
+        category: 'regular',
+        slotsCount: 12,
+        description: '12 subdivisiones rápidas en 6/8',
+      },
+      {
+        id: 'triplet_half',
+        name: 'Dosillo [ 2 ] (2 partes iguales)',
+        category: 'irregular',
+        slotsCount: 2,
+        bracketLabel: '[ 2 ]',
+        description: '2 partes binarias contra la métrica ternaria',
+      },
+    ]
+  }
+
+  if (timeSignature === '12/8') {
+    return [
+      {
+        id: 'whole',
+        name: 'Todo el Compás (1 Acorde / 4 Pulsos Compuestos)',
+        category: 'regular',
+        slotsCount: 1,
+        description: '1 solo acorde abarcando las 12 corcheas del compás (/ / / /)',
+      },
+      {
+        id: 'half',
+        name: '2 Mitades (6 corcheas c/u)',
+        category: 'regular',
+        slotsCount: 2,
+        description: '2 slots de 6 corcheas cada uno (T. 1-6 y T. 7-12)',
+      },
+      {
+        id: 'quarter',
+        name: '4 Pulsos Compuestos (Pulsos 1, 2, 3, 4 con puntillo)',
+        category: 'regular',
+        slotsCount: 4,
+        description: '4 slots principales para cada pulso con puntillo (/ / / /)',
+      },
+      {
+        id: 'eighth',
+        name: '12 Corcheas (1 al 12)',
+        category: 'regular',
+        slotsCount: 12,
+        description: '12 slots individuales de corchea para baladas y blues 12/8',
+      },
+      {
+        id: 'sixteenth',
+        name: '24 Semicorcheas',
+        category: 'regular',
+        slotsCount: 24,
+        description: '24 subdivisiones de semicorchea',
+      },
+    ]
+  }
+
+  // 4/4 y métricas estándar por defecto
+  return MEASURE_DIVISIONS
+}
+
+/**
  * Devuelve el bracket de la figura irregular o amalgama
  */
 export function getDivisionBracket(division?: MeasureDivision): string | null {
@@ -175,34 +400,91 @@ export function getDivisionBracket(division?: MeasureDivision): string | null {
  */
 export function generateSlotsForDivision(
   division: MeasureDivision,
-  existingChords: (string | null)[] = []
+  existingChords: (string | null)[] = [],
+  timeSignature: string = '4/4'
 ): MeasureSlot[] {
+  const beatsCount = getBeatsPerMeasure(timeSignature)
+
   switch (division) {
     case 'whole':
       return [
         {
           index: 0,
-          label: 'Todo el Compás',
+          label: `Todo el Compás (${beatsCount} tiempos)`,
           chord: existingChords[0] || null,
         },
       ]
 
     case 'half':
+      if (timeSignature === '3/4' || beatsCount === 3) {
+        return [
+          { index: 0, label: 'T. 1-2', chord: existingChords[0] || null },
+          { index: 1, label: 'T. 3', chord: existingChords[1] || null },
+        ]
+      }
+      if (timeSignature === '2/4' || beatsCount === 2) {
+        return [
+          { index: 0, label: 'T. 1', chord: existingChords[0] || null },
+          { index: 1, label: 'T. 2', chord: existingChords[1] || null },
+        ]
+      }
+      if (timeSignature === '6/8') {
+        return [
+          { index: 0, label: 'T. 1-3 (Pulso 1)', chord: existingChords[0] || null },
+          { index: 1, label: 'T. 4-6 (Pulso 2)', chord: existingChords[1] || null },
+        ]
+      }
+      if (timeSignature === '12/8') {
+        return [
+          { index: 0, label: 'T. 1-6 (Pulsos 1-2)', chord: existingChords[0] || null },
+          { index: 1, label: 'T. 7-12 (Pulsos 3-4)', chord: existingChords[1] || null },
+        ]
+      }
       return [
-        { index: 0, label: 'Mitad 1 (T. 1)', chord: existingChords[0] || null },
-        { index: 1, label: 'Mitad 2 (T. 3)', chord: existingChords[1] || null },
+        { index: 0, label: 'Mitad 1 (T. 1-2)', chord: existingChords[0] || null },
+        { index: 1, label: 'Mitad 2 (T. 3-4)', chord: existingChords[1] || null },
       ]
 
     case 'quarter':
-      return [
-        { index: 0, label: '1', chord: existingChords[0] || null },
-        { index: 1, label: '2', chord: existingChords[1] || null },
-        { index: 2, label: '3', chord: existingChords[2] || null },
-        { index: 3, label: '4', chord: existingChords[3] || null },
-      ]
+      if (timeSignature === '6/8') {
+        return [
+          { index: 0, label: 'Pulso 1 (T. 1-3)', chord: existingChords[0] || null },
+          { index: 1, label: 'Pulso 2 (T. 4-6)', chord: existingChords[1] || null },
+        ]
+      }
+      if (timeSignature === '12/8') {
+        return [
+          { index: 0, label: 'Pulso 1 (T. 1-3)', chord: existingChords[0] || null },
+          { index: 1, label: 'Pulso 2 (T. 4-6)', chord: existingChords[1] || null },
+          { index: 2, label: 'Pulso 3 (T. 7-9)', chord: existingChords[2] || null },
+          { index: 3, label: 'Pulso 4 (T. 10-12)', chord: existingChords[3] || null },
+        ]
+      }
+      return Array.from({ length: beatsCount }, (_, i) => ({
+        index: i,
+        label: `${i + 1}`,
+        chord: existingChords[i] || null,
+      }))
 
     case 'eighth': {
-      const labels = ['1', '&', '2', '&', '3', '&', '4', '&']
+      if (timeSignature === '6/8') {
+        return Array.from({ length: 6 }, (_, i) => ({
+          index: i,
+          label: `${i + 1}`,
+          chord: existingChords[i] || null,
+        }))
+      }
+      if (timeSignature === '12/8') {
+        return Array.from({ length: 12 }, (_, i) => ({
+          index: i,
+          label: `${i + 1}`,
+          chord: existingChords[i] || null,
+        }))
+      }
+      const labels: string[] = []
+      for (let b = 1; b <= beatsCount; b++) {
+        labels.push(`${b}`, '&')
+      }
       return labels.map((label, idx) => ({
         index: idx,
         label,
@@ -211,20 +493,33 @@ export function generateSlotsForDivision(
     }
 
     case 'sixteenth': {
-      const beats = ['1', '2', '3', '4']
+      if (timeSignature === '12/8') {
+        return Array.from({ length: 24 }, (_, i) => ({
+          index: i,
+          label: `${i + 1}`,
+          chord: existingChords[i] || null,
+        }))
+      }
+      if (timeSignature === '6/8') {
+        return Array.from({ length: 12 }, (_, i) => ({
+          index: i,
+          label: `${i + 1}`,
+          chord: existingChords[i] || null,
+        }))
+      }
       const subs = ['t', 'e', '&', 'a']
       const slots: MeasureSlot[] = []
       let counter = 0
-      beats.forEach((b) => {
+      for (let b = 1; b <= beatsCount; b++) {
         subs.forEach((s) => {
           slots.push({
             index: counter,
-            label: s === 't' ? b : s,
+            label: s === 't' ? `${b}` : s,
             chord: existingChords[counter] || null,
           })
           counter++
         })
-      })
+      }
       return slots
     }
 
@@ -313,17 +608,16 @@ export function generateSlotsForDivision(
     case 'amalgam_3_2_2':
       return [
         { index: 0, label: 'Grupo 3', chord: existingChords[0] || null },
-        { index: 1, label: 'Grupo 2', chord: existingChords[1] || null },
+        { index: 1, label: 'Grupo 2', chord: existingChords[2] || null },
         { index: 2, label: 'Grupo 2', chord: existingChords[2] || null },
       ]
 
     default:
-      return [
-        { index: 0, label: '1', chord: existingChords[0] || null },
-        { index: 1, label: '2', chord: existingChords[1] || null },
-        { index: 2, label: '3', chord: existingChords[2] || null },
-        { index: 3, label: '4', chord: existingChords[3] || null },
-      ]
+      return Array.from({ length: beatsCount }, (_, i) => ({
+        index: i,
+        label: `${i + 1}`,
+        chord: existingChords[i] || null,
+      }))
   }
 }
 
@@ -335,7 +629,7 @@ export function syncBeatsFromSlots(
   division: MeasureDivision,
   timeSignature: string = '4/4'
 ): ChordBeat[] {
-  const beatsCount = parseInt(timeSignature.split('/')[0], 10) || 4
+  const beatsCount = getBeatsPerMeasure(timeSignature)
 
   if (division === 'whole') {
     const chord = slots[0]?.chord || ''
@@ -361,7 +655,7 @@ export function syncBeatsFromSlots(
         beat: 1,
         chord: chord1,
         accent: slots[0]?.accent ? 'accent' : 'normal',
-        duration: Math.floor(beatsCount / 2),
+        duration: Math.floor(beatsCount / 2) || 1,
       })
     }
     if (chord2) {
@@ -370,7 +664,7 @@ export function syncBeatsFromSlots(
         beat: midBeat,
         chord: chord2,
         accent: slots[1]?.accent ? 'accent' : 'normal',
-        duration: Math.floor(beatsCount / 2),
+        duration: Math.ceil(beatsCount / 2) || 1,
       })
     }
     return result
@@ -397,6 +691,7 @@ export function syncBeatsFromSlots(
  * Asegura que un compás tenga sus slots rítmicos correctamente inicializados
  */
 export function ensureMeasureSlots(measure: Measure, timeSignature: string = '4/4'): MeasureSlot[] {
+  const effectiveTimeSig = measure.timeSignature || timeSignature
   if (Array.isArray(measure.slots) && measure.slots.length > 0) {
     return measure.slots
   }
@@ -405,16 +700,16 @@ export function ensureMeasureSlots(measure: Measure, timeSignature: string = '4/
   const beats = measure.beats || []
   if (beats.length <= 1) {
     const chord = beats[0]?.chord || null
-    return generateSlotsForDivision('whole', [chord])
+    return generateSlotsForDivision('whole', [chord], effectiveTimeSig)
   }
 
   if (beats.length === 2) {
     const chords = [beats[0]?.chord || null, beats[1]?.chord || null]
-    return generateSlotsForDivision('half', chords)
+    return generateSlotsForDivision('half', chords, effectiveTimeSig)
   }
 
   const chords = beats.map((b) => b.chord || null)
-  return generateSlotsForDivision('quarter', chords)
+  return generateSlotsForDivision('quarter', chords, effectiveTimeSig)
 }
 
 /**
@@ -426,4 +721,43 @@ export function inferMeasureDivision(measure: Measure): MeasureDivision {
   if (beats.length <= 1) return 'whole'
   if (beats.length === 2) return 'half'
   return 'quarter'
+}
+
+/**
+ * Actualiza en cascada todas las secciones y compases al cambiar la cifra de compás (Time Signature)
+ * Recalcula slots y pulsos por defecto preservando los acordes existentes.
+ */
+export function updateSectionsTimeSignature(
+  sections: SectionMeasures[],
+  newTimeSignature: string
+): SectionMeasures[] {
+  return sections.map((section) => ({
+    ...section,
+    timeSignature: newTimeSignature,
+    measures: section.measures.map((measure) => {
+      // Extraer los acordes que ya estuvieran ingresados respetando el orden
+      const existingChords: (string | null)[] = []
+      if (Array.isArray(measure.slots) && measure.slots.length > 0) {
+        measure.slots.forEach((s) => {
+          if (s.chord) existingChords.push(s.chord)
+        })
+      } else if (Array.isArray(measure.beats) && measure.beats.length > 0) {
+        measure.beats.forEach((b) => {
+          if (b.chord) existingChords.push(b.chord)
+        })
+      }
+
+      const currentDivision = measure.division || 'whole'
+      const newSlots = generateSlotsForDivision(currentDivision, existingChords, newTimeSignature)
+      const newBeats = syncBeatsFromSlots(newSlots, currentDivision, newTimeSignature)
+
+      return {
+        ...measure,
+        timeSignature: newTimeSignature,
+        division: currentDivision,
+        slots: newSlots,
+        beats: newBeats,
+      }
+    }),
+  }))
 }

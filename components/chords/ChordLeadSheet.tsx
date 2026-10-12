@@ -20,6 +20,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TapTempoButton } from '@/components/ui/TapTempoButton'
 import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
@@ -30,6 +31,7 @@ import {
   generateMeasures,
   applyProgressionToMeasures 
 } from '@/lib/measure-utils'
+import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
 import { transposeChord } from '@/lib/transpose'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
@@ -134,6 +136,12 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections((prev) => transposeSectionMeasures(prev, reverseDelta))
     setCurrentKey(song.key || 'C')
     setTransposeSemitones(0)
+  }
+
+  // Cambiar Cifra de Compás y actualizar todas las secciones y compases en cascada
+  const handleTimeSignatureChange = (newTimeSig: string) => {
+    setTimeSignature(newTimeSig)
+    setSections((prev) => updateSectionsTimeSignature(prev, newTimeSig))
   }
 
   // Aplicar progresión a una sección completa
@@ -370,7 +378,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             {isEditing ? (
               <select
                 value={timeSignature}
-                onChange={(e) => setTimeSignature(e.target.value)}
+                onChange={(e) => handleTimeSignatureChange(e.target.value)}
                 className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white focus:outline-none"
               >
                 <option value="4/4">4/4</option>
@@ -392,12 +400,21 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               Tempo:
             </span>
             {isEditing ? (
-              <input
-                type="number"
-                value={tempo}
-                onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
-                className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-center focus:outline-none"
-              />
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={30}
+                  max={280}
+                  value={tempo}
+                  onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+                  className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-center focus:outline-none"
+                />
+                <TapTempoButton
+                  onTempoChange={(bpm) => setTempo(bpm)}
+                  currentTempo={tempo}
+                  className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
+                />
+              </div>
             ) : (
               <span className="font-mono font-bold text-sm bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
                 {tempo} BPM

@@ -9,8 +9,10 @@ import {
   syncBeatsFromSlots, 
   ensureMeasureSlots, 
   inferMeasureDivision,
-  getDivisionBracket
+  getDivisionBracket,
+  getDivisionOptionsForTimeSignature
 } from '@/lib/rhythm-utils'
+import { getBeatsPerMeasure } from '@/lib/measure-utils'
 import { ProgressionPicker } from './ProgressionPicker'
 import { CadencePicker } from './CadencePicker'
 import { ChordSelectorModal } from './ChordSelectorModal'
@@ -47,8 +49,11 @@ export function MeasureInspector({
   onToggleVolta,
   onClose,
 }: MeasureInspectorProps) {
+  const effectiveTimeSig = selectedMeasure.timeSignature || timeSignature
+  const effectiveBeats = getBeatsPerMeasure(effectiveTimeSig)
   const currentDivision = inferMeasureDivision(selectedMeasure)
-  const currentSlots = ensureMeasureSlots(selectedMeasure, timeSignature)
+  const currentSlots = ensureMeasureSlots(selectedMeasure, effectiveTimeSig)
+  const divisionOptions = getDivisionOptionsForTimeSignature(effectiveTimeSig)
   const [activeSlotIndex, setActiveSlotIndex] = useState<number>(0)
   const [isChordModalOpen, setIsChordModalOpen] = useState<boolean>(false)
 
@@ -56,11 +61,12 @@ export function MeasureInspector({
   const handleSelectDivision = (newDivision: MeasureDivision) => {
     setActiveSlotIndex(0)
     const existingChords = currentSlots.map((s) => s.chord)
-    const newSlots = generateSlotsForDivision(newDivision, existingChords)
-    const syncedBeats = syncBeatsFromSlots(newSlots, newDivision, timeSignature)
+    const newSlots = generateSlotsForDivision(newDivision, existingChords, effectiveTimeSig)
+    const syncedBeats = syncBeatsFromSlots(newSlots, newDivision, effectiveTimeSig)
 
     onUpdateMeasure({
       ...selectedMeasure,
+      timeSignature: effectiveTimeSig,
       division: newDivision,
       slots: newSlots,
       beats: syncedBeats,
@@ -80,7 +86,7 @@ export function MeasureInspector({
       }
     })
 
-    const syncedBeats = syncBeatsFromSlots(updatedSlots, currentDivision, timeSignature)
+    const syncedBeats = syncBeatsFromSlots(updatedSlots, currentDivision, effectiveTimeSig)
 
     onUpdateMeasure({
       ...selectedMeasure,
@@ -99,7 +105,7 @@ export function MeasureInspector({
       }
     })
 
-    const syncedBeats = syncBeatsFromSlots(updatedSlots, currentDivision, timeSignature)
+    const syncedBeats = syncBeatsFromSlots(updatedSlots, currentDivision, effectiveTimeSig)
 
     onUpdateMeasure({
       ...selectedMeasure,
@@ -120,7 +126,7 @@ export function MeasureInspector({
       }
     })
 
-    const syncedBeats = syncBeatsFromSlots(updatedSlots, currentDivision, timeSignature)
+    const syncedBeats = syncBeatsFromSlots(updatedSlots, currentDivision, effectiveTimeSig)
 
     onUpdateMeasure({
       ...selectedMeasure,
@@ -304,37 +310,45 @@ export function MeasureInspector({
               onChange={(e) => handleSelectDivision(e.target.value as MeasureDivision)}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm"
             >
-              <optgroup label="1. Regulares / Binarias / Estándar">
-                <option value="whole">Redonda (1 Acorde / Todo el compás)</option>
-                <option value="half">Blancas (2 Mitades / 2 tiempos c/u)</option>
-                <option value="quarter">Negras (4 Tiempos estándar)</option>
-                <option value="eighth">Corcheas (8 Subdivisiones: 1 & 2 & 3 & 4 &)</option>
-                <option value="sixteenth">Semicorcheas (16 Subdivisiones: 1 e & a...)</option>
-                <option value="thirty_second">Fusas (32 Subdivisiones)</option>
+              <optgroup label={`1. Regulares / Estándar (${effectiveTimeSig})`}>
+                {divisionOptions
+                  .filter((d) => d.category === 'regular')
+                  .map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}
+                    </option>
+                  ))}
               </optgroup>
 
-              <optgroup label="2. Irregulares / Polirritmias en el Compás">
-                <option value="triplet_half">Tresillo de Blancas [ 3 ] (3 en el compás / 3 contra 4)</option>
-                <option value="triplet_quarter">Seisillo / Tresillos de Negras [ 6 ] (6 en el compás)</option>
-                <option value="triplet_eighth">Tresillos de Corcheas [ 12 ] (12 en el compás)</option>
-                <option value="quintuplet">Cincillo [ 5 ] (5 partes iguales en el compás)</option>
-                <option value="sextuplet">Seisillo [ 6 ] (6 partes iguales en el compás)</option>
-                <option value="septuplet">Septillo [ 7 ] (7 partes iguales en el compás)</option>
-                <option value="nonuplet">Novenillo [ 9 ] (9 partes iguales en el compás)</option>
-              </optgroup>
+              {divisionOptions.some((d) => d.category === 'irregular') && (
+                <optgroup label="2. Irregulares / Polirritmias en el Compás">
+                  {divisionOptions
+                    .filter((d) => d.category === 'irregular')
+                    .map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
 
-              <optgroup label="3. Compases Compuestos y Amalgamas Rítmicas">
-                <option value="amalgam_3_3_2">Agrupación 3 + 3 + 2 [ 3+3+2 ] (Clave / Funk / 8/8)</option>
-                <option value="amalgam_3_2">Agrupación 3 + 2 [ 3+2 ] (Métrica 5/8)</option>
-                <option value="amalgam_2_3">Agrupación 2 + 3 [ 2+3 ] (Métrica 5/8)</option>
-                <option value="amalgam_2_2_3">Agrupación 2 + 2 + 3 [ 2+2+3 ] (Métrica 7/8)</option>
-                <option value="amalgam_3_2_2">Agrupación 3 + 2 + 2 [ 3+2+2 ] (Métrica 7/8)</option>
-              </optgroup>
+              {divisionOptions.some((d) => d.category === 'amalgam') && (
+                <optgroup label="3. Compases Compuestos y Amalgamas Rítmicas">
+                  {divisionOptions
+                    .filter((d) => d.category === 'amalgam')
+                    .map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
           <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
-            {MEASURE_DIVISIONS.find((d) => d.id === currentDivision)?.description}
+            {divisionOptions.find((d) => d.id === currentDivision)?.description ||
+              MEASURE_DIVISIONS.find((d) => d.id === currentDivision)?.description}
           </div>
         </div>
 
@@ -344,7 +358,11 @@ export function MeasureInspector({
             /* Caso Redonda: 1 Caja Central Grande para Todo el Compás */
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border-2 border-primary-200 dark:border-primary-900/60 flex flex-col items-center justify-center gap-2 text-center">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Acorde para Todo el Compás (4 Tiempos / / / /)
+                Acorde para Todo el Compás ({effectiveBeats} {effectiveBeats === 1 ? 'Tiempo' : 'Tiempos'}{' '}
+                {Array.from({ length: effectiveBeats })
+                  .map(() => '/')
+                  .join(' ')}
+                )
               </span>
 
               <div className="flex items-center gap-2 max-w-xs w-full">

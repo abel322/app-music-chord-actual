@@ -8,6 +8,7 @@ import {
   ensureMeasureSlots, 
   getDivisionBracket 
 } from '@/lib/rhythm-utils'
+import { getBeatsPerMeasure } from '@/lib/measure-utils'
 import { Copy, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -34,8 +35,10 @@ export function MeasureCell({
   onDuplicate,
   onRemove,
 }: MeasureCellProps) {
+  const effectiveTimeSig = measure.timeSignature || (beatsPerMeasure ? `${beatsPerMeasure}/4` : '4/4')
+  const actualBeats = getBeatsPerMeasure(effectiveTimeSig)
   const division = inferMeasureDivision(measure)
-  const slots = ensureMeasureSlots(measure)
+  const slots = ensureMeasureSlots(measure, effectiveTimeSig)
   const divisionBracket = getDivisionBracket(division)
 
   // Acorde principal (para detección de cadencia y vista completa)
@@ -178,7 +181,7 @@ export function MeasureCell({
               )}
             </div>
             <div className="flex items-center gap-1.5 text-slate-300 dark:text-slate-600 font-mono text-[11px] font-bold mt-1">
-              {Array.from({ length: beatsPerMeasure }).map((_, i) => (
+              {Array.from({ length: actualBeats }).map((_, i) => (
                 <span key={i}>/</span>
               ))}
             </div>
@@ -204,7 +207,7 @@ export function MeasureCell({
                 )}
               </div>
               <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
-                T. 1-2
+                {slots[0]?.label || 'T. 1-2'}
               </span>
             </div>
 
@@ -226,13 +229,21 @@ export function MeasureCell({
                 )}
               </div>
               <span className="text-[9px] font-mono text-slate-400 font-semibold mt-0.5">
-                T. 3-4
+                {slots[1]?.label || 'T. 3-4'}
               </span>
             </div>
           </div>
         ) : division === 'quarter' ? (
-          /* Caso Negras: 4 Tiempos Estándar */
-          <div className="grid grid-cols-4 gap-1 w-full text-center items-end py-0.5">
+          /* Caso Negras / Pulsos Principales: dinámico según slots.length */
+          <div
+            className={cn(
+              'grid gap-1 w-full text-center items-end py-0.5',
+              slots.length === 2 && 'grid-cols-2',
+              slots.length === 3 && 'grid-cols-3',
+              slots.length === 4 && 'grid-cols-4',
+              slots.length > 4 && 'grid-cols-4 sm:grid-cols-6'
+            )}
+          >
             {slots.map((s) => (
               <div key={s.index} className="flex flex-col items-center justify-between p-0.5 overflow-hidden">
                 <div className="flex items-center gap-0.5 max-w-full">
@@ -258,9 +269,18 @@ export function MeasureCell({
             ))}
           </div>
         ) : division === 'eighth' ? (
-          /* Caso Corcheas: Tira Horizontal de 8 Subdivisiones (1 & 2 & 3 & 4 &) */
+          /* Caso Corcheas: Tira Horizontal dinámico según slots.length */
           <div className="space-y-0.5">
-            <div className="grid grid-cols-8 gap-0.5 w-full text-center items-center py-1 bg-slate-50 dark:bg-slate-950/60 rounded-lg p-1 border border-slate-100 dark:border-slate-800/80">
+            <div
+              className={cn(
+                'grid gap-0.5 w-full text-center items-center py-1 bg-slate-50 dark:bg-slate-950/60 rounded-lg p-1 border border-slate-100 dark:border-slate-800/80',
+                slots.length === 4 && 'grid-cols-4',
+                slots.length === 6 && 'grid-cols-6',
+                slots.length === 8 && 'grid-cols-8',
+                slots.length === 12 && 'grid-cols-6 sm:grid-cols-12',
+                slots.length > 12 && 'grid-cols-8 sm:grid-cols-16'
+              )}
+            >
               {slots.map((s) => {
                 const isOffbeat = s.label === '&'
                 const hasChord = !!s.chord
@@ -304,9 +324,16 @@ export function MeasureCell({
             </div>
           </div>
         ) : division === 'sixteenth' ? (
-          /* Caso Semicorcheas (16 Subdivisiones): 4 Tiempos agrupados (1 e & a) */
-          <div className="grid grid-cols-4 gap-1 w-full text-center items-center py-0.5">
-            {[0, 1, 2, 3].map((bIdx) => {
+          /* Caso Semicorcheas: Pulsos agrupados dinámico */
+          <div
+            className={cn(
+              'grid gap-1 w-full text-center items-center py-0.5',
+              Math.ceil(slots.length / 4) === 2 && 'grid-cols-2',
+              Math.ceil(slots.length / 4) === 3 && 'grid-cols-3',
+              Math.ceil(slots.length / 4) >= 4 && 'grid-cols-4'
+            )}
+          >
+            {Array.from({ length: Math.max(1, Math.ceil(slots.length / 4)) }).map((_, bIdx) => {
               const beatSlots = slots.slice(bIdx * 4, (bIdx + 1) * 4)
               const hasChordInBeat = beatSlots.some((s) => !!s.chord)
               return (

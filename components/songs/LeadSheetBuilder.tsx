@@ -21,6 +21,7 @@ import {
   FileText
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TapTempoButton } from '@/components/ui/TapTempoButton'
 import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
@@ -29,8 +30,10 @@ import {
   ensureSectionMeasures, 
   generateMeasures, 
   applyProgressionToMeasures, 
-  transposeSectionMeasures 
+  transposeSectionMeasures,
+  getBeatsPerMeasure
 } from '@/lib/measure-utils'
+import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
 import { getDiatonicChords } from '@/lib/music-theory'
 import { createSongAction, updateSongAction } from '@/app/actions/songs'
@@ -134,6 +137,12 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
       setSections((prev) => transposeSectionMeasures(prev, semitones))
     }
     setKey(newKey)
+  }
+
+  // Cambiar Cifra de Compás y actualizar todas las secciones y compases en cascada
+  const handleTimeSignatureChange = (newTimeSig: string) => {
+    setTimeSignature(newTimeSig)
+    setSections((prev) => updateSectionsTimeSignature(prev, newTimeSig))
   }
 
   // Actualizar los compases de una sección específica
@@ -431,7 +440,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
             </label>
             <select
               value={timeSignature}
-              onChange={(e) => setTimeSignature(e.target.value)}
+              onChange={(e) => handleTimeSignatureChange(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="4/4">4/4 (Cuatro Tiempos)</option>
@@ -442,19 +451,23 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
             </select>
           </div>
 
-          {/* Tempo BPM */}
+          {/* Tempo BPM con Botón Tap Tempo */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Tempo (BPM)
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Tempo (BPM)</span>
+              <span className="text-[10px] text-primary-500 font-mono font-bold">{tempo} BPM</span>
             </label>
-            <input
-              type="number"
-              min={30}
-              max={280}
-              value={tempo}
-              onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-center"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={30}
+                max={280}
+                value={tempo}
+                onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-center"
+              />
+              <TapTempoButton onTempoChange={(bpm) => setTempo(bpm)} currentTempo={tempo} />
+            </div>
           </div>
 
           {/* Género */}
@@ -482,7 +495,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               <span>Estructura de Secciones por Compases</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Cada sección contiene compases interactivos de 4 tiempos con detección automática de cadencias armónicas.
+              Cada sección contiene compases interactivos de {getBeatsPerMeasure(timeSignature)} tiempos ({timeSignature}) con detección automática de cadencias armónicas.
             </p>
           </div>
 

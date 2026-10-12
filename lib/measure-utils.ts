@@ -7,12 +7,18 @@ import { transposeChord } from '@/lib/transpose'
 export function getBeatsPerMeasure(timeSignature: string = '4/4'): number {
   const parts = timeSignature.split('/')
   const numerator = parseInt(parts[0], 10)
+  const denominator = parseInt(parts[1], 10) || 4
   if (isNaN(numerator) || numerator <= 0) return 4
 
-  // En 6/8 usualmente se siente en 2 pulsos con subdivisión ternaria, pero permitimos 6 o 2
-  if (timeSignature === '6/8') return 6
-  if (timeSignature === '9/8') return 9
-  if (timeSignature === '12/8') return 12
+  // Compases compuestos con denominador 8:
+  // 6/8: 2 pulsos compuestos (o 6 corcheas agrupadas en 2 pulsos con puntillo)
+  // 9/8: 3 pulsos compuestos
+  // 12/8: 4 pulsos compuestos (/ / / / con subdivisión ternaria)
+  if (denominator === 8) {
+    if (numerator === 6) return 2
+    if (numerator === 9) return 3
+    if (numerator === 12) return 4
+  }
 
   return numerator
 }
