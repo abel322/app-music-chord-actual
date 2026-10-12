@@ -18,7 +18,9 @@ import {
   SlidersHorizontal,
   Clock,
   Compass,
-  FileText
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TapTempoButton } from '@/components/ui/TapTempoButton'
@@ -26,6 +28,7 @@ import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
+import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
@@ -37,7 +40,8 @@ import {
   getBeatsPerMeasure,
   getSectionBadge,
   getSectionDefaultName,
-  cloneSectionMeasures
+  cloneSectionMeasures,
+  getSectionChordsPreview
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
@@ -91,6 +95,42 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   // Estados de proceso
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+
+  // Alternar colapso de una sección individual
+  const handleToggleCollapse = (sectionId: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }))
+  }
+
+  // Alternar colapso global (Colapsar todo / Expandir todo)
+  const handleToggleCollapseAll = () => {
+    const allCollapsed = sections.length > 0 && sections.every((s) => collapsedSections[s.id])
+    if (allCollapsed) {
+      setCollapsedSections({})
+    } else {
+      const all: Record<string, boolean> = {}
+      sections.forEach((s) => {
+        all[s.id] = true
+      })
+      setCollapsedSections(all)
+    }
+  }
+
+  // Salto rápido a sección con descolapso automático y desplazamiento suave
+  const handleSelectSectionJump = (sectionId: string) => {
+    if (collapsedSections[sectionId]) {
+      setCollapsedSections((prev) => ({ ...prev, [sectionId]: false }))
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`section-${sectionId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 60)
+  }
 
   // Secciones estructuradas con Compases (Lead Sheet)
   const [sections, setSections] = useState<SectionMeasures[]>(() => {
@@ -509,6 +549,14 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         </div>
       </div>
 
+      {/* Barra Fija de Navegación Rápida por Secciones (Quick Jump) */}
+      <SectionNavigationStickyBar
+        sections={sections}
+        collapsedSections={collapsedSections}
+        onToggleCollapseAll={handleToggleCollapseAll}
+        onSelectSection={handleSelectSectionJump}
+      />
+
       {/* Secciones y Constructor de Lead Sheet por Compases */}
       <div className="space-y-6">
         <div className="flex items-center justify-between pb-1">
@@ -529,6 +577,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
         {sections.map((section, index) => {
           const effectiveKey = section.keySignature || key
+          const isCollapsed = !!collapsedSections[section.id]
           let sectionDiatonicChords = diatonicChords
           if (section.keySignature && section.keySignature !== key) {
             try {
@@ -542,12 +591,28 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           return (
             <div
               key={section.id}
-              className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 transition-all"
+              id={`section-${section.id}`}
+              className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-all scroll-mt-28"
             >
               {/* Barra de Título de la Sección, Progresiones y Acciones */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase">
+                <div className="flex items-center gap-2.5">
+                  {/* Botón Acordeón Colapsar / Expandir */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCollapse(section.id)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:hover:text-purple-300 transition-colors"
+                    title={isCollapsed ? 'Desplegar compases de esta sección' : 'Plegar compases de esta sección'}
+                    aria-label={isCollapsed ? 'Desplegar sección' : 'Plegar sección'}
+                  >
+                    {isCollapsed ? (
+                      <ChevronDown className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    ) : (
+                      <ChevronUp className="w-4 h-4" />
+                    )}
+                  </button>
+
+                  <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase shrink-0">
                     {getSectionBadge(section.type, section.label)}
                   </div>
 
@@ -564,7 +629,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                     }}
                     className="font-black text-base sm:text-lg text-slate-900 dark:text-white bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1 -ml-1"
                   />
-                  <span className="text-xs text-slate-400 font-medium">
+                  <span className="text-xs text-slate-400 font-medium shrink-0">
                     ({section.measures.length} compases)
                   </span>
                 </div>
@@ -648,35 +713,58 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                 </div>
               </div>
 
-              {/* Frase de Letra de Guía para la Sección */}
-              <div className="-mt-2">
-                <input
-                  type="text"
-                  value={section.guideLyrics || ''}
-                  onChange={(e) => {
-                    const updatedVal = e.target.value
-                    setSections(
-                      sections.map((s) =>
-                        s.id === section.id ? { ...s, guideLyrics: updatedVal } : s
-                      )
-                    )
-                  }}
-                  placeholder="Añadir frase de letra de guía para esta sección (ej: 'Vengo a rendirme a tus pies...')"
-                  className="w-full text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 italic focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors"
-                />
-              </div>
+              {/* Vista Colapsada vs Vista Expandida */}
+              {isCollapsed ? (
+                /* Línea Resumen Compacta en Acordeón */
+                <div className="pt-1 flex items-center justify-between gap-3 text-xs flex-wrap">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-400 text-[11px]">Acordes:</span>
+                    <span className="font-mono font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800/80 text-xs">
+                      {getSectionChordsPreview(section)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCollapse(section.id)}
+                    className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Desplegar compases</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Frase de Letra de Guía para la Sección */}
+                  <div className="-mt-1">
+                    <input
+                      type="text"
+                      value={section.guideLyrics || ''}
+                      onChange={(e) => {
+                        const updatedVal = e.target.value
+                        setSections(
+                          sections.map((s) =>
+                            s.id === section.id ? { ...s, guideLyrics: updatedVal } : s
+                          )
+                        )
+                      }}
+                      placeholder="Añadir frase de letra de guía para esta sección (ej: 'Vengo a rendirme a tus pies...')"
+                      className="w-full text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 dark:placeholder:text-slate-500 italic focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors"
+                    />
+                  </div>
 
-              {/* Rejilla de Compases Interactiva */}
-              <MeasureGrid
-                measures={section.measures}
-                timeSignature={section.timeSignature || timeSignature}
-                currentKey={effectiveKey}
-                diatonicChords={sectionDiatonicChords}
-                isEditing={true}
-                onUpdateMeasures={(updated) => handleUpdateSectionMeasures(section.id, updated)}
-                onAddMeasures={(count) => handleAddMeasuresToSection(section.id, count)}
-                onRemoveMeasure={(measureId) => handleRemoveMeasure(section.id, measureId)}
-              />
+                  {/* Rejilla de Compases Interactiva */}
+                  <MeasureGrid
+                    measures={section.measures}
+                    timeSignature={section.timeSignature || timeSignature}
+                    currentKey={effectiveKey}
+                    diatonicChords={sectionDiatonicChords}
+                    isEditing={true}
+                    onUpdateMeasures={(updated) => handleUpdateSectionMeasures(section.id, updated)}
+                    onAddMeasures={(count) => handleAddMeasuresToSection(section.id, count)}
+                    onRemoveMeasure={(measureId) => handleRemoveMeasure(section.id, measureId)}
+                  />
+                </>
+              )}
             </div>
           )
         })}

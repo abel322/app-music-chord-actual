@@ -1088,3 +1088,32 @@ export function cloneSectionMeasures(
   }
 }
 
+/**
+ * Extrae una vista previa compacta de texto de los acordes de una sección para vista colapsada
+ * Ej: "[ E - C#m7 - Cmaj7 - F#m7 ]"
+ */
+export function getSectionChordsPreview(section: SectionMeasures, maxChords: number = 8): string {
+  const chords: string[] = []
+  for (const m of section.measures || []) {
+    if (m.slots && m.slots.length > 0) {
+      for (const s of m.slots) {
+        if (s.chord && s.chord.trim() !== '' && s.chord !== '%') {
+          chords.push(s.chord.trim())
+        }
+      }
+    } else if (m.beats && m.beats.length > 0) {
+      for (const b of m.beats) {
+        if (b.chord && b.chord.trim() !== '' && b.chord !== '%') {
+          chords.push(b.chord.trim())
+        }
+      }
+    }
+  }
+
+  if (chords.length === 0) return '[ Sin acordes ]'
+
+  const displayChords = chords.slice(0, maxChords)
+  const preview = displayChords.join(' - ')
+  return chords.length > maxChords ? `[ ${preview} ... ]` : `[ ${preview} ]`
+}
+

@@ -107,7 +107,7 @@ export function MeasureCell({
     <div
       onClick={onClick}
       className={cn(
-        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[105px] sm:min-h-[120px] p-2.5 sm:p-3 overflow-visible',
+        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 overflow-visible',
         isSelected && isEditing
           ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
           : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
@@ -400,12 +400,12 @@ export function MeasureCell({
                 <div className="flex items-center justify-center gap-1 max-w-full">
                   <span
                     className={cn(
-                      'font-mono font-black tracking-tight text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
+                      'font-mono font-bold tracking-tight text-slate-900 dark:text-white leading-none whitespace-nowrap min-w-0 shrink-0',
                       primaryChord.length > 9
-                        ? 'text-base sm:text-lg'
+                        ? 'text-xs sm:text-base'
                         : primaryChord.length > 6
-                          ? 'text-lg sm:text-xl'
-                          : 'text-xl sm:text-2xl'
+                          ? 'text-sm sm:text-lg'
+                          : 'text-base sm:text-lg'
                     )}
                     title={primaryChord}
                   >
