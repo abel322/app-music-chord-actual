@@ -244,7 +244,7 @@ export function MeasureGrid({
   return (
     <div className="space-y-4">
       {/* Rejilla de Compases: 4 Compases por Fila en Desktop, 2 en Móvil con espacio superior para corchetes */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-8 sm:gap-y-9 pt-8 sm:pt-9">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-9 sm:pt-10">
         {measures.map((measure, index) => {
           const isSelected = selectedMeasureId === measure.id
           const prevMeasure = index > 0 ? measures[index - 1] : null

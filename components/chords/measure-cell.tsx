@@ -115,7 +115,7 @@ export function MeasureCell({
               }}
             >
               {effectiveBracket.label && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm">
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm">
                   <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[170px] sm:max-w-none inline-block">
                     {effectiveBracket.label}
                   </span>
@@ -126,7 +126,7 @@ export function MeasureCell({
                         e.stopPropagation()
                         onRemoveCadence(measure.id)
                       }}
-                      className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                      className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
                       title="Quitar cadencia"
                     >
                       <X className="w-3 h-3" />
@@ -147,7 +147,7 @@ export function MeasureCell({
                   style={{ left: `${startPercent}%` }}
                 >
                   {effectiveBracket.label && (
-                    <div className="absolute -top-3.5 left-[calc(100%+5px)] sm:left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm">
+                    <div className="absolute bottom-full mb-1 left-[calc(100%+5px)] sm:left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm">
                       <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[170px] sm:max-w-none inline-block">
                         {effectiveBracket.label}
                       </span>
@@ -158,7 +158,7 @@ export function MeasureCell({
                             e.stopPropagation()
                             onRemoveCadence(measure.id)
                           }}
-                          className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                          className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
                           title="Quitar cadencia"
                         >
                           <X className="w-3 h-3" />
@@ -180,7 +180,7 @@ export function MeasureCell({
                   </span>
                   {effectiveBracket.label && (
                     <div
-                      className="absolute -top-3.5 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm"
+                      className="absolute bottom-full mb-1 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm"
                       style={{ left: `calc(${startPercent}% + (100% - ${startPercent}%) / 2)` }}
                     >
                       <span className="text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[170px] sm:max-w-none inline-block">
@@ -193,7 +193,7 @@ export function MeasureCell({
                             e.stopPropagation()
                             onRemoveCadence(measure.id)
                           }}
-                          className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                          className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
                           title="Quitar cadencia"
                         >
                           <X className="w-3 h-3" />
@@ -217,7 +217,7 @@ export function MeasureCell({
                     <>
                       {/* Mobile: Centrado sobre la tensión del compás emisor */}
                       <div
-                        className="md:hidden absolute -top-3.5 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm"
+                        className="md:hidden absolute bottom-full mb-1 -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto flex items-center gap-1 shadow-sm"
                         style={{ left: `calc(${startPercent}% + (100% - ${startPercent}%) / 2)` }}
                       >
                         <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[150px] inline-block">
@@ -230,7 +230,7 @@ export function MeasureCell({
                               e.stopPropagation()
                               onRemoveCadence(measure.id)
                             }}
-                            className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                            className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
                             title="Quitar cadencia"
                           >
                             <X className="w-3 h-3" />
@@ -239,7 +239,7 @@ export function MeasureCell({
                       </div>
 
                       {/* Desktop: Centrado horizontalmente justo sobre el espacio inter-compás */}
-                      <div className="hidden md:flex absolute -top-3.5 left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto items-center gap-1 shadow-sm">
+                      <div className="hidden md:flex absolute bottom-full mb-1 left-[calc(100%+7px)] -translate-x-1/2 whitespace-nowrap z-30 pointer-events-auto items-center gap-1 shadow-sm">
                         <span className="text-xs font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md shadow-2xs border border-purple-200/90 dark:border-purple-800/90 select-none truncate max-w-[180px] inline-block">
                           {effectiveBracket.label}
                         </span>
@@ -250,7 +250,7 @@ export function MeasureCell({
                               e.stopPropagation()
                               onRemoveCadence(measure.id)
                             }}
-                            className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs"
+                            className="p-0.5 rounded-full bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors shadow-2xs flex items-center justify-center shrink-0"
                             title="Quitar cadencia"
                           >
                             <X className="w-3 h-3" />
