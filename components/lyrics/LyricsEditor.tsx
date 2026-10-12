@@ -44,6 +44,7 @@ const STRUCTURE_TAGS = [
   '[Pre-Coro]',
   '[Coro]',
   '[Puente]',
+  '[Interludio]',
   '[Solo]',
   '[Outro]',
 ]
