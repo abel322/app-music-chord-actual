@@ -30,6 +30,8 @@ import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
+import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
+import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
@@ -154,6 +156,49 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     return rawSections.map((sec, idx) =>
       ensureSectionMeasures(sec, idx, song.timeSignature || '4/4', counter)
     )
+  })
+
+  // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
+  const {
+    isPlaying,
+    currentFlatMeasureIndex,
+    currentMeasure,
+    currentBeat,
+    isMuted,
+    totalMeasuresCount,
+    togglePlay,
+    stop,
+    toggleMute,
+    jumpToMeasureId,
+  } = useLeadSheetPlayback({
+    sections,
+    tempo,
+    defaultTimeSignature: timeSignature,
+    onMeasureChange: (_flatIndex, measure, sectionId) => {
+      // Si una sección está colapsada y la reproducción entra en ella, expandir automáticamente
+      setCollapsedSections((prev) => {
+        if (prev[sectionId]) {
+          return { ...prev, [sectionId]: false }
+        }
+        return prev
+      })
+
+      // Auto-desplazamiento suave (Follow Playhead):
+      // Si el compás activo sale del viewport o se acerca al borde inferior de la pantalla:
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(`measure-cell-${measure.id}`)
+          if (!el) return
+          const rect = el.getBoundingClientRect()
+          const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+          const isNearBottom = rect.bottom > viewportHeight - 140
+          const isAboveTop = rect.top < 120
+          if (isNearBottom || isAboveTop) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 50)
+      })
+    },
   })
 
   // Acordes diatónicos de la tonalidad actual para sugerencias
@@ -521,6 +566,23 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               </span>
             )}
           </div>
+
+          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
+
+          {/* Botonera de Control de Reproducción en Vivo (Live Playback Tracker) */}
+          <LeadSheetPlaybackControls
+            isPlaying={isPlaying}
+            isMuted={isMuted}
+            currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
+            currentBeat={currentBeat}
+            beatsCount={currentMeasure?.beatsCount || 4}
+            currentSectionLabel={currentMeasure?.sectionLabel}
+            totalMeasuresCount={totalMeasuresCount}
+            currentFlatMeasureIndex={currentFlatMeasureIndex}
+            onTogglePlay={togglePlay}
+            onStop={stop}
+            onToggleMute={toggleMute}
+          />
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -754,6 +816,13 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   currentKey={effectiveKey}
                   diatonicChords={sectionDiatonicChords}
                   isEditing={isEditing}
+                  activeMeasureId={currentMeasure?.measure.id || null}
+                  isPlaying={isPlaying}
+                  measureDurationMs={currentMeasure?.durationMs}
+                  onMeasureClick={(clickedMeasure) => {
+                    // Si el usuario hace clic en cualquier compás mientras está en reproducción, saltar de inmediato
+                    jumpToMeasureId(clickedMeasure.id)
+                  }}
                   onUpdateMeasures={(updatedMeasures) =>
                     handleUpdateSectionMeasures(section.id, updatedMeasures)
                   }

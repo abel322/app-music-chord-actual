@@ -82,9 +82,13 @@ interface MeasureGridProps {
   currentKey?: string
   diatonicChords?: string[]
   isEditing?: boolean
+  activeMeasureId?: string | null
+  isPlaying?: boolean
+  measureDurationMs?: number
   onUpdateMeasures: (updatedMeasures: Measure[]) => void
   onAddMeasures?: (count: number) => void
   onRemoveMeasure?: (measureId: string) => void
+  onMeasureClick?: (measure: Measure) => void
 }
 
 export function MeasureGrid({
@@ -93,9 +97,13 @@ export function MeasureGrid({
   currentKey = 'C',
   diatonicChords = [],
   isEditing = false,
+  activeMeasureId = null,
+  isPlaying = false,
+  measureDurationMs,
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
+  onMeasureClick,
 }: MeasureGridProps) {
   const beatsPerMeasure = getBeatsPerMeasure(timeSignature)
   const [selectedMeasureId, setSelectedMeasureId] = useState<string | null>(null)
@@ -387,6 +395,7 @@ export function MeasureGrid({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-9 sm:pt-10">
             {measures.map((measure, index) => {
               const isSelected = selectedMeasureId === measure.id
+              const isActive = activeMeasureId === measure.id
               const prevMeasure = index > 0 ? measures[index - 1] : null
               const bracket = cadenceBrackets[measure.id]
 
@@ -400,10 +409,14 @@ export function MeasureGrid({
                   currentKey={currentKey}
                   isSelected={isSelected}
                   isEditing={isEditing}
+                  isActive={isActive}
+                  isPlaying={isPlaying}
+                  measureDurationMs={measureDurationMs}
                   prevMeasure={prevMeasure}
                   cadenceBracket={bracket}
                   onClick={() => {
                     if (isEditing) setSelectedMeasureId(measure.id)
+                    onMeasureClick?.(measure)
                   }}
                   onDuplicate={isEditing ? handleDuplicate : undefined}
                   onRemove={isEditing && onRemoveMeasure ? onRemoveMeasure : undefined}

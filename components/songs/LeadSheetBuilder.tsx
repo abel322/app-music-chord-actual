@@ -29,6 +29,8 @@ import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
+import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
+import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
   ensureSectionMeasures, 
@@ -164,6 +166,45 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     return rawSections.map((sec, idx) =>
       ensureSectionMeasures(sec, idx, initialData?.timeSignature || '4/4', counter)
     )
+  })
+
+  // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
+  const {
+    isPlaying,
+    currentFlatMeasureIndex,
+    currentMeasure,
+    currentBeat,
+    isMuted,
+    totalMeasuresCount,
+    togglePlay,
+    stop,
+    toggleMute,
+    jumpToMeasureId,
+  } = useLeadSheetPlayback({
+    sections,
+    tempo,
+    defaultTimeSignature: timeSignature,
+    onMeasureChange: (_flatIndex, measure, sectionId) => {
+      setCollapsedSections((prev) => {
+        if (prev[sectionId]) {
+          return { ...prev, [sectionId]: false }
+        }
+        return prev
+      })
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(`measure-cell-${measure.id}`)
+          if (!el) return
+          const rect = el.getBoundingClientRect()
+          const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+          const isNearBottom = rect.bottom > viewportHeight - 140
+          const isAboveTop = rect.top < 120
+          if (isNearBottom || isAboveTop) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 50)
+      })
+    },
   })
 
   // Acordes diatónicos de la tonalidad actual
@@ -559,7 +600,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
       {/* Secciones y Constructor de Lead Sheet por Compases */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between pb-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
           <div>
             <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
               <Layers className="w-5 h-5 text-primary-500" />
@@ -570,9 +611,24 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
             </p>
           </div>
 
-          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-            {sections.length} {sections.length === 1 ? 'Sección' : 'Secciones'}
-          </span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <LeadSheetPlaybackControls
+              isPlaying={isPlaying}
+              isMuted={isMuted}
+              currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
+              currentBeat={currentBeat}
+              beatsCount={currentMeasure?.beatsCount || 4}
+              currentSectionLabel={currentMeasure?.sectionLabel}
+              totalMeasuresCount={totalMeasuresCount}
+              currentFlatMeasureIndex={currentFlatMeasureIndex}
+              onTogglePlay={togglePlay}
+              onStop={stop}
+              onToggleMute={toggleMute}
+            />
+            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              {sections.length} {sections.length === 1 ? 'Sección' : 'Secciones'}
+            </span>
+          </div>
         </div>
 
         {sections.map((section, index) => {
@@ -759,6 +815,12 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                     currentKey={effectiveKey}
                     diatonicChords={sectionDiatonicChords}
                     isEditing={true}
+                    activeMeasureId={currentMeasure?.measure.id || null}
+                    isPlaying={isPlaying}
+                    measureDurationMs={currentMeasure?.durationMs}
+                    onMeasureClick={(clickedMeasure) => {
+                      jumpToMeasureId(clickedMeasure.id)
+                    }}
                     onUpdateMeasures={(updated) => handleUpdateSectionMeasures(section.id, updated)}
                     onAddMeasures={(count) => handleAddMeasuresToSection(section.id, count)}
                     onRemoveMeasure={(measureId) => handleRemoveMeasure(section.id, measureId)}

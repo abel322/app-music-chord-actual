@@ -34,6 +34,9 @@ export interface MeasureCellProps {
   currentKey?: string
   isSelected?: boolean
   isEditing?: boolean
+  isActive?: boolean
+  isPlaying?: boolean
+  measureDurationMs?: number
   prevMeasure?: Measure | null
   cadenceBracket?: CadenceBracketInfo | null
   onClick?: () => void
@@ -51,6 +54,9 @@ export function MeasureCell({
   currentKey = 'C',
   isSelected = false,
   isEditing = false,
+  isActive = false,
+  isPlaying = false,
+  measureDurationMs = 3333,
   prevMeasure,
   cadenceBracket,
   onClick,
@@ -105,15 +111,20 @@ export function MeasureCell({
 
   return (
     <div
+      id={`measure-cell-${measure.id}`}
+      data-measure-id={measure.id}
+      data-measure-number={measure.measureNumber}
       onClick={onClick}
       className={cn(
         'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 overflow-visible',
-        isSelected && isEditing
-          ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
-          : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
+        isActive
+          ? 'ring-4 ring-purple-500 border-purple-500 shadow-xl shadow-purple-500/20 scale-[1.03] transition-all duration-200 z-10 bg-purple-50 dark:bg-purple-950/40'
+          : isSelected && isEditing
+            ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
+            : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
         measure.repeatStart && 'border-l-[5px] border-l-primary-600 dark:border-l-primary-500',
         measure.repeatEnd && 'border-r-[5px] border-r-primary-600 dark:border-r-primary-500',
-        isEditing && 'cursor-pointer hover:shadow-md',
+        (isEditing || isPlaying) && 'cursor-pointer hover:shadow-md',
         isDragging && 'opacity-40 border-dashed border-purple-400 dark:border-purple-500'
       )}
     >
@@ -746,6 +757,20 @@ export function MeasureCell({
           <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate font-serif">
             &quot;{measure.guideLyric}&quot;
           </p>
+        </div>
+      )}
+
+      {/* 4. Barra de Progreso de Pulso/Compás Sutil en Reproducción */}
+      {isActive && (
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-200/50 dark:bg-purple-900/50 overflow-hidden rounded-b-xl z-20 pointer-events-none">
+          <div
+            key={`progress-${measure.id}-${isActive}`}
+            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 origin-left"
+            style={{
+              animation: `measureProgressBar ${measureDurationMs || 3333}ms linear forwards`,
+              animationPlayState: isPlaying ? 'running' : 'paused',
+            }}
+          />
         </div>
       )}
     </div>
