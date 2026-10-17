@@ -21,7 +21,8 @@ import {
   ChevronDown,
   ChevronUp,
   Printer,
-  Sparkles
+  Sparkles,
+  Youtube
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TapTempoButton } from '@/components/ui/TapTempoButton'
@@ -31,6 +32,7 @@ import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
+import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
@@ -62,6 +64,7 @@ interface SongData {
   sections: any
   content?: string
   lyrics?: string
+  youtubeUrl?: string | null
 }
 
 interface ChordLeadSheetProps {
@@ -86,6 +89,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const [currentKey, setCurrentKey] = useState(song.key || 'C')
   const [timeSignature, setTimeSignature] = useState(song.timeSignature || '4/4')
   const [tempo, setTempo] = useState<number>(song.tempo || 120)
+  const [youtubeUrl, setYoutubeUrl] = useState<string | null>(song.youtubeUrl || null)
+  const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -383,6 +388,19 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections(updated)
   }
 
+  // Guardar enlace de YouTube directamente
+  const handleSaveYouTubeUrl = async (newUrl: string | null) => {
+    setYoutubeUrl(newUrl)
+    try {
+      await updateSongAction(song.id, {
+        youtubeUrl: newUrl,
+      })
+    } catch (err) {
+      console.error('Error al guardar enlace de YouTube:', err)
+      throw err
+    }
+  }
+
   // Guardar en la base de datos
   const handleSave = async () => {
     setIsSaving(true)
@@ -392,6 +410,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         key: currentKey,
         timeSignature,
         tempo,
+        youtubeUrl,
         sections: sections as any,
       })
       setSaveSuccess(true)
@@ -436,6 +455,23 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               <span>Ver Letras</span>
             </Button>
           </Link>
+
+          {/* Botón Enlace de YouTube */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsYouTubeModalOpen(true)}
+            className={cn(
+              'gap-1.5 text-xs font-bold transition-all shadow-xs',
+              youtubeUrl
+                ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:text-red-600 dark:hover:text-red-400'
+            )}
+            title={youtubeUrl ? 'Ver o editar enlace de YouTube vinculado' : 'Vincular enlace de video de YouTube'}
+          >
+            <Youtube className={cn('w-3.5 h-3.5 text-red-600 dark:text-red-500', youtubeUrl && 'fill-current')} />
+            <span>{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
+          </Button>
 
           {/* Toggle Modo Edición */}
           <Button
@@ -583,6 +619,24 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             onStop={stop}
             onToggleMute={toggleMute}
           />
+
+          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
+
+          {/* Botón Discreto YouTube en Barra de Herramientas */}
+          <button
+            type="button"
+            onClick={() => setIsYouTubeModalOpen(true)}
+            className={cn(
+              'px-2.5 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs',
+              youtubeUrl
+                ? 'bg-red-950/40 border-red-500/50 text-red-400 hover:bg-red-900/50'
+                : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:text-red-400 hover:border-red-900/60'
+            )}
+            title={youtubeUrl ? 'Ver o editar video de YouTube vinculado' : 'Vincular enlace de YouTube'}
+          >
+            <Youtube className={cn('w-3.5 h-3.5 text-red-500', youtubeUrl && 'fill-current')} />
+            <span className="hidden md:inline">{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -857,6 +911,15 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </div>
         </div>
       )}
+
+      {/* Modal Asistente de Enlace de YouTube */}
+      <YouTubeLinkModal
+        isOpen={isYouTubeModalOpen}
+        initialUrl={youtubeUrl}
+        songTitle={song.title}
+        onClose={() => setIsYouTubeModalOpen(false)}
+        onSave={handleSaveYouTubeUrl}
+      />
     </div>
   )
 }

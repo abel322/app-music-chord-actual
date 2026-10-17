@@ -20,7 +20,8 @@ import {
   Compass,
   FileText,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Youtube
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TapTempoButton } from '@/components/ui/TapTempoButton'
@@ -30,6 +31,7 @@ import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
+import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { 
@@ -93,6 +95,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   const [tempo, setTempo] = useState<number>(initialData?.tempo || 120)
   const [genre, setGenre] = useState(initialData?.genre || '')
   const [youtubeUrl, setYoutubeUrl] = useState(initialData?.youtubeUrl || '')
+  const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
 
   // Estados de proceso
   const [isLoading, setIsLoading] = useState(false)
@@ -463,16 +466,36 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           </div>
         </div>
 
-        <Button
-          type="submit"
-          variant="gradient"
-          size="sm"
-          disabled={isLoading}
-          className="text-xs font-bold gap-1.5 shadow-md shadow-primary-900/20 shrink-0"
-        >
-          <Save className="w-3.5 h-3.5" />
-          <span>{isLoading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear y Abrir Lead Sheet'}</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Botón Enlace de YouTube */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsYouTubeModalOpen(true)}
+            className={cn(
+              'gap-1.5 text-xs font-bold transition-all shadow-xs',
+              youtubeUrl
+                ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:text-red-600 dark:hover:text-red-400'
+            )}
+            title={youtubeUrl ? 'Ver o editar enlace de YouTube vinculado' : 'Vincular enlace de YouTube'}
+          >
+            <Youtube className={cn('w-3.5 h-3.5 text-red-600 dark:text-red-500', youtubeUrl && 'fill-current')} />
+            <span>{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
+          </Button>
+
+          <Button
+            type="submit"
+            variant="gradient"
+            size="sm"
+            disabled={isLoading}
+            className="text-xs font-bold gap-1.5 shadow-md shadow-primary-900/20 shrink-0"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{isLoading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear y Abrir Lead Sheet'}</span>
+          </Button>
+        </div>
       </div>
 
       {errorMessage && (
@@ -586,6 +609,38 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               placeholder="Pop, Rock, Balada, Jazz..."
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+          </div>
+
+          {/* Enlace de YouTube */}
+          <div className="space-y-1 md:col-span-2 lg:col-span-4">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Enlace de YouTube</span>
+              {youtubeUrl && (
+                <span className="text-[10px] text-red-500 font-semibold flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Video vinculado
+                </span>
+              )}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=... o https://youtu.be/..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsYouTubeModalOpen(true)}
+                className="px-3.5 py-2.5 rounded-xl text-red-600 dark:text-red-400 border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0 gap-1.5"
+                title="Abrir asistente de enlace y miniatura de YouTube"
+              >
+                <Youtube className="w-4 h-4 fill-current" />
+                <span className="hidden sm:inline">Previsualizar</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -853,6 +908,14 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           ))}
         </div>
       </div>
+      {/* Modal Asistente de Enlace de YouTube */}
+      <YouTubeLinkModal
+        isOpen={isYouTubeModalOpen}
+        initialUrl={youtubeUrl}
+        songTitle={title || 'la canción'}
+        onClose={() => setIsYouTubeModalOpen(false)}
+        onSave={(newUrl) => setYoutubeUrl(newUrl || '')}
+      />
     </form>
   )
 }

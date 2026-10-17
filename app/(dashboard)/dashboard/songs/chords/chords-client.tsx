@@ -14,10 +14,13 @@ import {
   ExternalLink,
   Star,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  Youtube,
+  Play
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DeleteSongModal } from '@/components/songs/DeleteSongModal'
+import { getYouTubeThumbnailUrl } from '@/lib/youtube'
 
 interface SerializedSong {
   id: string
@@ -33,6 +36,7 @@ interface SerializedSong {
   tags: string[]
   isFavorite: boolean
   sections?: any
+  youtubeUrl?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -203,6 +207,7 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredSongs.map((song) => {
             const sectionsCount = Array.isArray(song.sections) ? song.sections.length : 0
+            const thumbnailUrl = getYouTubeThumbnailUrl(song.youtubeUrl)
 
             return (
               <div
@@ -210,6 +215,34 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
                 className="group relative bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-xl hover:border-primary-500/50 dark:hover:border-primary-500/40 transition-all duration-300 flex flex-col justify-between"
               >
                 <div>
+                  {/* Miniatura de Video de YouTube (si tiene enlace válido) */}
+                  {thumbnailUrl && (
+                    <a
+                      href={song.youtubeUrl!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="block aspect-video w-full rounded-xl overflow-hidden mb-3 relative group/yt border border-gray-200 dark:border-slate-800 shadow-xs bg-slate-950 cursor-pointer"
+                      title="Ver video en YouTube"
+                    >
+                      <img
+                        src={thumbnailUrl}
+                        alt={`Miniatura de ${song.title}`}
+                        className="w-full h-full object-cover group-hover/yt:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/20 group-hover/yt:bg-black/40 transition-colors flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-lg group-hover/yt:scale-110 group-hover/yt:bg-red-600 transition-all">
+                          <Play className="w-4 h-4 fill-white ml-0.5" />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-xs text-[10px] font-bold text-white flex items-center gap-1 border border-white/10">
+                        <Youtube className="w-3 h-3 text-red-500 fill-current" />
+                        <span>YouTube</span>
+                      </div>
+                    </a>
+                  )}
+
                   {/* Encabezado de la Tarjeta */}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     {/* Badge destacado de Tonalidad */}
