@@ -12,20 +12,27 @@ export const metadata = {
 export default async function SongsLyricsPage() {
   const session = await getServerSession(authOptions)
 
-  if (!session) {
-    redirect('/auth/login')
+  if (!session && process.env.NODE_ENV !== 'development') {
+    redirect('/login')
   }
 
-  const songs = await prisma.song.findMany({
-    where: { userId: session.user.id },
-    orderBy: { updatedAt: 'desc' },
-  })
+  let songs: any[] = []
+  if (session?.user?.id) {
+    try {
+      songs = await prisma.song.findMany({
+        where: { userId: session.user.id },
+        orderBy: { updatedAt: 'desc' },
+      })
+    } catch (e) {
+      // Offline fallback
+    }
+  }
 
   // Serializar fechas para el Client Component
   const serializedSongs = songs.map((s) => ({
     ...s,
-    createdAt: s.createdAt.toISOString(),
-    updatedAt: s.updatedAt.toISOString(),
+    createdAt: s.createdAt instanceof Date ? s.createdAt.toISOString() : (s.createdAt || new Date().toISOString()),
+    updatedAt: s.updatedAt instanceof Date ? s.updatedAt.toISOString() : (s.updatedAt || new Date().toISOString()),
   }))
 
   return <LyricsClient initialSongs={serializedSongs} />

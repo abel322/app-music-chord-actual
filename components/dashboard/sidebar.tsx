@@ -49,19 +49,6 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
 
-  // Detectar si la ruta actual pertenece a la sección canciones
-  const isSongsActive = pathname.startsWith('/dashboard/songs')
-  
-  // Estado para el acordeón desplegable de canciones
-  const [isSongsExpanded, setIsSongsExpanded] = useState(isSongsActive)
-
-  // Abrir automáticamente el submenú si la URL comienza con /dashboard/songs
-  useEffect(() => {
-    if (pathname.startsWith('/dashboard/songs')) {
-      setIsSongsExpanded(true)
-    }
-  }, [pathname])
-
   const links: NavItem[] = [
     { href: '/dashboard', label: 'Inicio', icon: Home },
     {
