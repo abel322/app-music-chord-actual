@@ -1,15 +1,17 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ProgressionDef } from '@/lib/data/chordProgressions'
 import { synth } from '@/lib/audioUtils'
-import { Play, Square } from 'lucide-react'
+import { Play, Square, Pencil, Trash2 } from 'lucide-react'
 
 interface ProgressionCardProps {
   progression: ProgressionDef
+  onEdit?: (progression: ProgressionDef) => void
+  onDelete?: (progression: ProgressionDef) => void
 }
 
-export function ProgressionCard({ progression }: ProgressionCardProps) {
+export function ProgressionCard({ progression, onEdit, onDelete }: ProgressionCardProps) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
   const [activeChordIndex, setActiveChordIndex] = useState<number | null>(null)
 
@@ -22,7 +24,7 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
 
   const handlePlayChord = (index: number, duration?: number) => {
     const chord = progression.chords[index]
-    if (chord) {
+    if (chord && chord.notes && chord.notes.length > 0) {
       synth.playChord(chord.notes, duration || 2000)
     }
   }
@@ -56,7 +58,7 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-800 transition-colors">
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between items-start mb-4 gap-3">
         <div>
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">
             {progression.name}
@@ -65,17 +67,55 @@ export function ProgressionCard({ progression }: ProgressionCardProps) {
             {progression.genre}
           </p>
         </div>
-        <button
-          onClick={toggleLoop}
-          className={`p-3 rounded-full flex items-center justify-center transition-colors ${
-            isPlaying
-              ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-              : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-          }`}
-          aria-label={isPlaying ? 'Stop Loop' : 'Play Loop'}
-        >
-          {isPlaying ? <Square className="w-5 h-5" fill="currentColor" /> : <Play className="w-5 h-5" fill="currentColor" />}
-        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onEdit && (
+            <button
+              type="button"
+              id={`btn-edit-${progression.id}`}
+              data-testid={`edit-progression-${progression.id}`}
+              onClick={() => onEdit(progression)}
+              title="Editar progresión"
+              aria-label="Editar progresión"
+              className="p-1.5 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors cursor-pointer"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+
+          {onDelete && (
+            <button
+              type="button"
+              id={`btn-delete-${progression.id}`}
+              data-testid={`delete-progression-${progression.id}`}
+              onClick={() => onDelete(progression)}
+              title="Eliminar progresión"
+              aria-label="Eliminar progresión"
+              className="p-1.5 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+
+          <button
+            type="button"
+            id={`btn-play-${progression.id}`}
+            data-testid={`play-progression-${progression.id}`}
+            onClick={toggleLoop}
+            className={`p-3 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              isPlaying
+                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+            }`}
+            aria-label={isPlaying ? 'Stop Loop' : 'Play Loop'}
+          >
+            {isPlaying ? (
+              <Square className="w-5 h-5" fill="currentColor" />
+            ) : (
+              <Play className="w-5 h-5" fill="currentColor" />
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 text-xs font-semibold text-gray-400 dark:text-gray-500 mb-6 uppercase tracking-wider">

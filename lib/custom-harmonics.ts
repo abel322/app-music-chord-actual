@@ -21,7 +21,7 @@ export function getCustomProgressions(): HarmonicProgression[] {
     const raw = localStorage.getItem(PROGRESSIONS_STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    return Array.isArray(parsed) ? parsed.filter((p: any) => Array.isArray(p?.degrees)) : []
   } catch (err) {
     console.error('Error al cargar progresiones personalizadas:', err)
     return []
