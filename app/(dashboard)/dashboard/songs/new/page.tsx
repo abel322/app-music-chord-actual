@@ -1,7 +1,8 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAdminSession } from '@/lib/admin-auth'
 import { redirect } from 'next/navigation'
 import { LeadSheetBuilder } from '@/components/songs/LeadSheetBuilder'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Nueva Canción • Lead Sheet | MusicChord',
@@ -9,10 +10,10 @@ export const metadata = {
 }
 
 export default async function NewSongPage() {
-  const session = await getServerSession(authOptions)
+  const { isAdmin } = await getAdminSession()
 
-  if (!session) {
-    redirect('/auth/login')
+  if (!isAdmin) {
+    redirect('/dashboard/songs/chords')
   }
 
   return <LeadSheetBuilder />

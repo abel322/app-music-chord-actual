@@ -1,7 +1,5 @@
 'use server'
 
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import {
@@ -11,26 +9,18 @@ import {
   type UpdateSongInput,
 } from '@/lib/validations/song'
 import { parseChords, detectKey } from '@/lib/chord-parser'
+import { isServerAdmin, getAdminUserId } from '@/lib/admin-auth'
 
 /**
  * Server Action para crear una nueva canción con secciones e instrumentos validados.
  */
 export async function createSongAction(rawData: SongInput) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id && !session?.user?.email) {
-    throw new Error('No autorizado: debes iniciar sesión')
+  const isAdmin = await isServerAdmin()
+  if (!isAdmin) {
+    throw new Error('No autorizado: se requieren permisos de administrador')
   }
 
-  // Obtener el ID de usuario desde la sesión o DB
-  let userId = session.user.id
-  if (!userId && session.user.email) {
-    const dbUser = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { id: true },
-    })
-    if (!dbUser) throw new Error('Usuario no encontrado')
-    userId = dbUser.id
-  }
+  const userId = await getAdminUserId()
 
   // Validación rigurosa con Zod (asegura que cada sección contenga instruments: string[])
   const data = SongInputSchema.parse(rawData)
@@ -63,7 +53,7 @@ export async function createSongAction(rawData: SongInput) {
       sections: (data.sections as any) ?? [],
       tags: data.tags || [],
       isFavorite: data.isFavorite ?? false,
-      userId: userId!,
+      userId,
     },
   })
 
@@ -77,23 +67,17 @@ export async function createSongAction(rawData: SongInput) {
  * Server Action para actualizar una canción existente preservando el array de instrumentos por sección.
  */
 export async function updateSongAction(id: string, rawData: UpdateSongInput) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    throw new Error('No autorizado: sesión requerida')
+  const isAdmin = await isServerAdmin()
+  if (!isAdmin) {
+    throw new Error('No autorizado: se requieren permisos de administrador')
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { id: true },
-  })
-  if (!user) throw new Error('Usuario no encontrado')
-
-  // Verificar que la canción pertenezca al usuario
-  const existingSong = await prisma.song.findFirst({
-    where: { id, userId: user.id },
+  // Verificar que la canción exista
+  const existingSong = await prisma.song.findUnique({
+    where: { id },
   })
   if (!existingSong) {
-    throw new Error('Canción no encontrada o no tienes permisos para editarla')
+    throw new Error('Canción no encontrada')
   }
 
   // Validar campos parciales con Zod
@@ -146,22 +130,16 @@ export async function upsertSongAction(payload: SongInput & { id?: string }) {
  * Server Action para eliminar una canción de la base de datos de forma permanente.
  */
 export async function deleteSongAction(id: string) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    throw new Error('No autorizado: sesión requerida')
+  const isAdmin = await isServerAdmin()
+  if (!isAdmin) {
+    throw new Error('No autorizado: se requieren permisos de administrador')
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { id: true },
-  })
-  if (!user) throw new Error('Usuario no encontrado')
-
-  const existingSong = await prisma.song.findFirst({
-    where: { id, userId: user.id },
+  const existingSong = await prisma.song.findUnique({
+    where: { id },
   })
   if (!existingSong) {
-    throw new Error('Canción no encontrada o no tienes permisos para eliminarla')
+    throw new Error('Canción no encontrada')
   }
 
   await prisma.song.delete({
@@ -174,4 +152,5 @@ export async function deleteSongAction(id: string) {
 
   return { success: true }
 }
+
 

@@ -5,6 +5,8 @@ import { Music, Clock, MoreVertical } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+import { useAuth } from '@/lib/context/auth-context'
+
 interface Song {
   id: string
   title: string
@@ -18,21 +20,25 @@ interface RecentSongsProps {
 }
 
 export function RecentSongs({ songs }: RecentSongsProps) {
+  const { isAdmin } = useAuth()
+
   if (songs.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
         <Music className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-        <h3 className="text-xl font-semibold mb-2">No tienes canciones aún</h3>
+        <h3 className="text-xl font-semibold mb-2">No hay canciones aún</h3>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Comienza creando tu primera canción
+          {isAdmin ? 'Comienza creando tu primera canción' : 'Pronto se añadirán nuevas canciones al repertorio.'}
         </p>
-        <Link
-          href="/dashboard/songs/new"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
-        >
-          <Music className="w-5 h-5" />
-          Nueva Canción
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/dashboard/songs/new"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-blue-600 text-white rounded-lg hover:shadow-lg transition-all"
+          >
+            <Music className="w-5 h-5" />
+            Nueva Canción
+          </Link>
+        )}
       </div>
     )
   }

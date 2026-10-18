@@ -1,7 +1,5 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { getAdminUserId } from '@/lib/admin-auth'
 import { RoutinesClient } from '@/components/routines/routines-client'
 import { CalendarDays } from 'lucide-react'
 
@@ -11,26 +9,20 @@ export const metadata = {
 }
 
 export default async function RoutinesPage() {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user?.email) {
-    redirect('/login')
+  let userId: string | null = null
+  try {
+    userId = await getAdminUserId()
+  } catch {
+    // Si no hay usuario en DB
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email }
-  })
+  const practiceSessions = userId
+    ? await prisma.practiceSession.findMany({
+        where: { userId },
+        orderBy: { scheduledAt: 'desc' },
+      })
+    : []
 
-  if (!user) {
-    redirect('/login')
-  }
-
-  const practiceSessions = await prisma.practiceSession.findMany({
-    where: { 
-      userId: user.id
-    },
-    orderBy: { scheduledAt: 'desc' }
-  })
 
   // Format to match the component interfaces
   const formattedSessions = practiceSessions.map(s => ({

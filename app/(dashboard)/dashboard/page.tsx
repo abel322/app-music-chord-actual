@@ -1,5 +1,4 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAdminSession, getAdminUserId } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { RecentSongs } from '@/components/dashboard/recent-songs'
@@ -9,30 +8,39 @@ import { cn } from '@/lib/utils'
 
 type Instrument = 'GUITARRA' | 'PIANO' | 'BAJO' | 'BATERIA'
 
-
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions)
+  const { isAdmin, user } = await getAdminSession()
+  let effectiveUserId: string | null = null
+  try {
+    effectiveUserId = await getAdminUserId()
+  } catch {
+    // Si no hay usuario
+  }
   
   const [totalSongs, recentSongs, completedSessions, totalScheduledCount] = await Promise.all([
-    prisma.song.count({ where: { userId: session!.user.id } }),
+    prisma.song.count(),
     prisma.song.findMany({
-      where: { userId: session!.user.id },
       orderBy: { updatedAt: 'desc' },
       take: 5,
     }),
-    prisma.practiceSession.findMany({
-      where: {
-        userId: session!.user.id,
-        completed: true
-      },
-      orderBy: { scheduledAt: 'asc' }
-    }),
-    prisma.practiceSession.count({
-      where: {
-        userId: session!.user.id
-      }
-    })
+    effectiveUserId
+      ? prisma.practiceSession.findMany({
+          where: {
+            userId: effectiveUserId,
+            completed: true,
+          },
+          orderBy: { scheduledAt: 'asc' },
+        })
+      : Promise.resolve([]),
+    effectiveUserId
+      ? prisma.practiceSession.count({
+          where: {
+            userId: effectiveUserId,
+          },
+        })
+      : Promise.resolve(0),
   ])
 
   // --- STATS CALCULATIONS ---
@@ -144,10 +152,12 @@ export default async function DashboardPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          Bienvenido, {session!.user.name}
+          {isAdmin ? `Bienvenido, ${user?.name || 'Abel'}` : 'Bienvenido a MusicChord'}
         </h1>
         <p className="text-slate-500 font-medium mt-1">
-          Tu panel de control de práctica y biblioteca musical
+          {isAdmin
+            ? 'Tu panel de control de práctica y biblioteca musical'
+            : 'Explora partituras en Lead Sheet, progresiones armónicas y herramientas de práctica'}
         </p>
       </div>
 

@@ -8,8 +8,6 @@ import {
   FileText, 
   Plus, 
   Search, 
-  Clock, 
-  Layers, 
   SlidersHorizontal, 
   ExternalLink,
   Star,
@@ -21,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { DeleteSongModal } from '@/components/songs/DeleteSongModal'
 import { getYouTubeThumbnailUrl } from '@/lib/youtube'
+import { useAuth } from '@/lib/context/auth-context'
 
 interface SerializedSong {
   id: string
@@ -49,6 +48,7 @@ const COMMON_KEYS = ['Todas', 'C', 'D', 'E', 'F', 'G', 'A', 'B']
 
 export function ChordsClient({ initialSongs }: ChordsClientProps) {
   const router = useRouter()
+  const { isAdmin } = useAuth()
   const [songs, setSongs] = useState<SerializedSong[]>(initialSongs)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedKey, setSelectedKey] = useState('Todas')
@@ -111,12 +111,15 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
             </Link>
           </div>
 
-          <Link href="/dashboard/songs/new">
-            <Button variant="gradient" className="shadow-md shadow-primary-900/20">
-              <Plus className="w-4 h-4 mr-2" />
-              Nueva Canción
-            </Button>
-          </Link>
+          {/* Botón "+ Nueva Canción" solo visible para el Administrador */}
+          {isAdmin && (
+            <Link href="/dashboard/songs/new">
+              <Button variant="gradient" className="shadow-md shadow-primary-900/20">
+                <Plus className="w-4 h-4 mr-2" />
+                Nueva Canción
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -181,16 +184,18 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
             {initialSongs.length === 0
-              ? 'Aún no tienes canciones en tu biblioteca. Empieza creando tu primera obra con acordes y tonalidad.'
+              ? 'Aún no hay canciones disponibles en la biblioteca.'
               : 'No hay canciones que coincidan con los criterios de búsqueda o tono seleccionado.'}
           </p>
           {initialSongs.length === 0 ? (
-            <Link href="/dashboard/songs/new">
-              <Button variant="gradient">
-                <Plus className="w-4 h-4 mr-2" />
-                Crear Primera Canción
-              </Button>
-            </Link>
+            isAdmin && (
+              <Link href="/dashboard/songs/new">
+                <Button variant="gradient">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Crear Primera Canción
+                </Button>
+              </Link>
+            )
           ) : (
             <Button
               variant="outline"
@@ -306,24 +311,27 @@ export function ChordsClient({ initialSongs }: ChordsClientProps) {
                   </div>
                 </div>
 
-                {/* Botón de Acción a Editor de Acordes y Eliminación */}
+                {/* Botón de Acción a Editor de Acordes y Eliminación Condicional */}
                 <div className="pt-2 border-t border-gray-100 dark:border-slate-800/60 flex items-center justify-between">
                   <span className="text-[11px] text-gray-400">
-                    Modificado recientemente
+                    Lead Sheet de Estudio
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        setSongToDelete(song)
-                      }}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800/50"
-                      title="Eliminar canción"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {/* Botón de eliminar solo disponible para el Administrador */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          setSongToDelete(song)
+                        }}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800/50"
+                        title="Eliminar canción"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
 
                     <Link
                       href={`/dashboard/songs/chords/${song.id}`}

@@ -1,8 +1,7 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { redirect } from 'next/navigation'
 import { LyricsClient } from './lyrics-client'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Canciones - Letras | MusicChord',
@@ -10,22 +9,13 @@ export const metadata = {
 }
 
 export default async function SongsLyricsPage() {
-  const session = await getServerSession(authOptions)
-
-  if (!session && process.env.NODE_ENV !== 'development') {
-    redirect('/login')
-  }
-
   let songs: any[] = []
-  if (session?.user?.id) {
-    try {
-      songs = await prisma.song.findMany({
-        where: { userId: session.user.id },
-        orderBy: { updatedAt: 'desc' },
-      })
-    } catch (e) {
-      // Offline fallback
-    }
+  try {
+    songs = await prisma.song.findMany({
+      orderBy: { updatedAt: 'desc' },
+    })
+  } catch (e) {
+    console.error('Error fetching songs for lyrics page:', e)
   }
 
   // Serializar fechas para el Client Component

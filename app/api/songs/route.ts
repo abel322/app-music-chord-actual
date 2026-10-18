@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { parseChords, detectKey } from '@/lib/chord-parser'
 import { SongInputSchema } from '@/lib/validations/song'
+import { isServerAdmin, getAdminUserId } from '@/lib/admin-auth'
 
+export const dynamic = 'force-dynamic'
+
+/**
+ * GET /api/songs: Público para cualquier visitante
+ */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const userId = searchParams.get('userId')
     const search = searchParams.get('search')
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID required' }, { status: 400 })
-    }
-
     const songs = await prisma.song.findMany({
       where: {
-        userId,
+        ...(userId ? { userId } : {}),
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
@@ -31,16 +31,25 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ songs })
   } catch (error) {
+    console.error('Error fetching songs:', error)
     return NextResponse.json({ error: 'Failed to fetch songs' }, { status: 500 })
   }
 }
 
+/**
+ * POST /api/songs: Protegido exclusivamente para el Administrador
+ */
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const isAdmin = await isServerAdmin()
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'No autorizado: se requieren permisos de administrador' },
+        { status: 401 }
+      )
     }
+
+    const adminUserId = await getAdminUserId()
 
     const body = await req.json()
     const data = SongInputSchema.parse(body)
@@ -71,7 +80,7 @@ export async function POST(req: NextRequest) {
         sections: data.sections !== undefined ? (data.sections as any) : undefined,
         tags: data.tags || [],
         isFavorite: data.isFavorite ?? false,
-        userId: session.user.id,
+        userId: adminUserId,
       },
     })
 

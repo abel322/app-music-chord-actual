@@ -1,39 +1,75 @@
 'use client'
 
 import Link from 'next/link'
-import { Plus, Upload, Sparkles, Music } from 'lucide-react'
+import { Plus, Upload, Music, Layers, Activity } from 'lucide-react'
+import { useAuth } from '@/lib/context/auth-context'
 
 export function QuickActions() {
-  const actions = [
+  const { isAdmin } = useAuth()
+
+  const adminActions = [
     {
       icon: Plus,
       label: 'Nueva Canción',
-      description: 'Crea desde cero',
+      description: 'Crear Lead Sheet',
       href: '/dashboard/songs/new',
       gradient: 'from-blue-500 to-cyan-500',
     },
     {
-      icon: Sparkles,
-      label: 'IA Asistente',
-      description: 'Genera con IA',
-      href: '/dashboard/ai',
-      gradient: 'from-purple-500 to-pink-500',
+      icon: Music,
+      label: 'Catálogo de Acordes',
+      description: 'Partituras y compases',
+      href: '/dashboard/songs/chords',
+      gradient: 'from-purple-500 to-indigo-500',
     },
     {
-      icon: Upload,
-      label: 'Importar',
-      description: 'Desde archivo',
-      href: '/dashboard/import',
+      icon: Layers,
+      label: 'Progresiones',
+      description: 'Catálogo armónico',
+      href: '/dashboard/chords',
       gradient: 'from-orange-500 to-red-500',
     },
     {
-      icon: Music,
+      icon: Activity,
       label: 'Metrónomo',
       description: 'Entrena tu tempo',
       href: '/dashboard/practice',
       gradient: 'from-green-500 to-emerald-500',
     },
   ]
+
+  const guestActions = [
+    {
+      icon: Music,
+      label: 'Ver Canciones',
+      description: 'Lead Sheets y Acordes',
+      href: '/dashboard/songs/chords',
+      gradient: 'from-blue-500 to-cyan-500',
+    },
+    {
+      icon: Layers,
+      label: 'Progresiones',
+      description: 'Reproductor armónico',
+      href: '/dashboard/chords',
+      gradient: 'from-purple-500 to-pink-500',
+    },
+    {
+      icon: Activity,
+      label: 'Metrónomo',
+      description: 'Entrena tu tempo',
+      href: '/dashboard/practice',
+      gradient: 'from-green-500 to-emerald-500',
+    },
+    {
+      icon: Upload,
+      label: 'Letras',
+      description: 'Teleprompter en vivo',
+      href: '/dashboard/songs/lyrics',
+      gradient: 'from-orange-500 to-red-500',
+    },
+  ]
+
+  const actions = isAdmin ? adminActions : guestActions
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

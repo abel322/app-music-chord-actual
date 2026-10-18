@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { chordProgressions, ProgressionDef } from '@/lib/data/chordProgressions'
+import { isServerAdmin } from '@/lib/admin-auth'
 
 export async function GET() {
   try {
@@ -17,6 +18,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const isAdmin = await isServerAdmin()
+    if (!isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'No autorizado: se requieren permisos de administrador' },
+        { status: 401 }
+      )
+    }
+
     const body = (await req.json()) as Partial<ProgressionDef>
 
     if (!body.name || !body.chords || !Array.isArray(body.chords) || body.chords.length === 0) {
@@ -49,6 +58,14 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const isAdmin = await isServerAdmin()
+    if (!isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'No autorizado: se requieren permisos de administrador' },
+        { status: 401 }
+      )
+    }
+
     const body = (await req.json()) as Partial<ProgressionDef>
 
     if (!body.id || !body.name || !body.chords || !Array.isArray(body.chords)) {
@@ -81,6 +98,14 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const isAdmin = await isServerAdmin()
+    if (!isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'No autorizado: se requieren permisos de administrador' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 
@@ -102,3 +127,4 @@ export async function DELETE(req: Request) {
     )
   }
 }
+

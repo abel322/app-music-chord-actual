@@ -4,6 +4,22 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { isServerAdmin, getAdminUserId } from '@/lib/admin-auth'
+
+async function getAuthenticatedUserId(): Promise<string> {
+  const isAdmin = await isServerAdmin()
+  if (isAdmin) {
+    return await getAdminUserId()
+  }
+
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) throw new Error('No autorizado: se requieren permisos de administrador')
+
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+  if (!user) throw new Error('Usuario no encontrado')
+
+  return user.id
+}
 
 export async function createPracticeSession(data: { 
   instrument: any; 
@@ -13,15 +29,11 @@ export async function createPracticeSession(data: {
   exerciseType?: string; 
   completed?: boolean;
 }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   await prisma.practiceSession.create({
     data: {
-      userId: user.id,
+      userId,
       instrument: data.instrument,
       duration: data.duration,
       book: data.book,
@@ -35,14 +47,10 @@ export async function createPracticeSession(data: {
 }
 
 export async function togglePracticeSession(id: string, completed: boolean, duration?: number) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   const practiceSession = await prisma.practiceSession.findUnique({ where: { id } })
-  if (!practiceSession || practiceSession.userId !== user.id) throw new Error('No encontrado o no autorizado')
+  if (!practiceSession || practiceSession.userId !== userId) throw new Error('No encontrado o no autorizado')
 
   const updateData: any = { completed }
   if (completed && duration !== undefined) {
@@ -58,14 +66,10 @@ export async function togglePracticeSession(id: string, completed: boolean, dura
 }
 
 export async function deletePracticeSession(id: string) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   const practiceSession = await prisma.practiceSession.findUnique({ where: { id } })
-  if (!practiceSession || practiceSession.userId !== user.id) throw new Error('No encontrado o no autorizado')
+  if (!practiceSession || practiceSession.userId !== userId) throw new Error('No encontrado o no autorizado')
 
   await prisma.practiceSession.delete({
     where: { id }
@@ -75,14 +79,10 @@ export async function deletePracticeSession(id: string) {
 }
 
 export async function updatePracticeSession(id: string, data: { instrument: any; duration: number; book?: string; exerciseType?: string }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   const practiceSession = await prisma.practiceSession.findUnique({ where: { id } })
-  if (!practiceSession || practiceSession.userId !== user.id) throw new Error('No encontrado o no autorizado')
+  if (!practiceSession || practiceSession.userId !== userId) throw new Error('No encontrado o no autorizado')
 
   await prisma.practiceSession.update({
     where: { id },
@@ -104,11 +104,7 @@ export async function createWeeklyRoutine(data: {
   book?: string; 
   exerciseType?: string; 
 }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   // Create a practice session for each of the 7 days of the week starting at startOfWeek
   const dates = Array.from({ length: 7 }).map((_, i) => {
@@ -120,7 +116,7 @@ export async function createWeeklyRoutine(data: {
 
   await prisma.practiceSession.createMany({
     data: dates.map(date => ({
-      userId: user.id,
+      userId,
       instrument: data.instrument,
       duration: data.duration,
       book: data.book || null,
@@ -139,17 +135,13 @@ export async function updateWeeklyRoutine(ids: string[], data: {
   book?: string; 
   exerciseType?: string; 
 }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   // Update uncompleted sessions (duration is updated to the new base/planned duration)
   await prisma.practiceSession.updateMany({
     where: {
       id: { in: ids },
-      userId: user.id,
+      userId,
       completed: false
     },
     data: {
@@ -164,7 +156,7 @@ export async function updateWeeklyRoutine(ids: string[], data: {
   await prisma.practiceSession.updateMany({
     where: {
       id: { in: ids },
-      userId: user.id,
+      userId,
       completed: true
     },
     data: {
@@ -178,18 +170,15 @@ export async function updateWeeklyRoutine(ids: string[], data: {
 }
 
 export async function deleteWeeklyRoutine(ids: string[]) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) throw new Error('No autorizado')
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
-  if (!user) throw new Error('Usuario no encontrado')
+  const userId = await getAuthenticatedUserId()
 
   await prisma.practiceSession.deleteMany({
     where: {
       id: { in: ids },
-      userId: user.id
+      userId
     }
   })
 
   revalidatePath('/dashboard/routines')
 }
+

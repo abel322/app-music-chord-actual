@@ -52,6 +52,7 @@ import { getDiatonicChords } from '@/lib/music-theory'
 import { transposeChord, getSemitoneDiff } from '@/lib/transpose'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
 import { updateSongAction } from '@/app/actions/songs'
+import { useAuth } from '@/lib/context/auth-context'
 import { cn } from '@/lib/utils'
 
 interface SongData {
@@ -86,12 +87,14 @@ const ALL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B
 
 export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const router = useRouter()
+  const { isAdmin } = useAuth()
   const [currentKey, setCurrentKey] = useState(song.key || 'C')
   const [timeSignature, setTimeSignature] = useState(song.timeSignature || '4/4')
   const [tempo, setTempo] = useState<number>(song.tempo || 120)
   const [youtubeUrl, setYoutubeUrl] = useState<string | null>(song.youtubeUrl || null)
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const effectiveIsEditing = isAdmin && isEditing
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [transposeSemitones, setTransposeSemitones] = useState(0)
@@ -457,53 +460,70 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </Link>
 
           {/* Botón Enlace de YouTube */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsYouTubeModalOpen(true)}
-            className={cn(
-              'gap-1.5 text-xs font-bold transition-all shadow-xs',
-              youtubeUrl
-                ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
-                : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:text-red-600 dark:hover:text-red-400'
-            )}
-            title={youtubeUrl ? 'Ver o editar enlace de YouTube vinculado' : 'Vincular enlace de video de YouTube'}
-          >
-            <Youtube className={cn('w-3.5 h-3.5 text-red-600 dark:text-red-500', youtubeUrl && 'fill-current')} />
-            <span>{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
-          </Button>
+          {isAdmin ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsYouTubeModalOpen(true)}
+              className={cn(
+                'gap-1.5 text-xs font-bold transition-all shadow-xs',
+                youtubeUrl
+                  ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
+                  : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:text-red-600 dark:hover:text-red-400'
+              )}
+              title={youtubeUrl ? 'Ver o editar enlace de YouTube vinculado' : 'Vincular enlace de video de YouTube'}
+            >
+              <Youtube className={cn('w-3.5 h-3.5 text-red-600 dark:text-red-500', youtubeUrl && 'fill-current')} />
+              <span>{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
+            </Button>
+          ) : youtubeUrl ? (
+            <a
+              href={youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors shadow-xs"
+              title="Abrir video de referencia en YouTube"
+            >
+              <Youtube className="w-3.5 h-3.5 fill-current" />
+              <span>Ver en YouTube</span>
+            </a>
+          ) : null}
 
-          {/* Toggle Modo Edición */}
-          <Button
-            variant={isEditing ? 'default' : 'secondary'}
-            size="sm"
-            onClick={() => setIsEditing(!isEditing)}
-            className="text-xs font-bold gap-1.5"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>{isEditing ? 'Terminar Edición' : 'Editar Compases'}</span>
-          </Button>
+          {/* Toggle Modo Edición (Solo Administrador) */}
+          {isAdmin && (
+            <Button
+              variant={isEditing ? 'default' : 'secondary'}
+              size="sm"
+              onClick={() => setIsEditing(!isEditing)}
+              className="text-xs font-bold gap-1.5"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>{isEditing ? 'Terminar Edición' : 'Editar Compases'}</span>
+            </Button>
+          )}
 
-          {/* Guardar Cambios */}
-          <Button
-            variant="gradient"
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="text-xs font-bold gap-1.5 shadow-md shadow-primary-900/20"
-          >
-            {saveSuccess ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-300" />
-                <span>¡Guardado!</span>
-              </>
-            ) : (
-              <>
-                <Save className="w-3.5 h-3.5" />
-                <span>{isSaving ? 'Guardando...' : 'Guardar Lead Sheet'}</span>
-              </>
-            )}
-          </Button>
+          {/* Guardar Cambios (Solo Administrador) */}
+          {isAdmin && (
+            <Button
+              variant="gradient"
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="text-xs font-bold gap-1.5 shadow-md shadow-primary-900/20"
+            >
+              {saveSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>¡Guardado!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Guardando...' : 'Guardar Lead Sheet'}</span>
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -555,7 +575,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Compás:
             </span>
-            {isEditing ? (
+            {effectiveIsEditing ? (
               <select
                 value={timeSignature}
                 onChange={(e) => handleTimeSignatureChange(e.target.value)}
@@ -579,7 +599,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Tempo:
             </span>
-            {isEditing ? (
+            {effectiveIsEditing ? (
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
@@ -700,7 +720,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {isEditing ? (
+                        {effectiveIsEditing ? (
                           <input
                             type="text"
                             value={section.label}
@@ -719,7 +739,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                         )}
 
                         {/* Badge de modulación en modo lectura */}
-                        {!isEditing && (
+                        {!effectiveIsEditing && (
                           <SectionKeyControl
                             section={section}
                             globalKey={currentKey}
@@ -734,7 +754,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                     </div>
                   </div>
 
-                  {isEditing && (
+                  {effectiveIsEditing && (
                     <div className="flex items-center gap-2 flex-wrap justify-end">
                       {/* Controles de Tonalidad de Sección (Selector + ♭ -1 / ♯ +1 + Badge) */}
                       <SectionKeyControl
@@ -836,7 +856,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 ) : (
                   <>
                     {/* Letra de Guía Rítmica / Frase Lírica de la Sección */}
-                    {isEditing ? (
+                    {effectiveIsEditing ? (
                       <div className="pt-0.5">
                         <input
                           type="text"
@@ -869,7 +889,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   timeSignature={section.timeSignature || timeSignature}
                   currentKey={effectiveKey}
                   diatonicChords={sectionDiatonicChords}
-                  isEditing={isEditing}
+                  isEditing={effectiveIsEditing}
                   activeMeasureId={currentMeasure?.measure.id || null}
                   isPlaying={isPlaying}
                   measureDurationMs={currentMeasure?.durationMs}
@@ -890,7 +910,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       </div>
 
       {/* Agregar Nueva Sección en Modo Edición */}
-      {isEditing && (
+      {effectiveIsEditing && (
         <div className="p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-800 text-center bg-slate-50/50 dark:bg-slate-950/30">
           <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">
             Añadir una nueva sección al Lead Sheet:

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { updateSongAction } from '@/app/actions/songs'
+import { useAuth } from '@/lib/context/auth-context'
 import { cn } from '@/lib/utils'
 
 interface SongData {
@@ -51,6 +52,7 @@ const STRUCTURE_TAGS = [
 
 export function LyricsEditor({ song }: LyricsEditorProps) {
   const router = useRouter()
+  const { isAdmin } = useAuth()
 
   // Extraer texto inicial de letras (priorizando lyrics, o limpiando content)
   const initialText = () => {
@@ -66,6 +68,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
 
   const [text, setText] = useState<string>(initialText)
   const [viewMode, setViewMode] = useState<'read' | 'edit'>('read')
+  const effectiveViewMode = isAdmin ? viewMode : 'read'
   const [fontSize, setFontSize] = useState<number>(18) // px
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -200,56 +203,60 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             </Button>
           </Link>
 
-          {/* Toggle Modo Lectura / Edición */}
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setViewMode('read')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
-                viewMode === 'read'
-                  ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              )}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Lectura / Prompter</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('edit')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
-                viewMode === 'edit'
-                  ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              )}
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Editor de Texto</span>
-            </button>
-          </div>
+          {/* Toggle Modo Lectura / Edición (Solo Administrador) */}
+          {isAdmin && (
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setViewMode('read')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                  viewMode === 'read'
+                    ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                )}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Lectura / Prompter</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('edit')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                  viewMode === 'edit'
+                    ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                )}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Editor de Texto</span>
+              </button>
+            </div>
+          )}
 
-          {/* Guardar Letra */}
-          <Button
-            variant="gradient"
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="text-xs font-bold gap-1.5 shadow-md shadow-purple-900/20"
-          >
-            {saveSuccess ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-300" />
-                <span>¡Guardado!</span>
-              </>
-            ) : (
-              <>
-                <Save className="w-3.5 h-3.5" />
-                <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
-              </>
-            )}
-          </Button>
+          {/* Guardar Letra (Solo Administrador) */}
+          {isAdmin && (
+            <Button
+              variant="gradient"
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="text-xs font-bold gap-1.5 shadow-md shadow-purple-900/20"
+            >
+              {saveSuccess ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>¡Guardado!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -337,7 +344,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       </div>
 
       {/* Barra de Tags Rápidos en Modo Edición */}
-      {viewMode === 'edit' && (
+      {effectiveViewMode === 'edit' && (
         <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2 flex-wrap animate-in fade-in">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
             Insertar Sección:
@@ -360,12 +367,12 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         ref={scrollContainerRef}
         className={cn(
           'rounded-2xl border transition-all p-6 sm:p-10 max-h-[68vh] overflow-y-auto scroll-smooth',
-          viewMode === 'read'
+          effectiveViewMode === 'read'
             ? 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-sm'
             : 'bg-white dark:bg-slate-900 border-purple-500/40 ring-1 ring-purple-500/20'
         )}
       >
-        {viewMode === 'edit' ? (
+        {effectiveViewMode === 'edit' ? (
           /* Modo Edición: Textarea Estructurado */
           <div className="flex flex-col gap-2">
             <textarea
@@ -419,7 +426,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
           <strong>{linesCount}</strong> líneas de verso • <strong>{wordsCount}</strong> palabras
         </span>
         <span>
-          Modo actual: <strong className="text-slate-600 dark:text-slate-300 capitalize">{viewMode === 'read' ? 'Lectura Prompter' : 'Edición'}</strong>
+          Modo actual: <strong className="text-slate-600 dark:text-slate-300 capitalize">{effectiveViewMode === 'read' ? 'Lectura Prompter' : 'Edición'}</strong>
         </span>
       </div>
     </div>

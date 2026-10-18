@@ -1,7 +1,5 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { ChordLeadSheet } from '@/components/chords/ChordLeadSheet'
 
 interface SongChordsDetailPageProps {
@@ -10,32 +8,28 @@ interface SongChordsDetailPageProps {
   }
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function generateMetadata({ params }: SongChordsDetailPageProps) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return { title: 'Acordes | MusicChord' }
+  try {
+    const song = await prisma.song.findUnique({
+      where: { id: params.id },
+      select: { title: true, artist: true },
+    })
 
-  const song = await prisma.song.findFirst({
-    where: { id: params.id, userId: session.user.id },
-    select: { title: true, artist: true },
-  })
-
-  return {
-    title: song ? `${song.title} - Acordes (Lead Sheet) | MusicChord` : 'Acordes | MusicChord',
-    description: 'Lead Sheet y estructura de compases armónicos para músicos.',
+    return {
+      title: song ? `${song.title} - Acordes (Lead Sheet) | MusicChord` : 'Acordes | MusicChord',
+      description: 'Lead Sheet y estructura de compases armónicos para músicos.',
+    }
+  } catch {
+    return { title: 'Acordes | MusicChord' }
   }
 }
 
 export default async function SongChordsDetailPage({ params }: SongChordsDetailPageProps) {
-  const session = await getServerSession(authOptions)
-
-  if (!session) {
-    redirect('/auth/login')
-  }
-
-  const song = await prisma.song.findFirst({
+  const song = await prisma.song.findUnique({
     where: {
       id: params.id,
-      userId: session.user.id,
     },
   })
 
@@ -46,8 +40,8 @@ export default async function SongChordsDetailPage({ params }: SongChordsDetailP
   // Serializar fechas y Json para Client Component
   const serializedSong = {
     ...song,
-    createdAt: song.createdAt.toISOString(),
-    updatedAt: song.updatedAt.toISOString(),
+    createdAt: song.createdAt instanceof Date ? song.createdAt.toISOString() : (song.createdAt || new Date().toISOString()),
+    updatedAt: song.updatedAt instanceof Date ? song.updatedAt.toISOString() : (song.updatedAt || new Date().toISOString()),
   }
 
   return <ChordLeadSheet song={serializedSong} />

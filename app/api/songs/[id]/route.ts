@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { UpdateSongSchema } from '@/lib/validations/song'
 import { z } from 'zod'
+import { isServerAdmin } from '@/lib/admin-auth'
 
 export async function GET(
   req: NextRequest,
@@ -26,6 +27,14 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const isAdmin = await isServerAdmin()
+  if (!isAdmin) {
+    return NextResponse.json(
+      { error: 'No autorizado. Se requieren permisos de administrador.' },
+      { status: 401 }
+    )
+  }
+
   try {
     const body = await req.json()
     const validatedData = UpdateSongSchema.parse(body)
@@ -50,6 +59,14 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const isAdmin = await isServerAdmin()
+  if (!isAdmin) {
+    return NextResponse.json(
+      { error: 'No autorizado. Se requieren permisos de administrador.' },
+      { status: 401 }
+    )
+  }
+
   try {
     await prisma.song.delete({
       where: { id: params.id },
@@ -60,3 +77,4 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete song' }, { status: 500 })
   }
 }
+
