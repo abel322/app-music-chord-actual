@@ -92,7 +92,7 @@ export function AdminLoginModal({ isOpen, onClose }: AdminLoginModalProps) {
         {success ? (
           <div className="py-6 flex flex-col items-center justify-center text-emerald-400 text-center animate-in zoom-in-95">
             <CheckCircle2 className="w-10 h-10 mb-2 animate-bounce" />
-            <p className="text-sm font-bold">¡Bienvenido Abel!</p>
+            <p className="text-sm font-bold">¡Bienvenido Administrador!</p>
             <p className="text-xs text-slate-400 mt-0.5">Acceso administrativo desbloqueado</p>
           </div>
         ) : (

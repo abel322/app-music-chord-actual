@@ -60,7 +60,9 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
   const currentUser = authIsLoading ? (initialUser || authUser) : (authUser || initialUser)
 
   const links: NavItem[] = [
-    { href: '/dashboard', label: 'Inicio', icon: Home },
+    ...(isAdmin
+      ? [{ href: '/dashboard', label: 'Panel de Práctica', icon: Home }]
+      : []),
     {
       label: 'Canciones',
       icon: Library,
@@ -99,7 +101,11 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
       )}>
         {/* Logo and Mobile Close Button */}
         <div className="flex h-16 shrink-0 items-center justify-between px-6 bg-slate-950">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
+          <Link 
+            href={isAdmin ? "/dashboard" : "/dashboard/songs/chords"} 
+            className="flex items-center gap-2" 
+            onClick={() => setIsOpen(false)}
+          >
             <Music className="w-8 h-8 text-primary-500" />
             <span className="text-xl font-bold text-white tracking-tight">MusicChord</span>
           </Link>
@@ -143,7 +149,7 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <p className="text-sm font-bold text-white truncate">
-                    {currentUser?.name || 'Abel'}
+                    {currentUser?.name || 'Administrador'}
                   </p>
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     <ShieldCheck className="w-3 h-3" />
@@ -151,7 +157,7 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 truncate">
-                  {currentUser?.email || 'utreraabel91@gmail.com'}
+                  {currentUser?.email || 'admin@musicchord.com'}
                 </p>
               </div>
               <Button
@@ -191,7 +197,7 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
           >
             <Menu className="w-6 h-6" />
           </Button>
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href={isAdmin ? "/dashboard" : "/dashboard/songs/chords"} className="flex items-center gap-2">
             <Music className="w-6 h-6 text-primary-600" />
             <span className="text-lg font-bold text-gradient">MusicChord</span>
           </Link>

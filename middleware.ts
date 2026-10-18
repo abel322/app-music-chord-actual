@@ -7,7 +7,6 @@ import type { NextRequest } from 'next/server'
  */
 const PUBLIC_PATHS = [
   '/',
-  '/dashboard',
   '/dashboard/songs',
   '/dashboard/songs/chords',
   '/dashboard/songs/lyrics',
@@ -45,9 +44,11 @@ export function middleware(request: NextRequest) {
   }
 
   // 2. Redirección de protección para rutas privadas del Administrador
-  const isAdminPath = ADMIN_ONLY_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`)
-  )
+  const isAdminPath =
+    pathname === '/dashboard' ||
+    ADMIN_ONLY_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    )
 
   if (isAdminPath) {
     const hasAdminCookie =

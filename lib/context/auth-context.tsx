@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json()
         if (res.ok && data.success) {
           setIsAdmin(true)
-          setUser(data.user || { email: 'utreraabel91@gmail.com', name: 'Abel' })
+          setUser(data.user || { name: 'Administrador' })
           router.refresh()
           return true
         }
@@ -86,17 +86,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [router]
   )
 
-  // Cerrar sesión de administrador y regresar a modo lectura público
+  // Cerrar sesión de administrador y regresar de inmediato a modo lectura público
   const logout = useCallback(async (): Promise<void> => {
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
       })
+      // Cerrar también sesión NextAuth en cliente si estuviese activa
+      try {
+        const { signOut } = await import('next-auth/react')
+        await signOut({ redirect: false })
+      } catch {
+        // Ignorar si next-auth no estaba montado
+      }
     } catch (err) {
       console.error('Error en logout:', err)
     } finally {
       setIsAdmin(false)
       setUser(null)
+      router.push('/dashboard/songs/chords')
       router.refresh()
     }
   }, [router])

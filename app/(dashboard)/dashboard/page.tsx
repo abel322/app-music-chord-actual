@@ -2,9 +2,10 @@ import { getAdminSession, getAdminUserId } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { RecentSongs } from '@/components/dashboard/recent-songs'
-import { Library, Clock, TrendingUp, Flame, BookOpen, Target, Sparkles, Music } from 'lucide-react'
+import { Library, Clock, TrendingUp, Flame, BookOpen, Target } from 'lucide-react'
 import { HistoricalDistribution } from '@/components/dashboard/historical-distribution'
 import { cn } from '@/lib/utils'
+import { redirect } from 'next/navigation'
 
 type Instrument = 'GUITARRA' | 'PIANO' | 'BAJO' | 'BATERIA'
 
@@ -13,48 +14,10 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const { isAdmin, user } = await getAdminSession()
 
-  // 1. MODO VISITANTE PÚBLICO (No hay sesión de administrador activa)
+  // 1. PROTECCIÓN ESTRICTA: El panel de métricas de ensayo e instrumentos es exclusivo para el Administrador
+  // Si un visitante común entra aquí, redirigir inmediatamente al repertorio público de canciones
   if (!isAdmin) {
-    // Solo consultamos canciones para la biblioteca pública. CERO acceso a sesiones privadas.
-    const [totalSongs, recentSongs] = await Promise.all([
-      prisma.song.count(),
-      prisma.song.findMany({
-        orderBy: { updatedAt: 'desc' },
-        take: 6,
-        select: {
-          id: true,
-          title: true,
-          artist: true,
-          key: true,
-          timeSignature: true,
-          updatedAt: true,
-        },
-      }),
-    ])
-
-    return (
-      <div className="space-y-8 pb-12">
-        {/* Encabezado Público de Bienvenida */}
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
-            <Sparkles className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
-            <span>Acceso Público Libre • Modo Visor</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-            Biblioteca de Estudio Musical
-          </h1>
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-3xl">
-            Explora el catálogo de canciones, cifras armónicas en Lead Sheet, progresiones y herramientas interactivas.
-          </p>
-        </div>
-
-        {/* Accesos Rápidos Limpios para Visitantes */}
-        <QuickActions />
-
-        {/* Canciones Destacadas / Recientes del Catálogo */}
-        <RecentSongs songs={recentSongs} />
-      </div>
-    )
+    redirect('/dashboard/songs/chords')
   }
 
   // 2. MODO ADMINISTRADOR (Abel autenticado con credenciales)
@@ -62,7 +25,7 @@ export default async function DashboardPage() {
   try {
     effectiveUserId = await getAdminUserId()
   } catch {
-    // Si no se encuentra usuario
+    // Si no se encuentra usuario registrado
   }
 
   const [totalSongs, recentSongs, completedSessions, totalScheduledCount] = await Promise.all([

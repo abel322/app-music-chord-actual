@@ -10,7 +10,7 @@ import { Music, Lock, ShieldCheck, ArrowRight, Eye, EyeOff, Loader2 } from 'luci
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('utreraabel91@gmail.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setIsLoading(true)
     setError('')
 
-    const effectiveEmail = email.trim() || 'utreraabel91@gmail.com'
+    const effectiveEmail = email.trim()
     const effectivePassword = password.trim()
 
     try {
@@ -113,7 +113,7 @@ export default function LoginPage() {
               <Input
                 type="email"
                 label="Correo de Administrador"
-                placeholder="utreraabel91@gmail.com"
+                placeholder="correo@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
