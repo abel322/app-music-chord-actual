@@ -14,12 +14,21 @@ const PUBLIC_PATHS = [
   '/dashboard/chords',
   '/dashboard/practice',
   '/dashboard/search',
-  '/dashboard/routines',
   '/api/songs',
   '/api/progressions',
   '/api/auth',
   '/login',
   '/register',
+]
+
+/**
+ * Rutas privadas exclusivas del Administrador.
+ * Si un visitante anónimo intenta ingresar manualmente, se le redirige a /dashboard/songs/chords.
+ */
+const ADMIN_ONLY_PATHS = [
+  '/dashboard/routines',
+  '/dashboard/settings',
+  '/dashboard/songs/new',
 ]
 
 export function middleware(request: NextRequest) {
@@ -35,17 +44,33 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 2. Verificar si la ruta solicitada coincide con las rutas públicas o sus sub-rutas dinámicas
+  // 2. Redirección de protección para rutas privadas del Administrador
+  const isAdminPath = ADMIN_ONLY_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
+
+  if (isAdminPath) {
+    const hasAdminCookie =
+      request.cookies.has('musicchord_admin_session') ||
+      request.cookies.has('next-auth.session-token') ||
+      request.cookies.has('__Secure-next-auth.session-token')
+
+    if (!hasAdminCookie) {
+      // Redirigir amablemente al repertorio público de canciones
+      return NextResponse.redirect(new URL('/dashboard/songs/chords', request.url))
+    }
+    return NextResponse.next()
+  }
+
+  // 3. Permitir todas las rutas públicas y sus sub-rutas dinámicas
   const isPublic = PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   )
 
   if (isPublic) {
-    // Permitir navegación libre sin interrupciones ni redirecciones a /login o /register
     return NextResponse.next()
   }
 
-  // 3. Para cualquier otra ruta dentro de la aplicación, permitir acceso predeterminado
   return NextResponse.next()
 }
 

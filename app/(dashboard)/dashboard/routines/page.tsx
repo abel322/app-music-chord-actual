@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { getAdminUserId } from '@/lib/admin-auth'
+import { getAdminSession, getAdminUserId } from '@/lib/admin-auth'
 import { RoutinesClient } from '@/components/routines/routines-client'
 import { CalendarDays } from 'lucide-react'
+import { redirect } from 'next/navigation'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Rutinas de Práctica | MusicChord',
@@ -9,6 +12,12 @@ export const metadata = {
 }
 
 export default async function RoutinesPage() {
+  const { isAdmin } = await getAdminSession()
+
+  if (!isAdmin) {
+    redirect('/dashboard/songs/chords')
+  }
+
   let userId: string | null = null
   try {
     userId = await getAdminUserId()

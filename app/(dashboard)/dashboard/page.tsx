@@ -2,7 +2,7 @@ import { getAdminSession, getAdminUserId } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { RecentSongs } from '@/components/dashboard/recent-songs'
-import { Library, Clock, TrendingUp, Flame, BookOpen, Target } from 'lucide-react'
+import { Library, Clock, TrendingUp, Flame, BookOpen, Target, Sparkles, Music } from 'lucide-react'
 import { HistoricalDistribution } from '@/components/dashboard/historical-distribution'
 import { cn } from '@/lib/utils'
 
@@ -12,18 +12,72 @@ export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   const { isAdmin, user } = await getAdminSession()
+
+  // 1. MODO VISITANTE PÚBLICO (No hay sesión de administrador activa)
+  if (!isAdmin) {
+    // Solo consultamos canciones para la biblioteca pública. CERO acceso a sesiones privadas.
+    const [totalSongs, recentSongs] = await Promise.all([
+      prisma.song.count(),
+      prisma.song.findMany({
+        orderBy: { updatedAt: 'desc' },
+        take: 6,
+        select: {
+          id: true,
+          title: true,
+          artist: true,
+          key: true,
+          timeSignature: true,
+          updatedAt: true,
+        },
+      }),
+    ])
+
+    return (
+      <div className="space-y-8 pb-12">
+        {/* Encabezado Público de Bienvenida */}
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
+            <Sparkles className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+            <span>Acceso Público Libre • Modo Visor</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+            Biblioteca de Estudio Musical
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-3xl">
+            Explora el catálogo de canciones, cifras armónicas en Lead Sheet, progresiones y herramientas interactivas.
+          </p>
+        </div>
+
+        {/* Accesos Rápidos Limpios para Visitantes */}
+        <QuickActions />
+
+        {/* Canciones Destacadas / Recientes del Catálogo */}
+        <RecentSongs songs={recentSongs} />
+      </div>
+    )
+  }
+
+  // 2. MODO ADMINISTRADOR (Abel autenticado con credenciales)
   let effectiveUserId: string | null = null
   try {
     effectiveUserId = await getAdminUserId()
   } catch {
-    // Si no hay usuario
+    // Si no se encuentra usuario
   }
-  
+
   const [totalSongs, recentSongs, completedSessions, totalScheduledCount] = await Promise.all([
     prisma.song.count(),
     prisma.song.findMany({
       orderBy: { updatedAt: 'desc' },
       take: 5,
+      select: {
+        id: true,
+        title: true,
+        artist: true,
+        key: true,
+        timeSignature: true,
+        updatedAt: true,
+      },
     }),
     effectiveUserId
       ? prisma.practiceSession.findMany({
@@ -43,7 +97,7 @@ export default async function DashboardPage() {
       : Promise.resolve(0),
   ])
 
-  // --- STATS CALCULATIONS ---
+  // --- CÁLCULO DE MÉTRICAS PRIVADAS DEL ADMINISTRADOR ---
 
   // 1. Tiempo Total de Vuelo
   const totalMinutes = completedSessions.reduce((acc, s) => acc + s.duration, 0)
@@ -62,14 +116,13 @@ export default async function DashboardPage() {
     yesterday.setDate(yesterday.getDate() - 1)
 
     const dateSet = new Set(
-      completedSessions.map(s => {
+      completedSessions.map((s) => {
         const d = new Date(s.scheduledAt)
         d.setHours(0, 0, 0, 0)
         return d.getTime()
       })
     )
 
-    // Check starting from today or yesterday
     let checkDate = new Date(today)
     if (!dateSet.has(checkDate.getTime())) {
       checkDate = new Date(yesterday)
@@ -88,18 +141,16 @@ export default async function DashboardPage() {
     return acc
   }, {} as Record<Instrument, number>)
 
-  completedSessions.forEach(s => {
+  completedSessions.forEach((s) => {
     const inst = s.instrument as Instrument
     if (instrumentMinutes[inst] !== undefined) {
       instrumentMinutes[inst] += s.duration
     }
   })
 
-
-
   // 5. Enfoque Técnico (Top 3 Ejercicios/Conceptos)
   const exerciseMins: Record<string, number> = {}
-  completedSessions.forEach(s => {
+  completedSessions.forEach((s) => {
     if (s.exerciseType) {
       const type = s.exerciseType.trim()
       exerciseMins[type] = (exerciseMins[type] || 0) + s.duration
@@ -118,7 +169,7 @@ export default async function DashboardPage() {
       icon: Library,
       color: 'text-blue-500',
       bg: 'bg-blue-50 dark:bg-blue-900/20',
-      description: 'Total de canciones cargadas'
+      description: 'Total de canciones cargadas',
     },
     {
       label: 'Tiempo Total de Vuelo',
@@ -126,7 +177,7 @@ export default async function DashboardPage() {
       icon: Clock,
       color: 'text-purple-500',
       bg: 'bg-purple-50 dark:bg-purple-900/20',
-      description: 'Suma de prácticas completadas'
+      description: 'Suma de prácticas completadas',
     },
     {
       label: 'Consistencia Global',
@@ -134,7 +185,7 @@ export default async function DashboardPage() {
       icon: TrendingUp,
       color: 'text-emerald-500',
       bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-      description: 'Promedio de cumplimiento'
+      description: 'Promedio de cumplimiento',
     },
     {
       label: 'Racha Actual (Streak)',
@@ -143,28 +194,26 @@ export default async function DashboardPage() {
       color: 'text-orange-500 dark:text-orange-400',
       bg: 'bg-orange-50 dark:bg-orange-950/20',
       description: 'Prácticas diarias consecutivas',
-      highlight: streak > 0
-    }
+      highlight: streak > 0,
+    },
   ]
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-8 pb-12">
+      {/* Header Administrador */}
       <div>
         <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          {isAdmin ? `Bienvenido, ${user?.name || 'Abel'}` : 'Bienvenido a MusicChord'}
+          Bienvenido, {user?.name || 'Abel'}
         </h1>
         <p className="text-slate-500 font-medium mt-1">
-          {isAdmin
-            ? 'Tu panel de control de práctica y biblioteca musical'
-            : 'Explora partituras en Lead Sheet, progresiones armónicas y herramientas de práctica'}
+          Tu panel de control de práctica y biblioteca musical
         </p>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions (Admin) */}
       <QuickActions />
 
-      {/* Core Stats Cards */}
+      {/* Core Stats Cards del Administrador */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {coreStats.map((stat) => {
           const Icon = stat.icon
@@ -172,22 +221,26 @@ export default async function DashboardPage() {
             <div
               key={stat.label}
               className={cn(
-                "relative overflow-hidden bg-white dark:bg-slate-900 rounded-xl border p-5 transition-all shadow-sm",
-                stat.highlight 
-                  ? "border-orange-300 dark:border-orange-850/50 shadow-orange-500/5 ring-1 ring-orange-500/10" 
-                  : "border-slate-200 dark:border-slate-800"
+                'relative overflow-hidden bg-white dark:bg-slate-900 rounded-xl border p-5 transition-all shadow-sm',
+                stat.highlight
+                  ? 'border-orange-300 dark:border-orange-850/50 shadow-orange-500/5 ring-1 ring-orange-500/10'
+                  : 'border-slate-200 dark:border-slate-800'
               )}
             >
               {stat.highlight && (
                 <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-500/10 to-yellow-500/0 rounded-full blur-xl pointer-events-none" />
               )}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</span>
-                <div className={cn("p-2 rounded-lg shrink-0", stat.bg)}>
-                  <Icon className={cn("w-5 h-5", stat.color, stat.highlight && "animate-pulse")} />
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {stat.label}
+                </span>
+                <div className={cn('p-2 rounded-lg shrink-0', stat.bg)}>
+                  <Icon className={cn('w-5 h-5', stat.color, stat.highlight && 'animate-pulse')} />
                 </div>
               </div>
-              <p className="text-2xl font-black text-slate-800 dark:text-white mb-1">{stat.value}</p>
+              <p className="text-2xl font-black text-slate-800 dark:text-white mb-1">
+                {stat.value}
+              </p>
               <p className="text-xs text-slate-400 dark:text-slate-500">{stat.description}</p>
             </div>
           )
@@ -196,7 +249,6 @@ export default async function DashboardPage() {
 
       {/* Deep Analytics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* Historical Distribution Card */}
         <HistoricalDistribution instrumentMinutes={instrumentMinutes} />
 
@@ -207,7 +259,9 @@ export default async function DashboardPage() {
               <Target className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-slate-800 dark:text-white">Enfoque Técnico</h3>
+              <h3 className="font-bold text-base text-slate-800 dark:text-white">
+                Enfoque Técnico
+              </h3>
               <p className="text-xs text-slate-500">Ejercicios y conceptos más entrenados (Top 3)</p>
             </div>
           </div>
@@ -217,10 +271,10 @@ export default async function DashboardPage() {
               {topExercises.map((item, idx) => {
                 const hrs = Math.floor(item.minutes / 60)
                 const mins = item.minutes % 60
-                
+
                 return (
-                  <div 
-                    key={item.exercise} 
+                  <div
+                    key={item.exercise}
                     className="flex items-center justify-between p-3.5 rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20"
                   >
                     <div className="flex items-center gap-3.5">
@@ -228,14 +282,19 @@ export default async function DashboardPage() {
                         #{idx + 1}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-800 dark:text-white capitalize truncate max-w-[180px]">{item.exercise}</p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">Concepto de Práctica</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white capitalize truncate max-w-[180px]">
+                          {item.exercise}
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                          Concepto de Práctica
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-400">
-                        {hrs > 0 ? `${hrs}h ` : ''}{mins}m
+                        {hrs > 0 ? `${hrs}h ` : ''}
+                        {mins}m
                       </span>
                     </div>
                   </div>
@@ -250,7 +309,6 @@ export default async function DashboardPage() {
             </div>
           )}
         </div>
-
       </div>
 
       {/* Recent Songs */}

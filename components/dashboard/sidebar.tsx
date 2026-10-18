@@ -59,7 +59,6 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
   const isAdmin = authIsLoading ? Boolean(initialIsAdmin) : authIsAdmin
   const currentUser = authIsLoading ? (initialUser || authUser) : (authUser || initialUser)
 
-
   const links: NavItem[] = [
     { href: '/dashboard', label: 'Inicio', icon: Home },
     {
@@ -73,10 +72,14 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
       ],
     },
     { href: '/dashboard/chords', label: 'Progresiones', icon: Layers },
-    { href: '/dashboard/routines', label: 'Rutinas de Práctica', icon: Calendar },
+    ...(isAdmin
+      ? [{ href: '/dashboard/routines', label: 'Rutinas de Práctica', icon: Calendar }]
+      : []),
     { href: '/dashboard/practice', label: 'Metrónomo', icon: Activity },
     { href: '/dashboard/search', label: 'Buscar', icon: Search },
-    { href: '/dashboard/settings', label: 'Ajustes', icon: Settings },
+    ...(isAdmin
+      ? [{ href: '/dashboard/settings', label: 'Ajustes', icon: Settings }]
+      : []),
   ]
 
   return (
@@ -205,9 +208,11 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
               <span>Admin</span>
             </Button>
           )}
-          <Link href="/dashboard/routines">
-            <Button variant="ghost" size="icon"><Calendar className="w-5 h-5" /></Button>
-          </Link>
+          {isAdmin && (
+            <Link href="/dashboard/routines">
+              <Button variant="ghost" size="icon" title="Rutinas de Práctica"><Calendar className="w-5 h-5" /></Button>
+            </Link>
+          )}
           <ThemeToggle />
         </div>
       </div>

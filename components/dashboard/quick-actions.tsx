@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Plus, Upload, Music, Layers, Activity } from 'lucide-react'
+import { Plus, Upload, Music, Layers, Activity, FileText } from 'lucide-react'
 import { useAuth } from '@/lib/context/auth-context'
 
 export function QuickActions() {
@@ -41,31 +41,31 @@ export function QuickActions() {
   const guestActions = [
     {
       icon: Music,
-      label: 'Ver Canciones',
-      description: 'Lead Sheets y Acordes',
+      label: 'Repertorio en Acordes',
+      description: 'Lead Sheets y Compases',
       href: '/dashboard/songs/chords',
       gradient: 'from-blue-500 to-cyan-500',
     },
     {
+      icon: FileText,
+      label: 'Repertorio en Letras',
+      description: 'Teleprompter en vivo',
+      href: '/dashboard/songs/lyrics',
+      gradient: 'from-purple-500 to-indigo-500',
+    },
+    {
       icon: Layers,
-      label: 'Progresiones',
+      label: 'Catálogo de Progresiones',
       description: 'Reproductor armónico',
       href: '/dashboard/chords',
-      gradient: 'from-purple-500 to-pink-500',
+      gradient: 'from-pink-500 to-rose-500',
     },
     {
       icon: Activity,
-      label: 'Metrónomo',
-      description: 'Entrena tu tempo',
+      label: 'Metrónomo Interactivo',
+      description: 'Entrena tu tempo con Web Audio',
       href: '/dashboard/practice',
-      gradient: 'from-green-500 to-emerald-500',
-    },
-    {
-      icon: Upload,
-      label: 'Letras',
-      description: 'Teleprompter en vivo',
-      href: '/dashboard/songs/lyrics',
-      gradient: 'from-orange-500 to-red-500',
+      gradient: 'from-emerald-500 to-teal-500',
     },
   ]
 
