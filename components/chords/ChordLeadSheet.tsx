@@ -594,33 +594,28 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             )}
           </div>
 
-          {/* Tempo BPM */}
+          {/* Tempo BPM con ajuste en tiempo real para estudio y reproducción */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Tempo:
             </span>
-            {effectiveIsEditing ? (
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min={30}
-                  max={280}
-                  value={tempo}
-                  onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
-                  className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-center focus:outline-none"
-                />
-                <TapTempoButton
-                  onTempoChange={(bpm) => setTempo(bpm)}
-                  currentTempo={tempo}
-                  timeSignature={timeSignature}
-                  className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
-                />
-              </div>
-            ) : (
-              <span className="font-mono font-bold text-sm bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
-                {tempo} BPM
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={30}
+                max={280}
+                value={tempo}
+                onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+                className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-center focus:outline-none focus:ring-1 focus:ring-primary-500"
+                title="Ajustar tempo en BPM"
+              />
+              <TapTempoButton
+                onTempoChange={(bpm) => setTempo(bpm)}
+                currentTempo={tempo}
+                timeSignature={timeSignature}
+                className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
+              />
+            </div>
           </div>
 
           <div className="h-5 w-px bg-slate-800 hidden sm:block" />

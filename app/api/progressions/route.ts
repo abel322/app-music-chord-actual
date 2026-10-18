@@ -21,8 +21,8 @@ export async function POST(req: Request) {
     const isAdmin = await isServerAdmin()
     if (!isAdmin) {
       return NextResponse.json(
-        { success: false, error: 'No autorizado: se requieren permisos de administrador' },
-        { status: 401 }
+        { success: false, error: 'Prohibido: se requieren permisos de administrador' },
+        { status: 403 }
       )
     }
 
@@ -61,8 +61,8 @@ export async function PUT(req: Request) {
     const isAdmin = await isServerAdmin()
     if (!isAdmin) {
       return NextResponse.json(
-        { success: false, error: 'No autorizado: se requieren permisos de administrador' },
-        { status: 401 }
+        { success: false, error: 'Prohibido: se requieren permisos de administrador' },
+        { status: 403 }
       )
     }
 
@@ -101,8 +101,8 @@ export async function DELETE(req: Request) {
     const isAdmin = await isServerAdmin()
     if (!isAdmin) {
       return NextResponse.json(
-        { success: false, error: 'No autorizado: se requieren permisos de administrador' },
-        { status: 401 }
+        { success: false, error: 'Prohibido: se requieren permisos de administrador' },
+        { status: 403 }
       )
     }
 

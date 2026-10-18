@@ -83,9 +83,21 @@ export default function RegisterPage() {
 
         {/* Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+          <div className="mb-6 p-3 bg-primary-50 dark:bg-primary-950/50 border border-primary-200 dark:border-primary-850 rounded-xl text-center">
+            <p className="text-xs text-primary-700 dark:text-primary-300 font-medium">
+              El repertorio es público. Puedes ver acordes y letras sin necesidad de registrarte.
+            </p>
+            <Link
+              href="/dashboard/songs/chords"
+              className="inline-block mt-1.5 text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline"
+            >
+              Explorar Canciones Ahora →
+            </Link>
+          </div>
+
           <h1 className="text-2xl font-bold text-center mb-2">Crea tu cuenta</h1>
           <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
-            Comienza gratis, sin tarjeta de crédito
+            Registro de usuario
           </p>
 
           {error && (

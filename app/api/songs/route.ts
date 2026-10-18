@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
     const isAdmin = await isServerAdmin()
     if (!isAdmin) {
       return NextResponse.json(
-        { error: 'No autorizado: se requieren permisos de administrador' },
-        { status: 401 }
+        { error: 'Prohibido: se requieren permisos de administrador' },
+        { status: 403 }
       )
     }
 
