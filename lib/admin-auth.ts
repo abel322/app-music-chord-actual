@@ -70,33 +70,22 @@ export async function getAdminSession(): Promise<{
   user: { email: string; name?: string } | null
 }> {
   try {
-    // 1. Revisar cookie de sesión HTTP-only
+    // 1. Revisar cookie de sesión HTTP-only exclusiva del Administrador
     const cookieStore = cookies()
     const sessionCookie = cookieStore.get(ADMIN_COOKIE_NAME)?.value
     const verified = verifyAdminToken(sessionCookie)
 
-    if (verified) {
+    if (verified && verified.isAdmin) {
       return {
         isAdmin: true,
         user: {
           email: verified.email,
-          name: 'Abel',
+          name: 'Administrador',
         },
       }
     }
 
-    // 2. Fallback de compatibilidad con NextAuth
-    const nextAuthSession = await getServerSession(authOptions)
-    if (nextAuthSession?.user?.email && nextAuthSession.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-      return {
-        isAdmin: true,
-        user: {
-          email: nextAuthSession.user.email,
-          name: nextAuthSession.user.name || 'Abel',
-        },
-      }
-    }
-
+    // Por defecto, cualquier visitante o usuario sin cookie activa inicia deslogueado
     return {
       isAdmin: false,
       user: null,

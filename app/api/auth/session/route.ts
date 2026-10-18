@@ -7,34 +7,21 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Revisar cookie de sesión de administrador
+    // 1. Revisar cookie de sesión de administrador exclusiva
     const cookie = req.cookies.get(ADMIN_COOKIE_NAME)?.value
     const adminPayload = verifyAdminToken(cookie)
 
-    if (adminPayload) {
+    if (adminPayload && adminPayload.isAdmin) {
       return NextResponse.json({
         isAdmin: true,
         user: {
           email: adminPayload.email,
-          name: 'Abel',
+          name: 'Administrador',
         },
       })
     }
 
-    // 2. Revisar sesión de NextAuth para compatibilidad
-    const nextAuthSession = await getServerSession(authOptions)
-    if (nextAuthSession?.user?.email) {
-      const isEmailAdmin = nextAuthSession.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
-      return NextResponse.json({
-        isAdmin: isEmailAdmin,
-        user: {
-          email: nextAuthSession.user.email,
-          name: nextAuthSession.user.name || (isEmailAdmin ? 'Abel' : 'Usuario'),
-        },
-      })
-    }
-
-    // 3. Visitante invitado (no autenticado / Read-Only)
+    // 2. Visitante invitado (no autenticado / Read-Only por defecto)
     return NextResponse.json({
       isAdmin: false,
       user: null,

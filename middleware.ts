@@ -51,10 +51,7 @@ export function middleware(request: NextRequest) {
     )
 
   if (isAdminPath) {
-    const hasAdminCookie =
-      request.cookies.has('musicchord_admin_session') ||
-      request.cookies.has('next-auth.session-token') ||
-      request.cookies.has('__Secure-next-auth.session-token')
+    const hasAdminCookie = request.cookies.has('musicchord_admin_session')
 
     if (!hasAdminCookie) {
       // Redirigir amablemente al repertorio público de canciones
