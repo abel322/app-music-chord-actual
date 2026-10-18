@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -91,6 +91,30 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const [currentKey, setCurrentKey] = useState(song.key || 'C')
   const [timeSignature, setTimeSignature] = useState(song.timeSignature || '4/4')
   const [tempo, setTempo] = useState<number>(song.tempo || 120)
+  const tempoDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cambio de Tempo con auto-sincronización bidireccional inmediata en BD
+  const handleTempoChange = (newTempo: number) => {
+    const validBpm = Math.max(30, Math.min(300, newTempo))
+    setTempo(validBpm)
+
+    if (tempoDebounceTimerRef.current) {
+      clearTimeout(tempoDebounceTimerRef.current)
+    }
+
+    tempoDebounceTimerRef.current = setTimeout(async () => {
+      try {
+        await fetch(`/api/songs/${song.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tempo: validBpm }),
+        })
+      } catch (err) {
+        console.error('Error auto-guardando tempo en acordes:', err)
+      }
+    }, 400)
+  }
+
   const [youtubeUrl, setYoutubeUrl] = useState<string | null>(song.youtubeUrl || null)
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -605,12 +629,12 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 min={30}
                 max={280}
                 value={tempo}
-                onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+                onChange={(e) => handleTempoChange(parseInt(e.target.value) || 120)}
                 className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-center focus:outline-none focus:ring-1 focus:ring-primary-500"
                 title="Ajustar tempo en BPM"
               />
               <TapTempoButton
-                onTempoChange={(bpm) => setTempo(bpm)}
+                onTempoChange={(bpm) => handleTempoChange(bpm)}
                 currentTempo={tempo}
                 timeSignature={timeSignature}
                 className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
