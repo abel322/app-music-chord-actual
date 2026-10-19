@@ -2,75 +2,36 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Music, Lock, ShieldCheck, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { useAuth } from '@/lib/context/auth-context'
 
 export default function LoginPage() {
-  const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError('')
-
-    const effectiveEmail = email.trim()
-    const effectivePassword = password.trim()
+    setErrorMsg('')
+    setLoading(true)
 
     try {
-      // 1. Iniciar sesión mediante el endpoint administrativo que genera la cookie HTTP-only segura
-      const adminRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: effectiveEmail,
-          password: effectivePassword,
-        }),
-      })
-
-      const adminData = await adminRes.json()
-
-      if (adminRes.ok && adminData.success) {
-        // Sincronizar también con NextAuth en segundo plano si aplica
-        try {
-          await signIn('credentials', {
-            email: effectiveEmail,
-            password: effectivePassword,
-            redirect: false,
-          })
-        } catch {
-          // Ignorar error de NextAuth si el token HTTP-only ya está establecido
-        }
-
-        router.push('/dashboard/songs/chords')
-        router.refresh()
-        return
-      }
-
-      // 2. Si no validó por el endpoint administrativo, intentar con credenciales de NextAuth
-      const result = await signIn('credentials', {
-        email: effectiveEmail,
-        password: effectivePassword,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError('Contraseña o credenciales de administrador incorrectas')
+      const ok = await login(email, password)
+      if (ok) {
+        // Usar window.location.href para forzar la recarga completa con las cookies activas
+        window.location.href = '/dashboard/songs/chords'
       } else {
-        router.push('/dashboard/songs/chords')
-        router.refresh()
+        setErrorMsg('Correo o contraseña incorrectos')
       }
-    } catch {
-      setError('Ocurrió un error al procesar el inicio de sesión')
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Error al iniciar sesión')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -102,13 +63,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {error && (
-            <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/80 rounded-xl text-red-600 dark:text-red-300 text-xs font-semibold text-center animate-in fade-in">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <Input
                 type="email"
@@ -150,13 +105,20 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Mensaje de error visible encima del botón */}
+            {errorMsg && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/80 rounded-xl text-red-600 dark:text-red-300 text-xs font-semibold text-center animate-in fade-in">
+                {errorMsg}
+              </div>
+            )}
+
             <Button
               type="submit"
               variant="gradient"
               className="w-full py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary-900/20 mt-2"
-              disabled={isLoading}
+              disabled={loading}
             >
-              {isLoading ? (
+              {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   <span>Verificando Credenciales...</span>

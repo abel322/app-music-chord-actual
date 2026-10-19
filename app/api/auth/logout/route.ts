@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server'
-import { ADMIN_COOKIE_NAME } from '@/lib/admin-auth'
+import { cookies } from 'next/headers'
 
 export async function POST() {
-  const response = NextResponse.json({
-    success: true,
-    isAdmin: false,
-    user: null,
-  })
+  const cookieStore = cookies()
+  cookieStore.delete('musicchord_admin_session')
 
-  // Eliminar la cookie de sesión de administrador
+  const response = NextResponse.json({ success: true, isAdmin: false, user: null })
+
+  // Eliminar la cookie de sesión de administrador de forma compatible en Vercel
   response.cookies.set({
-    name: ADMIN_COOKIE_NAME,
+    name: 'musicchord_admin_session',
     value: '',
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -19,7 +18,7 @@ export async function POST() {
     maxAge: 0,
   })
 
-  // Eliminar variantes de cookies de NextAuth
+  // Eliminar variantes de cookies de NextAuth por si estuviesen activas
   const sessionCookies = [
     'next-auth.session-token',
     '__Secure-next-auth.session-token',

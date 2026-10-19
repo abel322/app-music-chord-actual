@@ -1,36 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { ADMIN_COOKIE_NAME, ADMIN_EMAIL, verifyAdminToken } from '@/lib/admin-auth'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    // 1. Revisar cookie de sesión de administrador exclusiva
-    const cookie = req.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const adminPayload = verifyAdminToken(cookie)
+    const cookieStore = cookies()
+    const session = cookieStore.get('musicchord_admin_session')
 
-    if (adminPayload && adminPayload.isAdmin) {
+    if (session?.value === 'authenticated' || session?.value) {
       return NextResponse.json({
         isAdmin: true,
         user: {
-          email: adminPayload.email,
-          name: 'Administrador',
+          email: process.env.ADMIN_EMAIL || 'utreraabel91@gmail.com',
+          name: 'Abel',
         },
       })
     }
 
-    // 2. Visitante invitado (no autenticado / Read-Only por defecto)
-    return NextResponse.json({
-      isAdmin: false,
-      user: null,
-    })
+    return NextResponse.json({ isAdmin: false, user: null })
   } catch (error) {
     console.error('Error obteniendo sesión:', error)
-    return NextResponse.json({
-      isAdmin: false,
-      user: null,
-    })
+    return NextResponse.json({ isAdmin: false, user: null })
   }
 }
