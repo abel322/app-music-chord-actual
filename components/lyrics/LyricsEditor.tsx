@@ -20,6 +20,8 @@ import {
   Minus,
   Plus,
   ChevronDown,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TapTempoButton } from '@/components/ui/TapTempoButton'
@@ -125,6 +127,14 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   const [tempoSavedIndicator, setTempoSavedIndicator] = useState(false)
   const tempoDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Metrónomo Web Audio API
+  const [isMetronomeActive, setIsMetronomeActive] = useState<boolean>(false)
+  const isMetronomeActiveRef = useRef<boolean>(false)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const lastBeatRef = useRef<number>(-1)
+  const [currentBeat, setCurrentBeat] = useState<number>(1)
+  const [currentMeasure, setCurrentMeasure] = useState<number>(1)
+
   // Selector interactivo de repetición abierto
   const [openRepeatDropdown, setOpenRepeatDropdown] = useState<number | null>(null)
 
@@ -157,6 +167,72 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   useEffect(() => {
     currentRepeatRef.current = currentRepeat
   }, [currentRepeat])
+
+  useEffect(() => {
+    isMetronomeActiveRef.current = isMetronomeActive
+  }, [isMetronomeActive])
+
+  // Inicializar o reanudar AudioContext con Web Audio API
+  const getAudioContext = useCallback(() => {
+    if (typeof window === 'undefined') return null
+    if (!audioCtxRef.current) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext
+      if (AudioCtxClass) {
+        audioCtxRef.current = new AudioCtxClass()
+      }
+    }
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume().catch(() => {})
+    }
+    return audioCtxRef.current
+  }, [])
+
+  // Reproducir clic sutil de metrónomo sintetizado
+  // Pulso acentuado (tiempo 1): 1000 Hz, duración 50 ms
+  // Pulsos secundarios (tiempos 2, 3, 4): 700 Hz, duración 40 ms
+  const playMetronomePulse = useCallback((isDownbeat: boolean) => {
+    if (!isMetronomeActiveRef.current) return
+    const ctx = getAudioContext()
+    if (!ctx) return
+
+    try {
+      const now = ctx.currentTime
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+
+      osc.type = 'sine'
+      const freq = isDownbeat ? 1000 : 700
+      const durationSec = isDownbeat ? 0.05 : 0.04
+      const peakGain = isDownbeat ? 0.35 : 0.22
+
+      osc.frequency.setValueAtTime(freq, now)
+
+      // Control suave de ganancia para evitar chasquidos (pops/clicks)
+      gain.gain.setValueAtTime(0.0001, now)
+      gain.gain.linearRampToValueAtTime(peakGain, now + 0.003)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSec)
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+
+      osc.start(now)
+      osc.stop(now + durationSec + 0.01)
+    } catch {
+      // Audio context safe fallback
+    }
+  }, [getAudioContext])
+
+  // Alternar metrónomo sonoro (1 clic sin pausar teleprompter)
+  const toggleMetronome = () => {
+    setIsMetronomeActive((prev) => {
+      const next = !prev
+      isMetronomeActiveRef.current = next
+      if (next) {
+        getAudioContext()
+      }
+      return next
+    })
+  }
 
   // Desplazamiento suave de una sección al área de lectura confortable
   const scrollToSection = useCallback((secIndex: number, resetToTop: boolean = false) => {
@@ -315,13 +391,14 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     parsedSectionsRef.current = parsedSections
   }, [parsedSections])
 
-  // Bucle de Teleprompter Inteligente con Sincronización Rítmica y Repeticiones (2x, 4x)
+  // Bucle de Teleprompter Inteligente con Sincronización Rítmica, Metrónomo y Repeticiones (2x, 4x)
   useEffect(() => {
     if (!isAutoScrolling) {
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current)
         rafIdRef.current = null
       }
+      lastBeatRef.current = -1
       return
     }
 
@@ -347,6 +424,27 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       const lapDuration = curSection.singleLapDurationMs
       const progress = Math.min(1, Math.max(0, lapElapsedRef.current / lapDuration))
       setLapProgress(progress)
+
+      // Cálculo de compases y pulsos rítmicos para el metrónomo y secciones instrumentales
+      const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
+      const pulseDurationMs = (60 / Math.max(30, Math.min(300, tempo || 72))) * 1000
+      const measureDurationMs = pulseDurationMs * beatsPerMeasure
+
+      const totalBeats = Math.floor(lapElapsedRef.current / pulseDurationMs)
+      const beatInMeasure = (totalBeats % beatsPerMeasure) + 1
+      const measureInSec = Math.min(
+        curSection.measuresCount,
+        Math.floor(lapElapsedRef.current / measureDurationMs) + 1
+      )
+
+      if (totalBeats !== lastBeatRef.current) {
+        lastBeatRef.current = totalBeats
+        setCurrentBeat(beatInMeasure)
+        setCurrentMeasure(measureInSec)
+        if (isMetronomeActiveRef.current) {
+          playMetronomePulse(beatInMeasure === 1)
+        }
+      }
 
       // Desplazamiento progresivo vertical dentro de la sección si es muy extensa
       if (scrollContainerRef.current) {
@@ -377,6 +475,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
           setCurrentRepeat(nextRep)
           lapElapsedRef.current = 0
           setLapProgress(0)
+          lastBeatRef.current = -1
           // Reposicionar la vista suavemente al inicio de esta sección para la siguiente vuelta
           scrollToSection(curSecIdx, false)
         } else {
@@ -389,6 +488,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             setCurrentRepeat(1)
             lapElapsedRef.current = 0
             setLapProgress(0)
+            lastBeatRef.current = -1
             // Avanzar suavemente a la siguiente parte de la canción (ej. Interludio o Puente)
             scrollToSection(nextSecIdx, false)
           } else {
@@ -410,14 +510,17 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         rafIdRef.current = null
       }
     }
-  }, [isAutoScrolling, scrollToSection])
+  }, [isAutoScrolling, scrollToSection, song.timeSignature, tempo, playMetronomePulse])
 
   // Iniciar / Pausar Teleprompter
   const handleTogglePlay = () => {
     setIsAutoScrolling((prev) => {
       const next = !prev
       if (next) {
+        getAudioContext()
         scrollToSection(activeSectionIdxRef.current, false)
+      } else {
+        lastBeatRef.current = -1
       }
       return next
     })
@@ -432,6 +535,9 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     setCurrentRepeat(1)
     lapElapsedRef.current = 0
     setLapProgress(0)
+    lastBeatRef.current = -1
+    setCurrentBeat(1)
+    setCurrentMeasure(1)
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -445,6 +551,9 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     setCurrentRepeat(1)
     lapElapsedRef.current = 0
     setLapProgress(0)
+    lastBeatRef.current = -1
+    setCurrentBeat(1)
+    setCurrentMeasure(1)
     scrollToSection(secIndex, false)
   }
 
@@ -529,7 +638,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     }
   }
 
-  // Atajos de teclado: Barra espaciadora para Play/Pause
+  // Atajos de teclado: Barra espaciadora para Play/Pause y 'M' para Metrónomo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Si el foco está en un textarea o input, no intervenir
@@ -541,16 +650,20 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       if (e.code === 'Space') {
         e.preventDefault()
         handleTogglePlay()
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault()
+        toggleMetronome()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleTogglePlay])
+  }, [handleTogglePlay, toggleMetronome])
 
   // Conteo de líneas y palabras
   const linesCount = text.split('\n').filter((l) => l.trim().length > 0).length
   const wordsCount = text.trim().length > 0 ? text.trim().split(/\s+/).length : 0
+  const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-24">
@@ -642,10 +755,10 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         </div>
       </div>
 
-      {/* Barra de Herramientas de Lectura y Teleprompter con BPM Compartido */}
+      {/* Barra de Herramientas de Lectura y Teleprompter con BPM y Metrónomo */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 p-3.5 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-lg">
-        {/* Controles de Teleprompter y BPM Compartido (Single Source of Truth) */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* Controles de Teleprompter, Metrónomo Web Audio y BPM Compartido */}
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Botón Iniciar / Pausar */}
           <Button
             variant={isAutoScrolling ? 'destructive' : 'default'}
@@ -672,6 +785,32 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
+
+          {/* Botón Toggle de Metrónomo Web Audio API */}
+          <button
+            type="button"
+            onClick={toggleMetronome}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border shrink-0 select-none cursor-pointer shadow-xs active:scale-95',
+              isMetronomeActive
+                ? 'bg-purple-600 text-white border-purple-500 shadow-purple-600/30 ring-1 ring-purple-400/40'
+                : 'bg-slate-800/90 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-700'
+            )}
+            title={
+              isMetronomeActive
+                ? 'Metrónomo con audio encendido (Clic o tecla M para silenciar)'
+                : 'Metrónomo silenciado (Clic o tecla M para activar sonido rítmico)'
+            }
+          >
+            {isMetronomeActive ? (
+              <Volume2 className="w-3.5 h-3.5 text-white animate-pulse" />
+            ) : (
+              <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span className="hidden sm:inline">
+              {isMetronomeActive ? 'Metrónomo: ON' : 'Metrónomo: OFF'}
+            </span>
+          </button>
 
           <div className="h-5 w-px bg-slate-800 hidden sm:block" />
 
@@ -850,13 +989,39 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             />
           </div>
         ) : (
-          /* Modo Lectura / Escenario / Prompter con Soporte para Repeticiones (2x, 4x) */
+          /* Modo Lectura / Escenario / Prompter con Karaoke y Sincronización Rítmica */
           <div
             style={{ fontSize: `${fontSize}px` }}
             className="font-serif leading-loose tracking-wide select-text max-w-3xl mx-auto space-y-6"
           >
             {parsedSections.map((section, secIdx) => {
               const isActive = isAutoScrolling && activeSectionIdx === secIdx
+              const nonBlankLines = section.lines.filter((l) => l.trim().length > 0)
+              const isInstrumental = nonBlankLines.length === 0
+
+              // Cálculo de la línea y palabra activa para el resaltador de frase / karaoke
+              let activeLineIndex = -1
+              let activeWordIndex = -1
+
+              if (isActive && !isInstrumental && nonBlankLines.length > 0) {
+                // progresión de la línea en la vuelta actual
+                activeLineIndex = Math.min(
+                  nonBlankLines.length - 1,
+                  Math.floor(lapProgress * nonBlankLines.length)
+                )
+
+                const lineFraction = lapProgress * nonBlankLines.length - activeLineIndex
+                const currentLineText = nonBlankLines[activeLineIndex] || ''
+                const wordsInLine = currentLineText.trim().split(/\s+/)
+                if (wordsInLine.length > 0) {
+                  activeWordIndex = Math.min(
+                    wordsInLine.length - 1,
+                    Math.floor(lineFraction * wordsInLine.length)
+                  )
+                }
+              }
+
+              let nonBlankCounter = 0
 
               return (
                 <div
@@ -877,7 +1042,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                       className={cn(
                         'inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-sans font-extrabold uppercase tracking-widest border shadow-xs transition-colors',
                         isActive
-                          ? 'bg-purple-600 text-white border-purple-500'
+                          ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
                           : 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
                       )}
                     >
@@ -953,28 +1118,155 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                         </div>
                       </div>
                     )}
-
-                    {/* Instrumental indicator if section has no lyric lines */}
-                    {section.lines.filter((l) => l.trim().length > 0).length === 0 && (
-                      <span className="text-xs italic text-slate-400 font-sans">
-                        (Instrumental • {section.measuresCount} compases)
-                      </span>
-                    )}
                   </div>
 
-                  {/* Líneas de Letra de esta Sección */}
-                  <div className="text-slate-800 dark:text-slate-100 select-text">
-                    {section.lines.map((line, lIdx) => {
-                      if (line.trim() === '') {
-                        return <div key={lIdx} className="h-3" />
-                      }
-                      return (
-                        <p key={lIdx} className="my-1 leading-relaxed">
-                          {line}
-                        </p>
-                      )
-                    })}
-                  </div>
+                  {/* CASO A: Sección Instrumental (Intro, Interludios, Solos) */}
+                  {isInstrumental ? (
+                    isActive ? (
+                      /* Tarjeta de Sección Instrumental Activa con Cuenta de Compases y Pulsos en Vivo */
+                      <div className="rounded-xl border border-purple-300/60 dark:border-purple-700/60 bg-gradient-to-r from-purple-50/90 via-purple-100/40 to-purple-50/90 dark:from-purple-950/40 dark:via-purple-900/20 dark:to-purple-950/40 p-4 sm:p-5 my-2 shadow-xs transition-all animate-in fade-in select-none">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            {/* Pulso numérico actual */}
+                            <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-mono font-black text-lg shadow-md shadow-purple-600/30">
+                              {currentBeat}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                                  Sección Instrumental
+                                </span>
+                                <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-200/80 dark:bg-purple-900/70 font-bold text-purple-900 dark:text-purple-200 border border-purple-300/60 dark:border-purple-800">
+                                  Compás {currentMeasure} de {section.measuresCount}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Preparando entrada vocal para la siguiente sección...
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Medidor visual de tiempos por compás */}
+                          <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800/80">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">
+                              Tiempos:
+                            </span>
+                            {Array.from({ length: beatsPerMeasure }).map((_, beatIdx) => {
+                              const beatNum = beatIdx + 1
+                              const isCurrent = currentBeat === beatNum
+                              return (
+                                <div
+                                  key={beatNum}
+                                  className={cn(
+                                    'w-6 h-6 rounded-lg flex items-center justify-center font-mono text-xs font-black transition-all duration-100',
+                                    isCurrent
+                                      ? 'bg-purple-600 text-white scale-110 shadow-sm shadow-purple-500/40'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                  )}
+                                >
+                                  {beatNum}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Barra de progreso del compás e instrumental */}
+                        <div className="mt-3.5 space-y-1">
+                          <div className="flex justify-between text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold">
+                            <span>Compás {currentMeasure} de {section.measuresCount}</span>
+                            <span>{Math.round(lapProgress * 100)}%</span>
+                          </div>
+                          <div className="h-2 w-full bg-purple-200/60 dark:bg-slate-800 rounded-full overflow-hidden border border-purple-300/40 dark:border-purple-800/40">
+                            <div
+                              className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-500 rounded-full transition-all duration-75"
+                              style={{ width: `${Math.min(100, Math.max(0, lapProgress * 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Sección Instrumental en Reposo */
+                      <div className="py-2.5 px-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-500 flex items-center gap-2">
+                        <Music className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Sección Instrumental • {section.measuresCount} compases</span>
+                      </div>
+                    )
+                  ) : (
+                    /* CASO B: Sección con Letra (Versos con Resaltador Karaoke y Frase Tracker) */
+                    <div className="text-slate-800 dark:text-slate-100 select-text">
+                      {section.lines.map((line, lIdx) => {
+                        const trimmedLine = line.trim()
+                        if (trimmedLine === '') {
+                          return <div key={lIdx} className="h-3" />
+                        }
+
+                        const lineIndexInNonBlank = nonBlankCounter++
+
+                        if (isActive) {
+                          // Línea actual en curso
+                          if (lineIndexInNonBlank === activeLineIndex) {
+                            const words = trimmedLine.split(/\s+/)
+                            return (
+                              <p key={lIdx} className="my-1.5 leading-relaxed">
+                                <span className="bg-purple-100/90 text-purple-950 dark:bg-purple-900/50 dark:text-purple-100 font-semibold px-2.5 py-1 rounded-xl transition-all duration-200 inline-block shadow-xs border border-purple-200/80 dark:border-purple-800/60">
+                                  {words.map((word, wIdx) => {
+                                    const isCurrentWord = wIdx === activeWordIndex
+                                    const isPastWord = wIdx < activeWordIndex
+
+                                    return (
+                                      <span
+                                        key={wIdx}
+                                        className={cn(
+                                          'inline-block mr-1.5 transition-all duration-150',
+                                          isCurrentWord
+                                            ? 'text-purple-700 dark:text-purple-300 font-black underline decoration-purple-500 decoration-2 underline-offset-4 scale-[1.03]'
+                                            : isPastWord
+                                            ? 'text-purple-900/80 dark:text-purple-200/90 font-medium'
+                                            : 'text-purple-900/50 dark:text-purple-300/50'
+                                        )}
+                                      >
+                                        {word}
+                                      </span>
+                                    )
+                                  })}
+                                </span>
+                              </p>
+                            )
+                          }
+
+                          // Línea ya leída / cantada
+                          if (lineIndexInNonBlank < activeLineIndex) {
+                            return (
+                              <p
+                                key={lIdx}
+                                className="my-1 leading-relaxed text-slate-400 dark:text-slate-500 opacity-60 transition-opacity duration-200"
+                              >
+                                {line}
+                              </p>
+                            )
+                          }
+
+                          // Línea próxima por cantar
+                          return (
+                            <p
+                              key={lIdx}
+                              className="my-1 leading-relaxed text-slate-800 dark:text-slate-200 transition-opacity duration-200"
+                            >
+                              {line}
+                            </p>
+                          )
+                        }
+
+                        // Modo inactivo normal
+                        return (
+                          <p key={lIdx} className="my-1 leading-relaxed">
+                            {line}
+                          </p>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })}
