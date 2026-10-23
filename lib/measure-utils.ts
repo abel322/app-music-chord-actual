@@ -754,6 +754,7 @@ export function ensureSectionMeasures(
       measures: normalizedMeasures,
       guideLyrics: rawSection.guideLyrics || '',
       lines: rawSection.lines,
+      repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
     }
   }
 
@@ -797,6 +798,7 @@ export function ensureSectionMeasures(
     measures,
     guideLyrics: guideLines.join('\n'),
     lines: rawSection.lines,
+    repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
   }
 }
 

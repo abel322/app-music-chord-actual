@@ -14,6 +14,9 @@ export interface FlattenedMeasure {
   beatsCount: number
   pulseDurationMs: number
   durationMs: number
+  iteration: number
+  repeatCount: number
+  totalMeasuresInSection: number
 }
 
 export interface UseLeadSheetPlaybackOptions {
@@ -32,6 +35,8 @@ export interface UseLeadSheetPlaybackReturn {
   isMuted: boolean
   flatMeasures: FlattenedMeasure[]
   totalMeasuresCount: number
+  totalDurationMs: number
+  totalDurationFormatted: string
   play: () => void
   pause: () => void
   togglePlay: () => void
@@ -80,7 +85,7 @@ export function useLeadSheetPlayback({
     isMutedRef.current = isMuted
   }, [isMuted])
 
-  // Aplanar la lista de compases en orden cronológico lineal
+  // Aplanar la lista de compases en orden cronológico lineal respetando repeticiones de sección (2x, 3x, 4x...)
   const flatMeasures = useMemo<FlattenedMeasure[]>(() => {
     const list: FlattenedMeasure[] = []
     let globalIndex = 0
@@ -90,27 +95,46 @@ export function useLeadSheetPlayback({
 
     sections.forEach((section) => {
       const sectionTimeSig = section.timeSignature || defaultTimeSignature || '4/4'
-      section.measures.forEach((measure, mIdx) => {
-        const effectiveTimeSig = measure.timeSignature || sectionTimeSig
-        const beatsCount = getBeatsPerMeasure(effectiveTimeSig)
-        const durationMs = pulseDurationMs * beatsCount
+      const repeats = Math.max(1, Math.min(64, Number(section.repeatCount) || 1))
+      const measuresCount = section.measures.length
 
-        list.push({
-          measure,
-          sectionId: section.id,
-          sectionLabel: section.label,
-          flatIndex: globalIndex++,
-          measureIndexInSection: mIdx,
-          timeSignature: effectiveTimeSig,
-          beatsCount,
-          pulseDurationMs,
-          durationMs,
+      for (let iteration = 1; iteration <= repeats; iteration++) {
+        section.measures.forEach((measure, mIdx) => {
+          const effectiveTimeSig = measure.timeSignature || sectionTimeSig
+          const beatsCount = getBeatsPerMeasure(effectiveTimeSig)
+          const durationMs = pulseDurationMs * beatsCount
+
+          list.push({
+            measure,
+            sectionId: section.id,
+            sectionLabel: section.label,
+            flatIndex: globalIndex++,
+            measureIndexInSection: mIdx,
+            timeSignature: effectiveTimeSig,
+            beatsCount,
+            pulseDurationMs,
+            durationMs,
+            iteration,
+            repeatCount: repeats,
+            totalMeasuresInSection: measuresCount,
+          })
         })
-      })
+      }
     })
 
     return list
   }, [sections, tempo, defaultTimeSignature])
+
+  const totalDurationMs = useMemo(() => {
+    return flatMeasures.reduce((acc, m) => acc + m.durationMs, 0)
+  }, [flatMeasures])
+
+  const totalDurationFormatted = useMemo(() => {
+    const totalSeconds = Math.round(totalDurationMs / 1000)
+    const mins = Math.floor(totalSeconds / 60)
+    const secs = totalSeconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }, [totalDurationMs])
 
   const flatMeasuresRef = useRef(flatMeasures)
   useEffect(() => {
@@ -348,10 +372,19 @@ export function useLeadSheetPlayback({
     [playMetronomeClick, startLoop]
   )
 
-  // Saltar a un compás específico por su measure.id
+  // Saltar a un compás específico por su measure.id respetando sección actual
   const jumpToMeasureId = useCallback(
     (measureId: string) => {
-      const index = flatMeasuresRef.current.findIndex((m) => m.measure.id === measureId)
+      const cur = flatMeasuresRef.current[currentIndexRef.current]
+      let index = -1
+      if (cur) {
+        index = flatMeasuresRef.current.findIndex(
+          (m) => m.measure.id === measureId && m.iteration === cur.iteration && m.sectionId === cur.sectionId
+        )
+      }
+      if (index === -1) {
+        index = flatMeasuresRef.current.findIndex((m) => m.measure.id === measureId)
+      }
       if (index !== -1) {
         jumpToFlatIndex(index)
       }
@@ -381,6 +414,8 @@ export function useLeadSheetPlayback({
     isMuted,
     flatMeasures,
     totalMeasuresCount: flatMeasures.length,
+    totalDurationMs,
+    totalDurationFormatted,
     play,
     pause,
     togglePlay,

@@ -86,6 +86,7 @@ interface MeasureGridProps {
   isPlaying?: boolean
   measureDurationMs?: number
   sectionName?: string
+  sectionRepeatCount?: number
   onUpdateMeasures: (updatedMeasures: Measure[]) => void
   onAddMeasures?: (count: number) => void
   onRemoveMeasure?: (measureId: string) => void
@@ -102,6 +103,7 @@ export function MeasureGrid({
   isPlaying = false,
   measureDurationMs,
   sectionName,
+  sectionRepeatCount = 1,
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
@@ -400,6 +402,10 @@ export function MeasureGrid({
               const isActive = activeMeasureId === measure.id
               const prevMeasure = index > 0 ? measures[index - 1] : null
               const bracket = cadenceBrackets[measure.id]
+              const isFirst = index === 0
+              const isLast = index === measures.length - 1
+              const sectionRepeatStart = isFirst && (sectionRepeatCount ?? 1) > 1 && !measure.repeatStart
+              const sectionRepeatEnd = isLast && (sectionRepeatCount ?? 1) > 1 && !measure.repeatEnd ? sectionRepeatCount : undefined
 
               return (
                 <SortableMeasureCell
@@ -416,6 +422,8 @@ export function MeasureGrid({
                   measureDurationMs={measureDurationMs}
                   prevMeasure={prevMeasure}
                   cadenceBracket={bracket}
+                  sectionRepeatStart={sectionRepeatStart}
+                  sectionRepeatEnd={sectionRepeatEnd}
                   onClick={() => {
                     if (isEditing) setSelectedMeasureId(measure.id)
                     onMeasureClick?.(measure)

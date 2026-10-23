@@ -30,6 +30,7 @@ import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
+import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
@@ -198,6 +199,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     currentBeat,
     isMuted,
     totalMeasuresCount,
+    totalDurationFormatted,
     togglePlay,
     stop,
     toggleMute,
@@ -347,6 +349,13 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         const renumbered = filtered.map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
         return { ...sec, measures: renumbered }
       })
+    )
+  }
+
+  // Modificar multiplicador de repeticiones de una sección (1x, 2x, 4x...)
+  const handleUpdateSectionRepeatCount = (sectionId: string, count: number) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, repeatCount: count } : s))
     )
   }
 
@@ -654,6 +663,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             currentSectionLabel={currentMeasure?.sectionLabel}
             totalMeasuresCount={totalMeasuresCount}
             currentFlatMeasureIndex={currentFlatMeasureIndex}
+            iteration={currentMeasure?.iteration}
+            repeatCount={currentMeasure?.repeatCount}
+            measureIndexInSection={currentMeasure?.measureIndexInSection}
+            totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
+            totalDurationFormatted={totalDurationFormatted}
             onTogglePlay={togglePlay}
             onStop={stop}
             onToggleMute={toggleMute}
@@ -683,6 +697,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] uppercase font-bold text-slate-300">
             4 Compases / Línea
           </span>
+          {totalDurationFormatted && (
+            <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-800/80 text-[10px] font-mono font-bold text-purple-300">
+              ⏱ {totalDurationFormatted} ({totalMeasuresCount} compases)
+            </span>
+          )}
         </div>
       </div>
 
@@ -767,9 +786,19 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                           />
                         )}
                       </div>
-                      <span className="text-[11px] font-medium text-slate-400 block">
-                        {section.measures.length} compases • {section.timeSignature || timeSignature}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-[11px] font-medium text-slate-400">
+                          {section.measures.length} compases • {section.timeSignature || timeSignature}
+                        </span>
+                        <SectionRepeatControl
+                          repeatCount={section.repeatCount}
+                          measuresCount={section.measures.length}
+                          isEditing={effectiveIsEditing}
+                          onUpdateRepeatCount={(count) =>
+                            handleUpdateSectionRepeatCount(section.id, count)
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -913,6 +942,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   isPlaying={isPlaying}
                   measureDurationMs={currentMeasure?.durationMs}
                   sectionName={section.label}
+                  sectionRepeatCount={section.repeatCount}
                   onMeasureClick={(clickedMeasure) => {
                     // Si el usuario hace clic en cualquier compás mientras está en reproducción, saltar de inmediato
                     jumpToMeasureId(clickedMeasure.id)

@@ -60,6 +60,11 @@ export function SectionNavigationStickyBar({
                 {badge}
               </span>
               <span>{sec.label}</span>
+              {sec.repeatCount && sec.repeatCount > 1 && (
+                <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-purple-200 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
+                  {sec.repeatCount}x
+                </span>
+              )}
               {sec.keySignature && (
                 <span
                   className="w-1.5 h-1.5 rounded-full bg-purple-500 dark:bg-purple-400"

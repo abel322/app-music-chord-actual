@@ -13,6 +13,11 @@ interface LeadSheetPlaybackControlsProps {
   currentSectionLabel?: string
   totalMeasuresCount: number
   currentFlatMeasureIndex: number
+  iteration?: number
+  repeatCount?: number
+  measureIndexInSection?: number
+  totalMeasuresInSection?: number
+  totalDurationFormatted?: string
   onTogglePlay: () => void
   onStop: () => void
   onToggleMute: () => void
@@ -28,6 +33,11 @@ export function LeadSheetPlaybackControls({
   currentSectionLabel,
   totalMeasuresCount,
   currentFlatMeasureIndex,
+  iteration = 1,
+  repeatCount = 1,
+  measureIndexInSection = 0,
+  totalMeasuresInSection,
+  totalDurationFormatted,
   onTogglePlay,
   onStop,
   onToggleMute,
@@ -131,9 +141,29 @@ export function LeadSheetPlaybackControls({
             })}
           </div>
 
+          {/* Sección actual */}
           {currentSectionLabel && (
-            <span className="hidden lg:inline text-[10px] text-purple-400/90 font-sans font-semibold max-w-[80px] truncate">
+            <span className="hidden lg:inline text-[11px] text-purple-300 font-sans font-bold max-w-[100px] truncate">
               {currentSectionLabel}
+            </span>
+          )}
+
+          {/* Badge de Repetición / Vuelta cuando la sección tiene repeatCount > 1 */}
+          {repeatCount > 1 && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-sans font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+              <span>Vuelta {iteration} de {repeatCount}</span>
+              {totalMeasuresInSection && (
+                <span className="opacity-75">
+                  ({measureIndexInSection + 1}/{totalMeasuresInSection})
+                </span>
+              )}
+            </span>
+          )}
+
+          {/* Duración estimada total */}
+          {totalDurationFormatted && (
+            <span className="text-[10px] text-slate-400 font-mono hidden xl:inline">
+              ⏱ {totalDurationFormatted}
             </span>
           )}
         </div>

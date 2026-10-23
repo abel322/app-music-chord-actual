@@ -363,8 +363,17 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         )
       })
 
-      if (match && Array.isArray(match.measures) && match.measures.length > 0) {
-        measuresCount = match.measures.length
+      let effectiveRepeats = sec.repeats
+      if (match) {
+        if (Array.isArray(match.measures) && match.measures.length > 0) {
+          measuresCount = match.measures.length
+        } else {
+          const nonBlank = sec.lines.filter((l) => l.trim().length > 0).length
+          measuresCount = Math.max(4, nonBlank * 2)
+        }
+        if (effectiveRepeats === 1 && match.repeatCount && match.repeatCount > 1) {
+          effectiveRepeats = match.repeatCount
+        }
       } else {
         const nonBlank = sec.lines.filter((l) => l.trim().length > 0).length
         measuresCount = Math.max(4, nonBlank * 2)
@@ -374,11 +383,13 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       measuresCount = Math.max(4, nonBlank * 2)
     }
 
+    const effectiveRepeats = sec.repeats
     const singleLapDurationMs = measuresCount * measureDurationMs
-    const totalDurationMs = singleLapDurationMs * sec.repeats
+    const totalDurationMs = singleLapDurationMs * effectiveRepeats
 
     return {
       ...sec,
+      repeats: effectiveRepeats,
       measuresCount,
       singleLapDurationMs,
       totalDurationMs,

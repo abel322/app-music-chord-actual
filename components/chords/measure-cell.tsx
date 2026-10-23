@@ -45,6 +45,8 @@ export interface MeasureCellProps {
   onRemoveCadence?: (measureId: string) => void
   dragHandleProps?: Record<string, any>
   isDragging?: boolean
+  sectionRepeatStart?: boolean
+  sectionRepeatEnd?: number
 }
 
 export function MeasureCell({
@@ -65,6 +67,8 @@ export function MeasureCell({
   onRemoveCadence,
   dragHandleProps,
   isDragging = false,
+  sectionRepeatStart = false,
+  sectionRepeatEnd,
 }: MeasureCellProps) {
   const effectiveTimeSig = measure.timeSignature || timeSignature || (beatsPerMeasure ? `${beatsPerMeasure}/4` : '4/4')
   const actualBeats = getBeatsPerMeasure(effectiveTimeSig)
@@ -122,8 +126,8 @@ export function MeasureCell({
           : isSelected && isEditing
             ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
             : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
-        measure.repeatStart && 'border-l-[5px] border-l-primary-600 dark:border-l-primary-500',
-        measure.repeatEnd && 'border-r-[5px] border-r-primary-600 dark:border-r-primary-500',
+        (measure.repeatStart || sectionRepeatStart) && 'border-l-[5px] border-l-purple-600 dark:border-l-purple-500',
+        (measure.repeatEnd || !!sectionRepeatEnd) && 'border-r-[5px] border-r-purple-600 dark:border-r-purple-500',
         (isEditing || isPlaying) && 'cursor-pointer hover:shadow-md',
         isDragging && 'opacity-40 border-dashed border-purple-400 dark:border-purple-500'
       )}
@@ -319,9 +323,9 @@ export function MeasureCell({
             {measure.measureNumber}
           </span>
 
-          {measure.repeatStart && (
+          {(measure.repeatStart || sectionRepeatStart) && (
             <span
-              className="font-extrabold text-primary-600 dark:text-primary-400 text-xs tracking-tighter"
+              className="font-extrabold text-purple-600 dark:text-purple-400 text-xs tracking-tighter"
               title="Inicio de repetición |:"
             >
               |:
@@ -344,12 +348,12 @@ export function MeasureCell({
             </span>
           )}
 
-          {measure.repeatEnd && (
+          {(measure.repeatEnd || !!sectionRepeatEnd) && (
             <span
-              className="font-extrabold text-primary-600 dark:text-primary-400 text-xs tracking-tighter"
+              className="font-extrabold text-purple-600 dark:text-purple-400 text-xs tracking-tighter"
               title="Fin de repetición :|"
             >
-              :| {measure.repeatCount ? `x${measure.repeatCount}` : ''}
+              :| {measure.repeatCount ? `x${measure.repeatCount}` : sectionRepeatEnd ? `×${sectionRepeatEnd}` : ''}
             </span>
           )}
 

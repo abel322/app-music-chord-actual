@@ -29,6 +29,7 @@ import { MeasureGrid } from '@/components/chords/MeasureGrid'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
+import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
@@ -179,6 +180,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     currentBeat,
     isMuted,
     totalMeasuresCount,
+    totalDurationFormatted,
     togglePlay,
     stop,
     toggleMute,
@@ -242,6 +244,13 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   const handleUpdateSectionMeasures = (sectionId: string, updatedMeasures: Measure[]) => {
     setSections((prev) =>
       prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedMeasures } : sec))
+    )
+  }
+
+  // Modificar multiplicador de repeticiones de una sección (1x, 2x, 4x...)
+  const handleUpdateSectionRepeatCount = (sectionId: string, count: number) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, repeatCount: count } : s))
     )
   }
 
@@ -676,6 +685,11 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               currentSectionLabel={currentMeasure?.sectionLabel}
               totalMeasuresCount={totalMeasuresCount}
               currentFlatMeasureIndex={currentFlatMeasureIndex}
+              iteration={currentMeasure?.iteration}
+              repeatCount={currentMeasure?.repeatCount}
+              measureIndexInSection={currentMeasure?.measureIndexInSection}
+              totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
+              totalDurationFormatted={totalDurationFormatted}
               onTogglePlay={togglePlay}
               onStop={stop}
               onToggleMute={toggleMute}
@@ -743,6 +757,14 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                   <span className="text-xs text-slate-400 font-medium shrink-0">
                     ({section.measures.length} compases)
                   </span>
+                  <SectionRepeatControl
+                    repeatCount={section.repeatCount}
+                    measuresCount={section.measures.length}
+                    isEditing={true}
+                    onUpdateRepeatCount={(count) =>
+                      handleUpdateSectionRepeatCount(section.id, count)
+                    }
+                  />
                 </div>
 
                 {/* Acciones de Sección, Modulación de Tono y Selector de Progresiones */}
@@ -874,6 +896,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                     isPlaying={isPlaying}
                     measureDurationMs={currentMeasure?.durationMs}
                     sectionName={section.label}
+                    sectionRepeatCount={section.repeatCount}
                     onMeasureClick={(clickedMeasure) => {
                       jumpToMeasureId(clickedMeasure.id)
                     }}
