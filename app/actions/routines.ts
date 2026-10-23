@@ -41,7 +41,6 @@ export async function createPracticeSession(data: {
       exerciseType: data.exerciseType,
       scheduledAt: data.scheduledAt,
       completed: data.completed ?? false,
-      isRecurring: data.isRecurring ?? true,
     }
   })
 
@@ -93,7 +92,6 @@ export async function updatePracticeSession(id: string, data: { instrument: any;
       duration: data.duration,
       book: data.book,
       exerciseType: data.exerciseType,
-      ...(data.isRecurring !== undefined ? { isRecurring: data.isRecurring } : {})
     }
   })
 
@@ -127,7 +125,6 @@ export async function createWeeklyRoutine(data: {
       exerciseType: data.exerciseType || null,
       scheduledAt: date,
       completed: false,
-      isRecurring: data.isRecurring ?? true,
     }))
   })
 
@@ -147,9 +144,6 @@ export async function updateWeeklyRoutine(ids: string[], data: {
     instrument: data.instrument,
     book: data.book || null,
     exerciseType: data.exerciseType || null,
-  }
-  if (data.isRecurring !== undefined) {
-    commonData.isRecurring = data.isRecurring
   }
 
   // Update uncompleted sessions (duration is updated to the new base/planned duration)
@@ -281,7 +275,6 @@ export async function clonePreviousWeekRoutines(
     duration: number
     book: string | null
     exerciseType: string | null
-    isRecurring: boolean
   }>()
 
   for (const s of sourceSessions) {
@@ -292,7 +285,6 @@ export async function clonePreviousWeekRoutines(
         duration: s.duration,
         book: s.book,
         exerciseType: s.exerciseType,
-        isRecurring: s.isRecurring ?? true
       })
     } else {
       // Priorizar la duración planificada (sesión no completada)
@@ -350,7 +342,6 @@ export async function clonePreviousWeekRoutines(
         exerciseType: routine.exerciseType,
         scheduledAt: date,
         completed: false,
-        isRecurring: routine.isRecurring ?? true,
       })
     }
   }
@@ -381,7 +372,7 @@ export async function clonePreviousWeekRoutines(
 }
 
 /**
- * Auto-pobla rutinas recurrentes activas de la semana anterior si la semana objetivo está vacía
+ * Auto-pobla rutinas activas de la semana anterior si la semana objetivo está vacía
  */
 export async function autoPopulateRecurringRoutines(targetStartOfWeekInput: Date | string) {
   const userId = await getAuthenticatedUserId()
@@ -406,14 +397,13 @@ export async function autoPopulateRecurringRoutines(targetStartOfWeekInput: Date
     return { success: true, autoPopulated: false, count: 0, newSessions: [] }
   }
 
-  // Buscar sesiones recurrentes de la semana inmediatamente anterior
+  // Buscar sesiones de la semana inmediatamente anterior
   const prevWeekStart = new Date(targetStart)
   prevWeekStart.setDate(prevWeekStart.getDate() - 7)
 
   let sourceSessions = await prisma.practiceSession.findMany({
     where: {
       userId,
-      isRecurring: true,
       scheduledAt: {
         gte: prevWeekStart,
         lt: targetStart
@@ -422,12 +412,11 @@ export async function autoPopulateRecurringRoutines(targetStartOfWeekInput: Date
     orderBy: { scheduledAt: 'asc' }
   })
 
-  // Si no hay en la semana anterior exacta, buscar en la última semana previa que tenga recurrentes
+  // Si no hay en la semana anterior exacta, buscar en la última semana previa que tenga sesiones
   if (sourceSessions.length === 0) {
     const latestPrior = await prisma.practiceSession.findFirst({
       where: {
         userId,
-        isRecurring: true,
         scheduledAt: { lt: targetStart }
       },
       orderBy: { scheduledAt: 'desc' }
@@ -446,7 +435,6 @@ export async function autoPopulateRecurringRoutines(targetStartOfWeekInput: Date
       sourceSessions = await prisma.practiceSession.findMany({
         where: {
           userId,
-          isRecurring: true,
           scheduledAt: {
             gte: lStart,
             lt: lEnd
@@ -461,7 +449,7 @@ export async function autoPopulateRecurringRoutines(targetStartOfWeekInput: Date
     return { success: true, autoPopulated: false, count: 0, newSessions: [] }
   }
 
-  // Agrupar rutinas base recurrentes únicas
+  // Agrupar rutinas base únicas
   const uniqueBases = new Map<string, {
     instrument: any
     duration: number
@@ -501,7 +489,6 @@ export async function autoPopulateRecurringRoutines(targetStartOfWeekInput: Date
         exerciseType: routine.exerciseType,
         scheduledAt: date,
         completed: false,
-        isRecurring: true,
       })
     }
   }

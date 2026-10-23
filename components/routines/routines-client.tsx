@@ -18,20 +18,38 @@ interface Session {
 }
 
 interface RoutinesClientProps {
-  sessions: Session[]
+  sessions?: Session[]
+  initialRoutines?: Session[]
+  currentWeek?: string
 }
 
-export function RoutinesClient({ sessions }: RoutinesClientProps) {
-  const [currentDate, setCurrentDate] = useState(() => new Date())
-  const [localSessions, setLocalSessions] = useState<Session[]>(sessions)
+export function RoutinesClient({ sessions, initialRoutines, currentWeek }: RoutinesClientProps) {
+  const allSessions = sessions ?? initialRoutines ?? []
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (currentWeek) {
+      const parsed = new Date(currentWeek)
+      if (!isNaN(parsed.getTime())) return parsed
+    }
+    return new Date()
+  })
+  const [localSessions, setLocalSessions] = useState<Session[]>(allSessions)
 
   // Sync with prop updates if server revalidates
   useEffect(() => {
-    setLocalSessions(sessions)
-  }, [sessions])
+    const updated = sessions ?? initialRoutines ?? []
+    setLocalSessions(updated)
+  }, [sessions, initialRoutines])
 
   const getStartOfWeek = (date: Date) => {
     const d = new Date(date)
+    if (isNaN(d.getTime())) {
+      const fallback = new Date()
+      const day = fallback.getDay()
+      const diff = fallback.getDate() - day + (day === 0 ? -6 : 1)
+      fallback.setDate(diff)
+      fallback.setHours(0, 0, 0, 0)
+      return fallback
+    }
     const day = d.getDay()
     const diff = d.getDate() - day + (day === 0 ? -6 : 1)
     d.setDate(diff)
@@ -73,3 +91,4 @@ export function RoutinesClient({ sessions }: RoutinesClientProps) {
   )
 }
 
+export { RoutinesClient as RoutinesClientView }

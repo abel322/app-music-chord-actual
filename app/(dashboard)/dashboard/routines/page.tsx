@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getAdminSession, getAdminUserId } from '@/lib/admin-auth'
-import { RoutinesClient } from '@/components/routines/routines-client'
+import { RoutinesClient, RoutinesClientView } from '@/components/routines/routines-client'
 import { CalendarDays } from 'lucide-react'
 import { redirect } from 'next/navigation'
 
@@ -11,27 +11,87 @@ export const metadata = {
   description: 'Gestiona tus sesiones de práctica musical',
 }
 
-export default async function RoutinesPage() {
-  const { isAdmin } = await getAdminSession()
+function getMondayOfCurrentWeek(baseDate?: Date | string): Date {
+  const d = baseDate ? new Date(baseDate) : new Date()
+  if (isNaN(d.getTime())) {
+    const fallback = new Date()
+    const day = fallback.getDay()
+    const diff = fallback.getDate() - day + (day === 0 ? -6 : 1)
+    fallback.setDate(diff)
+    fallback.setHours(0, 0, 0, 0)
+    return fallback
+  }
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
 
+interface RoutinesPageProps {
+  searchParams?: {
+    week?: string
+  }
+}
+
+export default async function RoutinesPage({ searchParams }: RoutinesPageProps) {
+  // 1. Verificación de permisos de administrador
+  const { isAdmin } = await getAdminSession()
   if (!isAdmin) {
     redirect('/dashboard/songs/chords')
   }
 
-  let userId: string | null = null
+  let practiceSessions: any[] = []
+  let currentWeekStart: Date = getMondayOfCurrentWeek()
+
   try {
-    userId = await getAdminUserId()
-  } catch {
-    // Si no hay usuario en DB
-  }
+    // 1. Manejo seguro de fecha actual (Lunes de la semana activa)
+    currentWeekStart = searchParams?.week 
+      ? new Date(searchParams.week) 
+      : getMondayOfCurrentWeek()
 
-  const practiceSessions = userId
-    ? await prisma.practiceSession.findMany({
-        where: { userId },
-        orderBy: { scheduledAt: 'desc' },
+    if (isNaN(currentWeekStart.getTime())) {
+      currentWeekStart = getMondayOfCurrentWeek()
+    } else {
+      currentWeekStart = getMondayOfCurrentWeek(currentWeekStart)
+    }
+
+    // 2. Consulta Prisma LIMPIA (consultando ÚNICAMENTE los campos ya existentes en la BD)
+    // NO incluir isRecurring ni relaciones que no existan en el schema actual
+    let userId: string | null = null
+    try {
+      userId = await getAdminUserId()
+    } catch (err) {
+      console.warn("Usuario administrador no encontrado en BD:", err)
+    }
+
+    if (userId) {
+      practiceSessions = await prisma.practiceSession.findMany({
+        where: {
+          userId,
+        },
+        select: {
+          id: true,
+          instrument: true,
+          duration: true,
+          book: true,
+          exerciseType: true,
+          scheduledAt: true,
+          completed: true,
+          createdAt: true,
+        },
+        orderBy: {
+          scheduledAt: 'desc',
+        },
       })
-    : []
-
+    }
+  } catch (error) {
+    if ((error as any)?.digest?.startsWith?.('NEXT_REDIRECT') || (error as any)?.message === 'NEXT_REDIRECT') {
+      throw error
+    }
+    console.error("Error al cargar rutinas:", error)
+    practiceSessions = [] // Si la BD falla o no hay datos, entregar array vacío para que renderice la UI vacía y NO colapse
+  }
 
   // Format to match the component interfaces
   const formattedSessions = practiceSessions.map(s => ({
@@ -42,8 +102,8 @@ export default async function RoutinesPage() {
     completed: s.completed,
     book: s.book,
     exerciseType: s.exerciseType,
-    isRecurring: (s as any).isRecurring ?? true,
-    createdAt: s.createdAt
+    isRecurring: true,
+    createdAt: s.createdAt,
   }))
 
   return (
@@ -53,12 +113,20 @@ export default async function RoutinesPage() {
           <CalendarDays className="w-5 h-5 sm:w-6 sm:h-6" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight truncate">Agenda y Programación</h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium truncate">Planifica tus rutinas y haz seguimiento de tu progreso semanal</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight truncate">
+            Agenda y Programación
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium truncate">
+            Planifica tus rutinas y haz seguimiento de tu progreso semanal
+          </p>
         </div>
       </div>
 
-      <RoutinesClient sessions={formattedSessions} />
+      <RoutinesClientView 
+        sessions={formattedSessions} 
+        initialRoutines={formattedSessions}
+        currentWeek={currentWeekStart.toISOString()} 
+      />
     </div>
   )
 }

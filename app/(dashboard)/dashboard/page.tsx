@@ -48,6 +48,15 @@ export default async function DashboardPage() {
             userId: effectiveUserId,
             completed: true,
           },
+          select: {
+            id: true,
+            instrument: true,
+            duration: true,
+            book: true,
+            exerciseType: true,
+            scheduledAt: true,
+            completed: true,
+          },
           orderBy: { scheduledAt: 'asc' },
         })
       : Promise.resolve([]),

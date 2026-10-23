@@ -193,6 +193,14 @@ export function WeeklyCalendar({ sessions, setSessions, currentDate, setCurrentD
 
   const getStartOfWeek = (date: Date) => {
     const d = new Date(date)
+    if (isNaN(d.getTime())) {
+      const fallback = new Date()
+      const day = fallback.getDay()
+      const diff = fallback.getDate() - day + (day === 0 ? -6 : 1)
+      fallback.setDate(diff)
+      fallback.setHours(0, 0, 0, 0)
+      return fallback
+    }
     const day = d.getDay()
     const diff = d.getDate() - day + (day === 0 ? -6 : 1)
     d.setDate(diff)
@@ -350,14 +358,25 @@ export function WeeklyCalendar({ sessions, setSessions, currentDate, setCurrentD
       setIsCloning(true)
       setCloneNotification(null)
 
-      const result = await clonePreviousWeekRoutines(startOfWeek)
+      let result: any
+      try {
+        result = await clonePreviousWeekRoutines(startOfWeek)
+      } catch (actionErr) {
+        console.warn('Server Action falló, usando API route fallback:', actionErr)
+        const res = await fetch('/api/routines/clone-previous-week', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetWeekStart: startOfWeek.toISOString() })
+        })
+        result = await res.json()
+      }
 
       if (result.success && result.newSessions && result.newSessions.length > 0) {
         if (setSessions) {
           setSessions(prev => {
-            const newIds = new Set(result.newSessions.map(s => s.id))
+            const newIds = new Set(result.newSessions.map((s: any) => s.id))
             const filtered = prev.filter(s => !newIds.has(s.id))
-            return [...filtered, ...result.newSessions.map(s => ({
+            return [...filtered, ...result.newSessions.map((s: any) => ({
               ...s,
               scheduledAt: new Date(s.scheduledAt),
               createdAt: s.createdAt ? new Date(s.createdAt) : undefined

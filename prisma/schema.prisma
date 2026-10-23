@@ -121,7 +121,6 @@ model PracticeSession {
   exerciseType String?
   scheduledAt  DateTime
   completed    Boolean    @default(false)
-  isRecurring  Boolean    @default(true)
   createdAt    DateTime   @default(now())
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
