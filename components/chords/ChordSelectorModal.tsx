@@ -213,7 +213,7 @@ export function ChordSelectorModal({
 
   return (
     <div
-      className="chord-picker-modal fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in"
+      className="chord-picker-modal fixed inset-0 z-[60] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}

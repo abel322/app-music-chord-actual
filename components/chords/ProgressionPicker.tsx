@@ -246,7 +246,7 @@ export function ProgressionPicker({
             {mounted && typeof document !== 'undefined' &&
               createPortal(
                 <div
-                  className="harmonics-picker-sheet chord-picker-popover fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+                  className="harmonics-picker-sheet chord-picker-popover fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
                   onClick={(e) => {
                     if (e.target === e.currentTarget) setIsOpen(false)
                   }}

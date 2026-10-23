@@ -912,6 +912,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   activeMeasureId={currentMeasure?.measure.id || null}
                   isPlaying={isPlaying}
                   measureDurationMs={currentMeasure?.durationMs}
+                  sectionName={section.label}
                   onMeasureClick={(clickedMeasure) => {
                     // Si el usuario hace clic en cualquier compás mientras está en reproducción, saltar de inmediato
                     jumpToMeasureId(clickedMeasure.id)

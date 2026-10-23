@@ -32,7 +32,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { MeasureCell, MeasureCellProps, CadenceBracketInfo, CadenceWrapType } from './measure-cell'
-import { MeasureInspector } from './measure-inspector'
+import { MeasureEditModal } from './MeasureEditModal'
 import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -85,6 +85,7 @@ interface MeasureGridProps {
   activeMeasureId?: string | null
   isPlaying?: boolean
   measureDurationMs?: number
+  sectionName?: string
   onUpdateMeasures: (updatedMeasures: Measure[]) => void
   onAddMeasures?: (count: number) => void
   onRemoveMeasure?: (measureId: string) => void
@@ -100,6 +101,7 @@ export function MeasureGrid({
   activeMeasureId = null,
   isPlaying = false,
   measureDurationMs,
+  sectionName,
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
@@ -444,22 +446,25 @@ export function MeasureGrid({
         </DragOverlay>
       </DndContext>
 
-      {/* Inspector Detallado del Compás Seleccionado en Modo Edición */}
+      {/* Modal / Bottom Sheet Flotante del Compás Seleccionado en Modo Edición */}
       {isEditing && selectedMeasure && (
-        <MeasureInspector
+        <MeasureEditModal
+          isOpen={!!selectedMeasure}
+          onClose={() => setSelectedMeasureId(null)}
           selectedMeasure={selectedMeasure}
           measures={measures}
+          sectionName={sectionName}
           currentKey={currentKey}
           timeSignature={timeSignature}
           diatonicChords={diatonicChords}
           onUpdateMeasure={handleUpdateMeasure}
           onUpdateAllMeasures={onUpdateMeasures}
           onDuplicate={handleDuplicate}
+          onRemoveMeasure={onRemoveMeasure ? (id) => onRemoveMeasure(id) : undefined}
           onSplitMeasure={handleSplitMeasure}
           onApplyProgression={handleApplyProgressionFromHere}
           onToggleRepeat={handleToggleRepeat}
           onToggleVolta={handleToggleVolta}
-          onClose={() => setSelectedMeasureId(null)}
         />
       )}
 

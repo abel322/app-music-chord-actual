@@ -873,6 +873,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                     activeMeasureId={currentMeasure?.measure.id || null}
                     isPlaying={isPlaying}
                     measureDurationMs={currentMeasure?.durationMs}
+                    sectionName={section.label}
                     onMeasureClick={(clickedMeasure) => {
                       jumpToMeasureId(clickedMeasure.id)
                     }}
