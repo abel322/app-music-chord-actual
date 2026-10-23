@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ProgressPanel } from './progress-panel'
 import { WeeklyCalendar } from './weekly-calendar'
 import { PracticeHistory } from './practice-history'
@@ -13,6 +13,8 @@ interface Session {
   completed: boolean
   book?: string | null
   exerciseType?: string | null
+  isRecurring?: boolean
+  createdAt?: Date | string
 }
 
 interface RoutinesClientProps {
@@ -21,6 +23,12 @@ interface RoutinesClientProps {
 
 export function RoutinesClient({ sessions }: RoutinesClientProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date())
+  const [localSessions, setLocalSessions] = useState<Session[]>(sessions)
+
+  // Sync with prop updates if server revalidates
+  useEffect(() => {
+    setLocalSessions(sessions)
+  }, [sessions])
 
   const getStartOfWeek = (date: Date) => {
     const d = new Date(date)
@@ -41,18 +49,19 @@ export function RoutinesClient({ sessions }: RoutinesClientProps) {
 
   // Filter sessions for the active week (Monday to Sunday)
   const activeWeekSessions = useMemo(() => {
-    return sessions.filter(s => {
+    return localSessions.filter(s => {
       const d = new Date(s.scheduledAt)
       return d >= startOfWeek && d < endOfWeek
     })
-  }, [sessions, startOfWeek, endOfWeek])
+  }, [localSessions, startOfWeek, endOfWeek])
 
   return (
     <>
       <ProgressPanel sessions={activeWeekSessions} />
       
       <WeeklyCalendar 
-        sessions={sessions} 
+        sessions={localSessions}
+        setSessions={setLocalSessions}
         currentDate={currentDate} 
         setCurrentDate={setCurrentDate} 
       />
@@ -63,3 +72,4 @@ export function RoutinesClient({ sessions }: RoutinesClientProps) {
     </>
   )
 }
+

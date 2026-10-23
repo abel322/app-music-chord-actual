@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Check, Trash2, BookOpen, Target, Pencil, Circle } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Check, Trash2, BookOpen, Target, Pencil, Circle, Copy, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { 
   createPracticeSession, 
   togglePracticeSession, 
   updateWeeklyRoutine, 
   deleteWeeklyRoutine, 
-  createWeeklyRoutine 
+  createWeeklyRoutine,
+  clonePreviousWeekRoutines
 } from '@/app/actions/routines'
 import { cn } from '@/lib/utils'
 
@@ -22,11 +23,13 @@ interface Session {
   completed: boolean
   book?: string | null
   exerciseType?: string | null
+  isRecurring?: boolean
   createdAt?: Date | string
 }
 
 interface WeeklyCalendarProps {
   sessions: Session[]
+  setSessions?: React.Dispatch<React.SetStateAction<Session[]>>
   currentDate: Date
   setCurrentDate: React.Dispatch<React.SetStateAction<Date>>
 }
@@ -38,18 +41,48 @@ const INSTRUMENT_COLORS: Record<Instrument, { bg: string, text: string, border: 
   BATERIA: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800' },
 }
 
+// Preset curados de alta calidad para cada instrumento en caso de poco o nulo historial inicial
+const FREQUENT_PRESETS: Record<Instrument, Array<{ book: string, exerciseType: string, duration: number }>> = {
+  BAJO: [
+    { book: 'Aerobio bass', exerciseType: 'Chapter 2', duration: 20 },
+    { book: 'Walking Bass', exerciseType: 'Blues en F', duration: 25 },
+    { book: 'Slap & Pop Basics', exerciseType: 'Ejercicio 4', duration: 20 },
+    { book: 'Escalas y Arpegios', exerciseType: 'Modos Menores', duration: 15 },
+  ],
+  BATERIA: [
+    { book: 'Stick Control', exerciseType: 'Rudiments single stroke roll', duration: 20 },
+    { book: 'The New Breed', exerciseType: 'Coordinación básica', duration: 25 },
+    { book: 'Groove Essentials', exerciseType: 'Patrones 4/4 y síncopa', duration: 20 },
+    { book: 'Independencia', exerciseType: 'Polirritmias 3 contra 2', duration: 20 },
+  ],
+  PIANO: [
+    { book: 'Hanon', exerciseType: 'El Pianista Virtuoso Ej. 1', duration: 20 },
+    { book: 'Czerny Op. 599', exerciseType: 'Ejercicio 15', duration: 20 },
+    { book: 'Jazz & Harmony', exerciseType: 'Progresiones ii-V-I en todas las tonalidades', duration: 25 },
+    { book: 'Escalas y Técnica', exerciseType: 'Digitación Mayor y Menor', duration: 15 },
+  ],
+  GUITARRA: [
+    { book: 'Modern Guitar Method', exerciseType: 'Lección 5 Acordes y Arpegios', duration: 20 },
+    { book: 'Pentatónicas y Licks', exerciseType: 'Posición 1 y 2', duration: 25 },
+    { book: 'Técnica de Púa', exerciseType: 'Picking Alternado en cuerdas 1-6', duration: 20 },
+    { book: 'Acordes con Cejilla', exerciseType: 'Transiciones de F a Bm', duration: 15 },
+  ],
+}
+
 interface FormInputsProps {
   formData: {
     instrument: Instrument
     duration: number
     book?: string
     exerciseType?: string
+    isRecurring?: boolean
   }
   setFormData: React.Dispatch<React.SetStateAction<{
     instrument: Instrument
     duration: number
     book?: string
     exerciseType?: string
+    isRecurring: boolean
   }>>
 }
 
@@ -61,7 +94,7 @@ function FormInputs({ formData, setFormData }: FormInputsProps) {
         <select 
           value={formData.instrument} 
           onChange={e => setFormData(prev => ({...prev, instrument: e.target.value as Instrument}))}
-          className="w-full text-xs p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          className="w-full text-xs p-2 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-primary-500 font-medium"
         >
           <option value="GUITARRA">Guitarra</option>
           <option value="PIANO">Piano</option>
@@ -106,16 +139,19 @@ function FormInputs({ formData, setFormData }: FormInputsProps) {
   )
 }
 
-export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ sessions, setSessions, currentDate, setCurrentDate }: WeeklyCalendarProps) {
   const [isAdding, setIsAdding] = useState(false)
+  const [isCloning, setIsCloning] = useState(false)
+  const [cloneNotification, setCloneNotification] = useState<string | null>(null)
   const [editingIds, setEditingIds] = useState<string[] | null>(null)
   
   const [formData, setFormData] = useState<{
     instrument: Instrument, 
     duration: number,
     book?: string,
-    exerciseType?: string
-  }>({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '' })
+    exerciseType?: string,
+    isRecurring: boolean
+  }>({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '', isRecurring: true })
 
   const [activePopover, setActivePopover] = useState<{
     x: number
@@ -194,25 +230,78 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
     cancelForm()
   }
 
+  // Catálogo Rápido: Top 4 ejercicios más usados basados en el historial y presets del instrumento
+  const frequentPresets = useMemo(() => {
+    const instrument = formData.instrument
+    const counts: Record<string, { book: string, exerciseType: string, duration: number, count: number }> = {}
+
+    // 1. Contar frecuencias históricas en las sesiones registradas
+    sessions.forEach(s => {
+      if (s.instrument === instrument && (s.book || s.exerciseType)) {
+        const book = s.book || ''
+        const exerciseType = s.exerciseType || ''
+        const key = `${book.trim().toLowerCase()}:::${exerciseType.trim().toLowerCase()}`
+        if (!counts[key]) {
+          counts[key] = {
+            book: s.book || '',
+            exerciseType: s.exerciseType || '',
+            duration: s.duration,
+            count: 0
+          }
+        }
+        counts[key].count += 1
+      }
+    })
+
+    const historicalSorted = Object.values(counts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4)
+
+    // 2. Presets por defecto para el instrumento si el historial tiene menos de 4
+    const defaults = FREQUENT_PRESETS[instrument] || []
+    const combined = [...historicalSorted]
+
+    for (const def of defaults) {
+      if (combined.length >= 4) break
+      const alreadyPresent = combined.some(item => 
+        item.book.trim().toLowerCase() === def.book.trim().toLowerCase() &&
+        item.exerciseType.trim().toLowerCase() === def.exerciseType.trim().toLowerCase()
+      )
+      if (!alreadyPresent) {
+        combined.push({
+          book: def.book,
+          exerciseType: def.exerciseType,
+          duration: def.duration,
+          count: 0
+        })
+      }
+    }
+
+    return combined.slice(0, 4)
+  }, [formData.instrument, sessions])
+
   const handleCreate = async () => {
     if (!isAdding) return
+    const currentStart = new Date(startOfWeek)
     await createWeeklyRoutine({
       instrument: formData.instrument,
       duration: formData.duration,
-      startOfWeek: startOfWeek,
+      startOfWeek: currentStart,
       book: formData.book || undefined,
-      exerciseType: formData.exerciseType || undefined
+      exerciseType: formData.exerciseType || undefined,
+      isRecurring: formData.isRecurring
     })
     setIsAdding(false)
-    setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '' })
+    setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '', isRecurring: true })
   }
 
-  const handleEditClick = (routine: { instrument: string, duration: number, book: string | null, exerciseType: string | null, ids: string[] }) => {
+  const handleEditClick = (routine: { instrument: string, duration: number, book: string | null, exerciseType: string | null, isRecurring?: boolean, ids: string[] }) => {
     setFormData({
       instrument: routine.instrument as Instrument,
       duration: routine.duration,
       book: routine.book || '',
-      exerciseType: routine.exerciseType || ''
+      exerciseType: routine.exerciseType || '',
+      isRecurring: routine.isRecurring ?? true
     })
     setEditingIds(routine.ids)
     setIsAdding(false)
@@ -224,16 +313,70 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
       instrument: formData.instrument,
       duration: formData.duration,
       book: formData.book || undefined,
-      exerciseType: formData.exerciseType || undefined
+      exerciseType: formData.exerciseType || undefined,
+      isRecurring: formData.isRecurring
     })
+    if (setSessions) {
+      setSessions(prev => prev.map(s => editingIds.includes(s.id) ? {
+        ...s,
+        instrument: formData.instrument,
+        duration: s.completed ? s.duration : formData.duration,
+        book: formData.book || null,
+        exerciseType: formData.exerciseType || null,
+        isRecurring: formData.isRecurring
+      } : s))
+    }
     setEditingIds(null)
-    setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '' })
+    setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '', isRecurring: true })
   }
 
   const cancelForm = () => {
     setIsAdding(false)
     setEditingIds(null)
-    setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '' })
+    setFormData({ instrument: 'GUITARRA', duration: 60, book: '', exerciseType: '', isRecurring: true })
+  }
+
+  const handleDeleteRoutine = async (ids: string[]) => {
+    if (setSessions) {
+      const idSet = new Set(ids)
+      setSessions(prev => prev.filter(s => !idSet.has(s.id)))
+    }
+    await deleteWeeklyRoutine(ids)
+  }
+
+  // Botón Inteligente: "Copiar Rutinas de la Semana Anterior" (1 Clic)
+  const handleClonePreviousWeek = async () => {
+    try {
+      setIsCloning(true)
+      setCloneNotification(null)
+
+      const result = await clonePreviousWeekRoutines(startOfWeek)
+
+      if (result.success && result.newSessions && result.newSessions.length > 0) {
+        if (setSessions) {
+          setSessions(prev => {
+            const newIds = new Set(result.newSessions.map(s => s.id))
+            const filtered = prev.filter(s => !newIds.has(s.id))
+            return [...filtered, ...result.newSessions.map(s => ({
+              ...s,
+              scheduledAt: new Date(s.scheduledAt),
+              createdAt: s.createdAt ? new Date(s.createdAt) : undefined
+            }))]
+          })
+        }
+        setCloneNotification(result.message)
+      } else {
+        setCloneNotification(result.message || 'No se encontraron rutinas previas para clonar.')
+      }
+
+      setTimeout(() => setCloneNotification(null), 5000)
+    } catch (error: any) {
+      console.error('Error clonando rutinas:', error)
+      setCloneNotification(error?.message || 'Error al clonar las rutinas')
+      setTimeout(() => setCloneNotification(null), 5000)
+    } finally {
+      setIsCloning(false)
+    }
   }
 
   const handleCellClick = async (
@@ -243,6 +386,9 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
     routineDetails?: { instrument: Instrument, duration: number, book?: string, exerciseType?: string }
   ) => {
     if (existingSession?.completed) {
+      if (setSessions) {
+        setSessions(prev => prev.map(s => s.id === existingSession.id ? { ...s, completed: false } : s))
+      }
       await togglePracticeSession(existingSession.id, false)
       return
     }
@@ -264,7 +410,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
     })
   }
 
-  // Filter and group sessions
+  // Filter and group sessions for current active week
   const activeWeekSessions = useMemo(() => {
     return sessions.filter(s => {
       const d = new Date(s.scheduledAt)
@@ -279,6 +425,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
       duration: number
       book: string | null
       exerciseType: string | null
+      isRecurring: boolean
       sessions: (Session & { dayIndex: number })[]
       ids: string[]
     }> = {}
@@ -298,6 +445,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
           duration: s.duration,
           book: s.book || null,
           exerciseType: s.exerciseType || null,
+          isRecurring: s.isRecurring ?? true,
           sessions: [],
           ids: []
         }
@@ -328,6 +476,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
             Matriz de Rutinas Semanales
           </h3>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
+            {/* Paginador de Semanas */}
             <div className="flex items-center justify-between sm:justify-center border border-slate-200 dark:border-slate-800 rounded-lg p-1 bg-white dark:bg-slate-900 shadow-sm w-full sm:w-auto">
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={prevWeek} aria-label="Semana anterior">
                 <ChevronLeft className="w-4 h-4" />
@@ -339,6 +488,25 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
+
+            {/* Botón de Cabecera: Clonar Rutinas de la Semana Anterior */}
+            {groupedRoutines.length === 0 && (
+              <Button
+                size="sm"
+                onClick={handleClonePreviousWeek}
+                disabled={isCloning}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-3 sm:px-4 h-9 shadow-md flex items-center justify-center gap-2 w-full sm:w-auto shrink-0 transition-all active:scale-95"
+              >
+                {isCloning ? (
+                  <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+                ) : (
+                  <Copy className="w-4 h-4 shrink-0" />
+                )}
+                <span className="truncate">{isCloning ? 'Clonando...' : 'Clonar Semana Anterior'}</span>
+              </Button>
+            )}
+
+            {/* Botón Añadir Rutina */}
             <Button 
               size="sm" 
               onClick={() => {
@@ -354,15 +522,100 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
         </div>
       </div>
 
+      {/* Notification Banner */}
+      {cloneNotification && (
+        <div className="mx-4 mt-3 p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-lg flex items-center justify-between text-xs text-purple-800 dark:text-purple-300 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>{cloneNotification}</span>
+          </div>
+          <button 
+            onClick={() => setCloneNotification(null)}
+            className="text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 font-bold ml-2 text-sm leading-none"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Add Form Section */}
       {isAdding && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 animate-in fade-in slide-in-from-top-4 duration-200">
-          <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Nueva Rutina Base Semanal</h4>
-          <div className="flex flex-col md:flex-row gap-4 items-end bg-white dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800 rounded-lg">
-            <FormInputs formData={formData} setFormData={setFormData} />
-            <div className="flex gap-2 w-full md:w-auto shrink-0">
-              <Button size="sm" className="w-full md:w-auto px-6 font-semibold" onClick={handleCreate}>Crear Rutina</Button>
-              <Button size="sm" variant="ghost" className="w-full md:w-auto px-6 font-semibold" onClick={cancelForm}>Cancelar</Button>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <span>➕</span> Nueva Rutina Base Semanal
+            </h4>
+            <span className="text-xs text-slate-400">Selecciona o escribe el método de estudio</span>
+          </div>
+
+          {/* Catálogo Rápido: ⭐ Ejercicios Frecuentes filtrados por instrumento */}
+          <div className="bg-white dark:bg-slate-900 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 mb-3 shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1.5 uppercase tracking-wide">
+                <span>⭐</span> Ejercicios Frecuentes ({formData.instrument.toLowerCase()})
+              </span>
+              <span className="text-[11px] text-slate-400">1 clic para autocompletar</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {frequentPresets.map((preset, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      book: preset.book,
+                      exerciseType: preset.exerciseType,
+                      duration: preset.duration
+                    }))
+                  }}
+                  className="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:border-purple-300 dark:hover:border-purple-700 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors text-left flex items-center gap-1.5 group"
+                  title={`Cargar ${preset.book} - ${preset.exerciseType} (${preset.duration} min)`}
+                >
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-purple-700 dark:group-hover:text-purple-300">
+                    {preset.book}
+                  </span>
+                  {preset.exerciseType && (
+                    <span className="text-slate-500 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                      • {preset.exerciseType}
+                    </span>
+                  )}
+                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded ml-1 border border-purple-200 dark:border-purple-800">
+                    {preset.duration}m
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Form Inputs and Action Buttons */}
+          <div className="bg-white dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800 rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+              <FormInputs formData={formData} setFormData={setFormData} />
+            </div>
+
+            {/* Toggle: Repetir automáticamente cada semana & Botones de Acción */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={formData.isRecurring} 
+                  onChange={e => setFormData(prev => ({...prev, isRecurring: e.target.checked}))}
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                />
+                <span className="flex items-center gap-1.5">
+                  <span>🔄</span> Repetir automáticamente cada semana
+                </span>
+              </label>
+
+              <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                <Button size="sm" className="w-full sm:w-auto px-6 font-semibold bg-purple-600 hover:bg-purple-700 text-white" onClick={handleCreate}>
+                  Crear Rutina
+                </Button>
+                <Button size="sm" variant="ghost" className="w-full sm:w-auto px-6 font-semibold" onClick={cancelForm}>
+                  Cancelar
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -402,8 +655,47 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
             {groupedRoutines.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-12 text-center text-slate-400 dark:text-slate-500 italic">
-                  No hay rutinas programadas para esta semana. ¡Crea una nueva rutina base para comenzar!
+                <td colSpan={9} className="p-8 sm:p-14 text-center">
+                  <div className="flex flex-col items-center justify-center max-w-lg mx-auto">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow-inner mb-4">
+                      <Copy className="w-7 h-7" />
+                    </div>
+                    <h4 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg">
+                      No hay rutinas programadas para esta semana
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-md">
+                      Duplica todos los ejercicios y métodos de práctica de la semana anterior con un solo clic, con todos los días limpios para registrar tu progreso.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={handleClonePreviousWeek}
+                        disabled={isCloning}
+                        className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        {isCloning ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                        <span>{isCloning ? 'Clonando rutinas...' : '📋 Clonar Rutinas de la Semana Anterior'}</span>
+                      </button>
+
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          cancelForm()
+                          setIsAdding(true)
+                        }}
+                        className="w-full sm:w-auto px-4 py-2.5 h-auto rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border-slate-300 dark:border-slate-700"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>+ Añadir Rutina</span>
+                      </Button>
+                    </div>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -416,8 +708,17 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                       <td className="sticky left-0 bg-white dark:bg-zinc-900 z-10 p-3 sm:p-4 w-[190px] min-w-[190px] max-w-[210px] sm:w-[240px] sm:min-w-[240px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)] border-r border-slate-200 dark:border-slate-800">
                         <div className="space-y-3">
                           <FormInputs formData={formData} setFormData={setFormData} />
+                          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+                            <input 
+                              type="checkbox" 
+                              checked={formData.isRecurring} 
+                              onChange={e => setFormData(prev => ({...prev, isRecurring: e.target.checked}))}
+                              className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 border-slate-300 dark:border-slate-700"
+                            />
+                            <span>Repetir cada semana</span>
+                          </label>
                           <div className="flex gap-2 pt-1">
-                            <Button size="sm" className="w-full h-8 text-xs font-semibold" onClick={submitEdit}>Guardar</Button>
+                            <Button size="sm" className="w-full h-8 text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white" onClick={submitEdit}>Guardar</Button>
                             <Button size="sm" variant="ghost" className="w-full h-8 text-xs font-semibold" onClick={cancelForm}>Cancel</Button>
                           </div>
                         </div>
@@ -436,12 +737,19 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                     <td className="sticky left-0 bg-white dark:bg-zinc-900 z-10 p-3 sm:p-4 w-[190px] min-w-[190px] max-w-[210px] sm:w-[240px] sm:min-w-[240px] sm:max-w-none shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)] border-r border-slate-200 dark:border-slate-800">
                       <div className="flex flex-col gap-1.5 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <span className={cn(
-                            "px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold border uppercase tracking-wider truncate max-w-[110px] sm:max-w-[140px]",
-                            colors.bg, colors.text, colors.border
-                          )}>
-                            {routine.instrument}
-                          </span>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className={cn(
+                              "px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold border uppercase tracking-wider truncate max-w-[90px] sm:max-w-[120px]",
+                              colors.bg, colors.text, colors.border
+                            )}>
+                              {routine.instrument}
+                            </span>
+                            {routine.isRecurring && (
+                              <span className="text-[9px] text-purple-600 dark:text-purple-400 font-semibold bg-purple-50 dark:bg-purple-950/40 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-800 shrink-0" title="Rutina fija semanal">
+                                🔄
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[11px] sm:text-xs font-bold text-slate-500 shrink-0">{routine.duration}m</span>
                         </div>
 
@@ -517,7 +825,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                         </button>
                         <button
                           type="button"
-                          onClick={() => deleteWeeklyRoutine(routine.ids)}
+                          onClick={() => handleDeleteRoutine(routine.ids)}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                           title="Eliminar rutina"
                           aria-label="Eliminar rutina"
@@ -608,7 +916,7 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                       return { ...prev, currentDuration: newVal }
                     })
                   }}
-                  className="text-[11px] font-bold py-1.5 px-2 rounded bg-slate-150 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 transition-colors"
+                  className="text-[11px] font-bold py-1.5 px-2 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                 >
                   {btn.label}
                 </button>
@@ -623,6 +931,9 @@ export function WeeklyCalendar({ sessions, currentDate, setCurrentDate }: Weekly
                 onClick={async () => {
                   const duration = activePopover.currentDuration || activePopover.defaultDuration
                   if (activePopover.sessionId) {
+                    if (setSessions) {
+                      setSessions(prev => prev.map(s => s.id === activePopover.sessionId ? { ...s, completed: true, duration } : s))
+                    }
                     await togglePracticeSession(activePopover.sessionId, true, duration)
                   } else {
                     await createPracticeSession({

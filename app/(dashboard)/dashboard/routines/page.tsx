@@ -42,6 +42,7 @@ export default async function RoutinesPage() {
     completed: s.completed,
     book: s.book,
     exerciseType: s.exerciseType,
+    isRecurring: (s as any).isRecurring ?? true,
     createdAt: s.createdAt
   }))
 
