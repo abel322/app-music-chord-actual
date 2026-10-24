@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Sparkles, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CadenceDefinition } from '@/lib/harmonic-theory'
@@ -69,8 +70,27 @@ export function CreateCadenceModal({
   const [selectedColor, setSelectedColor] = useState(BADGE_COLOR_PALETTES[0])
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
-  if (!isOpen) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
+  if (!isOpen || !mounted || typeof document === 'undefined') return null
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,14 +123,31 @@ export function CreateCadenceModal({
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) e.stopPropagation()
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nueva Cadencia Personalizada"
+    >
       <div 
         className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Cabecera del Modal */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div
+          className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center">
               <Sparkles className="w-5 h-5" />
@@ -126,7 +163,12 @@ export function CreateCadenceModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -202,9 +244,14 @@ export function CreateCadenceModal({
                   <button
                     key={color.id}
                     type="button"
-                    onClick={() => setSelectedColor(color)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedColor(color)
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                     className={cn(
-                      'flex items-center gap-2 p-2 rounded-xl border text-left text-xs transition-all',
+                      'flex items-center gap-2 p-2 rounded-xl border text-left text-xs transition-all cursor-pointer',
                       isSelected
                         ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-1 ring-primary-500'
                         : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
@@ -247,22 +294,44 @@ export function CreateCadenceModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ej: Resolución sorpresa utilizada al cierre del coro"
-              className="w-full px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           {/* Botones de Acción */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          <div
+            className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose()
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               Cancelar
             </Button>
-            <Button type="submit" variant="gradient" size="sm" className="gap-1.5 font-bold">
+            <Button
+              type="submit"
+              variant="gradient"
+              size="sm"
+              className="gap-1.5 font-bold cursor-pointer"
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <Check className="w-4 h-4" />
               <span>Guardar Cadencia</span>
             </Button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

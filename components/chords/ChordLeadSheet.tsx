@@ -311,10 +311,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   // Aplicar progresión a una sección completa
   const handleApplyProgression = (sectionId: string, prog: HarmonicProgression | string) => {
-    const chords = getProgressionChords(prog, currentKey)
     setSections((prev) =>
       prev.map((sec) => {
         if (sec.id !== sectionId) return sec
+        const secKey = sec.keySignature || currentKey
+        const chords = getProgressionChords(prog, secKey)
         return {
           ...sec,
           measures: applyProgressionToMeasures(sec.measures, chords, sec.timeSignature || timeSignature),
@@ -328,9 +329,10 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections((prev) =>
       prev.map((sec) => {
         if (sec.id !== sectionId || sec.measures.length === 0) return sec
+        const secKey = sec.keySignature || currentKey
         return {
           ...sec,
-          measures: applyCadenceToSectionMeasures(sec.measures, cad, currentKey, sec.timeSignature || timeSignature),
+          measures: applyCadenceToSectionMeasures(sec.measures, cad, secKey, sec.timeSignature || timeSignature),
         }
       })
     )

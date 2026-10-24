@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Sparkles, Plus, Check, Music } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { degreeToChord, HarmonicProgression } from '@/lib/harmonic-theory'
@@ -43,6 +44,25 @@ export function CreateProgressionModal({
   const [barsCount, setBarsCount] = useState<number>(4)
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
 
   // Parsear grados introducidos (separa por flechas, guiones, comas o espacios)
   const parsedDegrees = useMemo(() => {
@@ -61,7 +81,7 @@ export function CreateProgressionModal({
     return parsedDegrees.map((deg) => degreeToChord(deg, currentKey))
   }, [parsedDegrees, currentKey])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted || typeof document === 'undefined') return null
 
   const handleAddDegree = (deg: string) => {
     setDegreesInput((prev) => {
@@ -102,14 +122,31 @@ export function CreateProgressionModal({
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) e.stopPropagation()
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nueva Progresión Armónica"
+    >
       <div 
         className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Cabecera del Modal */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div
+          className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-primary-100 dark:bg-primary-950/80 text-primary-600 dark:text-primary-400 flex items-center justify-center">
               <Sparkles className="w-5 h-5" />
@@ -125,7 +162,12 @@ export function CreateProgressionModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -183,7 +225,12 @@ export function CreateProgressionModal({
                   <button
                     key={deg}
                     type="button"
-                    onClick={() => handleAddDegree(deg)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAddDegree(deg)
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                     className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-primary-50 dark:hover:bg-primary-950/60 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                   >
                     +{deg}
@@ -273,22 +320,44 @@ export function CreateProgressionModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ej: Ideal para puentes emotivos o cambios de tono"
-              className="w-full px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           {/* Botones de Acción */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          <div
+            className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose()
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               Cancelar
             </Button>
-            <Button type="submit" variant="gradient" size="sm" className="gap-1.5 font-bold">
+            <Button
+              type="submit"
+              variant="gradient"
+              size="sm"
+              className="gap-1.5 font-bold cursor-pointer"
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <Check className="w-4 h-4" />
               <span>Guardar Progresión</span>
             </Button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

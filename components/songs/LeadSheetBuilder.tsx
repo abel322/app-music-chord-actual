@@ -373,10 +373,11 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
   // Aplicar una Progresión a una sección completa
   const handleApplyProgression = (sectionId: string, prog: HarmonicProgression | string) => {
-    const progressionChords = getProgressionChords(prog, key)
     setSections((prev) =>
       prev.map((sec) => {
         if (sec.id !== sectionId) return sec
+        const secKey = sec.keySignature || key
+        const progressionChords = getProgressionChords(prog, secKey)
         return {
           ...sec,
           measures: applyProgressionToMeasures(sec.measures, progressionChords, sec.timeSignature || timeSignature),
@@ -390,9 +391,10 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     setSections((prev) =>
       prev.map((sec) => {
         if (sec.id !== sectionId || sec.measures.length === 0) return sec
+        const secKey = sec.keySignature || key
         return {
           ...sec,
-          measures: applyCadenceToSectionMeasures(sec.measures, cad, key, sec.timeSignature || timeSignature),
+          measures: applyCadenceToSectionMeasures(sec.measures, cad, secKey, sec.timeSignature || timeSignature),
         }
       })
     )

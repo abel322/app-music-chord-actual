@@ -30,6 +30,7 @@ export function CadencePicker({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
 
   const { allCadences, deleteCadence } = useHarmonicsLibrary()
 
@@ -37,14 +38,23 @@ export function CadencePicker({
     setMounted(true)
   }, [])
 
-  // Cerrar al hacer clic fuera en desktop o presionar Escape
+  // Cerrar al hacer clic fuera o presionar Escape
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        if (window.innerWidth >= 768) {
-          setIsOpen(false)
-        }
+      const target = event.target as Node
+      if (!target) return
+
+      // Si el clic fue dentro del botón disparador o dentro del diálogo modal, no cerrar
+      if (containerRef.current?.contains(target) || modalRef.current?.contains(target)) {
+        return
       }
+
+      // Si el clic es dentro de cualquier portal o elemento del picker o de creación, no cerrar
+      if ((target as HTMLElement)?.closest?.('.harmonics-picker-sheet, .chord-picker-popover, [role="dialog"]')) {
+        return
+      }
+
+      setIsOpen(false)
     }
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -79,24 +89,46 @@ export function CadencePicker({
 
   const activeCadence = allCadences.find((c) => c.id === currentCadenceId || c.type === currentCadenceId)
 
+  // Seleccionar cadencia asegurando inserción en el estado antes de cerrar
+  const handleSelectCadence = (cad: CadenceDefinition | null) => {
+    try {
+      onSelectCadence(cad)
+    } catch (err) {
+      console.error('Error aplicando cadencia armónica:', err)
+    }
+    setIsOpen(false)
+  }
+
   // Renderizador del contenido interno (buscador, auto-detectar, lista de cadencias)
-  const renderListContent = (isMobile = false) => (
+  const renderListContent = () => (
     <>
       {/* Barra de Búsqueda */}
-      <div className="relative shrink-0">
+      <div
+        className="relative shrink-0"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar cadencia (ej. V -> I, plagal, rota)..."
-          autoFocus={!isMobile}
           className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         />
         {search && (
           <button
             type="button"
-            onClick={() => setSearch('')}
+            onClick={(e) => {
+              e.stopPropagation()
+              setSearch('')
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
           >
             <X className="w-3.5 h-3.5" />
@@ -107,12 +139,14 @@ export function CadencePicker({
       {/* Opción Destacada: ✕ Ninguna / Quitar Cadencia */}
       <button
         type="button"
-        onClick={() => {
-          onSelectCadence(null)
-          setIsOpen(false)
+        onClick={(e) => {
+          e.stopPropagation()
+          handleSelectCadence(null)
         }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         className={cn(
-          'w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all text-left shrink-0 border',
+          'w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all text-left shrink-0 border cursor-pointer',
           activeCadence
             ? 'bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 shadow-2xs'
             : 'bg-slate-50 dark:bg-slate-950/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
@@ -130,10 +164,12 @@ export function CadencePicker({
       </button>
 
       {/* Lista de Cadencias Scrolleable */}
-      <div className={cn(
-        'overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100 dark:divide-slate-800/60',
-        isMobile ? 'flex-1 min-h-[180px] max-h-[50vh]' : 'max-h-64'
-      )}>
+      <div
+        className="overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100 dark:divide-slate-800/60 flex-1 min-h-[180px] max-h-[50vh] sm:max-h-[380px]"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {filteredCadences.length === 0 ? (
           <div className="text-center py-8 text-xs text-slate-400">
             No se encontraron cadencias con ese término.
@@ -145,10 +181,12 @@ export function CadencePicker({
             return (
               <div
                 key={cad.id}
-                onClick={() => {
-                  onSelectCadence(cad)
-                  setIsOpen(false)
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSelectCadence(cad)
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
                 className={cn(
                   'pt-1.5 first:pt-0 group flex items-start justify-between gap-2 p-2.5 rounded-xl cursor-pointer transition-colors active:scale-98',
                   isSelected
@@ -211,7 +249,9 @@ export function CadencePicker({
                           deleteCadence(cad.id)
                         }
                       }}
-                      className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all shrink-0"
                       title="Eliminar cadencia personalizada"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -225,14 +265,22 @@ export function CadencePicker({
       </div>
 
       {/* Pie: Botón "+ Nueva Cadencia" */}
-      <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 shrink-0">
+      <div
+        className="pt-2.5 border-t border-slate-100 dark:border-slate-800 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             setIsOpen(false)
             setIsCreateModalOpen(true)
           }}
-          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-colors border border-purple-200 dark:border-purple-800/80 shadow-2xs"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-colors border border-purple-200 dark:border-purple-800/80 shadow-2xs cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>+ Crear Nueva Cadencia</span>
@@ -264,76 +312,83 @@ export function CadencePicker({
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform duration-200 shrink-0', isOpen && 'rotate-180')} />
       </button>
 
-      {/* Renderizado de Cadencias: Responsive (Bottom Sheet en Móvil / Popover en Desktop) */}
-      {isOpen && (
-        <>
-          {/* 1. MÓVIL (< md): Bottom Sheet Modal con Backdrop Completo */}
-          <div className="md:hidden">
-            {mounted && typeof document !== 'undefined' &&
-              createPortal(
-                <div
-                  className="harmonics-picker-sheet chord-picker-popover fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) setIsOpen(false)
-                  }}
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Marcar Cadencia"
-                >
-                  <div
-                    className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-4 max-h-[85vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-200 space-y-3"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Barra de arrastre / Handle visual superior */}
-                    <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0 sm:hidden" />
+      {/* Renderizado de Cadencias: Modal Dialog Responsivo (Bottom Sheet en móvil, Modal centrado en desktop) */}
+      {isOpen && mounted && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="harmonics-picker-sheet chord-picker-popover fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsOpen(false)
+              }
+            }}
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) {
+                e.stopPropagation()
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Marcar Cadencia"
+          >
+            <div
+              ref={modalRef}
+              className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-4 max-h-[85vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 space-y-3"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {/* Barra de arrastre / Handle visual superior */}
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto shrink-0 sm:hidden" />
 
-                    {/* Encabezado con título y botón de cierre */}
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
-                          <Tag className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                            Marcar Cadencia
-                          </h3>
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            Etiqueta resoluciones armónicas en este compás
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setIsOpen(false)}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        title="Cerrar (Esc)"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Contenido Completo del Drawer */}
-                    {renderListContent(true)}
+              {/* Encabezado con título y botón de cierre */}
+              <div
+                className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                    <Tag className="w-4 h-4" />
                   </div>
-                </div>,
-                document.body
-              )}
-          </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                      Marcar Cadencia
+                    </h3>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Etiqueta resoluciones armónicas en este compás
+                    </span>
+                  </div>
+                </div>
 
-          {/* 2. ESCRITORIO (>= md): Popover Flotante Alineado a la Derecha */}
-          <div className="hidden md:block absolute right-0 top-full z-50 mt-2 w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-3.5 space-y-2.5 animate-in fade-in-50 zoom-in-95">
-            {renderListContent(false)}
-          </div>
-        </>
-      )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsOpen(false)
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  title="Cerrar (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Contenido Completo del Drawer */}
+              {renderListContent()}
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal para crear cadencia personalizada */}
       <CreateCadenceModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreated={(newCad) => {
-          onSelectCadence(newCad)
+          handleSelectCadence(newCad)
         }}
       />
     </div>
