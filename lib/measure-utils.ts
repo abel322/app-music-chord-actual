@@ -1298,4 +1298,45 @@ export function syncSectionsWithLyrics(
   })
 }
 
+/**
+ * Auto-Scroll Centrado con Margen de Anticipación Visual (Look-Ahead) en Compases.
+ * Mantiene el compás activo en la zona óptima (35% - 40% del viewport desde la parte superior),
+ * garantizando que el 60% inferior de la pantalla quede completamente libre para previsualizar los siguientes compases.
+ */
+export function scrollToActiveMeasure(measureId: string, stickyHeaderOffset = 64): void {
+  if (typeof window === 'undefined') return
+
+  const element =
+    document.getElementById(`measure-${measureId}`) ||
+    document.getElementById(`measure-cell-${measureId}`) ||
+    (document.querySelector(`[data-measure-id="${measureId}"]`) as HTMLElement | null)
+
+  if (!element) return
+
+  // Altura total visible del viewport
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+
+  // Posición del compás respecto a la página
+  const elementRect = element.getBoundingClientRect()
+  const absoluteElementTop = elementRect.top + window.scrollY
+
+  // ZONA ÓPTIMA: Ubicar el compás activo a un 35% - 40% desde el borde superior
+  // Esto garantiza que el 60% inferior de la pantalla quede libre para previsualizar los siguientes compases
+  const targetScrollY = absoluteElementTop - viewportHeight * 0.38 - stickyHeaderOffset
+
+  // Comprobar si el compás ya está cómodamente dentro de la zona de confort (25% a 50% de la pantalla)
+  const currentRelativeTop = elementRect.top
+  const isInComfortZone =
+    currentRelativeTop >= viewportHeight * 0.25 &&
+    currentRelativeTop <= viewportHeight * 0.50
+
+  // Solo scrollear suavemente cuando la línea de compases avance o cambie de fila fuera de la zona de confort
+  if (!isInComfortZone) {
+    window.scrollTo({
+      top: Math.max(0, targetScrollY),
+      behavior: 'smooth',
+    })
+  }
+}
+
 

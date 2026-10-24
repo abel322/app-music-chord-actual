@@ -50,7 +50,8 @@ import {
   cloneSectionMeasures,
   getSectionChordsPreview,
   buildFullLyricsText,
-  syncSectionsWithLyrics
+  syncSectionsWithLyrics,
+  scrollToActiveMeasure
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
@@ -275,7 +276,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         return prev
       })
 
-      // Auto-desplazamiento inteligente no invasivo:
+      // Auto-desplazamiento inteligente centrado con margen de anticipación visual (look-ahead):
       requestAnimationFrame(() => {
         setTimeout(() => {
           // Si el usuario scrolleó manualmente hacia arriba recientemente, respetar su vista por 3 segundos
@@ -283,24 +284,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             return
           }
 
-          const activeElement =
-            document.getElementById(`measure-cell-${measure.id}`) ||
-            document.getElementById(`measure-${measure.id}`)
-          if (!activeElement) return
-
-          const rect = activeElement.getBoundingClientRect()
-          const viewportHeight = window.innerHeight || document.documentElement.clientHeight
-          // Visible cómodamente entre la barra superior (~120px) y el borde inferior (~80px)
-          const isVisible = rect.top >= 120 && rect.bottom <= viewportHeight - 80
-
-          // Solo hacer scroll si el compás activo no está visible cómodamente
-          if (!isVisible) {
-            activeElement.scrollIntoView({
-              behavior: 'smooth',
-              block: 'nearest',
-              inline: 'nearest',
-            })
-          }
+          scrollToActiveMeasure(measure.id, 64)
         }, 50)
       })
     },
@@ -617,7 +601,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-24">
+    <div className="space-y-6 max-w-7xl mx-auto pb-80 md:pb-96 min-h-[120vh]">
       {/* Barra Superior de Control y Navegación */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
@@ -889,7 +873,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       />
 
       {/* Lista de Secciones con sus Compases */}
-      <div className="space-y-6 sm:space-y-8">
+      <div className="space-y-6 sm:space-y-8 pb-80 md:pb-96">
         {sections.map((section, sIdx) => (
           <SectionCard
             key={section.id}

@@ -128,14 +128,14 @@ export function MeasureCell({
 
   return (
     <div
-      id={`measure-cell-${measure.id}`}
+      id={`measure-${measure.id}`}
       data-measure-id={measure.id}
       data-measure-number={measure.measureNumber}
       onClick={handleClick}
       className={cn(
-        'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 overflow-visible',
+        'group relative flex flex-col justify-between rounded-xl border select-none min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 overflow-visible scroll-mt-32 transition-all duration-300',
         isActive
-          ? 'ring-4 ring-purple-500 border-purple-500 shadow-xl shadow-purple-500/20 scale-[1.03] transition-all duration-200 z-10 bg-purple-50 dark:bg-purple-950/40'
+          ? 'ring-4 ring-purple-500 border-purple-500 shadow-xl shadow-purple-500/20 scale-[1.03] z-10 bg-purple-50 dark:bg-purple-950/40'
           : isSelectedForBatch
             ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
             : isSelected && isEditing
