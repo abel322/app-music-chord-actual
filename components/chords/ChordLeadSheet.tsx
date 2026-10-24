@@ -16,7 +16,6 @@ import {
   Copy,
   ArrowUp,
   ArrowDown,
-  GripVertical,
   Check,
   ChevronDown,
   ChevronUp,
@@ -37,24 +36,7 @@ import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
 import { SectionMeasures, Measure } from '@/types/measure'
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  type DragStartEvent,
-  type DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  verticalListSortingStrategy,
-  sortableKeyboardCoordinates,
-} from '@dnd-kit/sortable'
+
 import { 
   ensureSectionMeasures, 
   transposeSectionMeasures, 
@@ -143,25 +125,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [transposeSemitones, setTransposeSemitones] = useState(0)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
-  const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
-  // Sensores optimizados para no romper el scroll móvil (250ms long-press) y click sostenido en desktop (8px)
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // En desktop requiere mover 8px para iniciar el drag
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250, // Long-press de 250ms en móvil para distinguir de un scroll
-        tolerance: 5, // Margen de movimiento antes de activar el drag
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  )
 
   // Alternar colapso de una sección individual
   const handleToggleCollapse = (sectionId: string) => {
@@ -478,52 +442,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     }
   }
 
-  // Controladores de Arrastrar y Soltar (Drag & Drop)
-  const handleDragStart = (event: DragStartEvent) => {
-    if (!isAdmin) return
-    setActiveDragId(String(event.active.id))
-    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate?.(50)
-      } catch {
-        // Ignorar si el navegador no soporta o bloquea vibración
-      }
-    }
-  }
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    setActiveDragId(null)
-
-    if (!isAdmin || !over || active.id === over.id) return
-
-    const oldIndex = sections.findIndex((s) => s.id === active.id)
-    const newIndex = sections.findIndex((s) => s.id === over.id)
-
-    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-      const reordered = arrayMove(sections, oldIndex, newIndex)
-      setSections(reordered)
-
-      // Auto-sincronización inmutable en base de datos
-      if (song.id) {
-        try {
-          await updateSongAction(song.id, {
-            sections: reordered as any,
-          })
-        } catch (err) {
-          console.error('Error al persistir nuevo orden de secciones:', err)
-        }
-      }
-    }
-  }
-
-  const handleDragCancel = () => {
-    setActiveDragId(null)
-  }
-
-  const activeDragSection = activeDragId
-    ? sections.find((s) => s.id === activeDragId) || null
-    : null
 
   // Guardar enlace de YouTube directamente
   const handleSaveYouTubeUrl = async (newUrl: string | null) => {
@@ -814,85 +733,50 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         onSelectSection={handleSelectSectionJump}
       />
 
-      {/* Lista de Secciones con sus Compases y Arrastrar y Soltar (DndContext) */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <SortableContext
-          items={sections.map((s) => s.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-6 sm:space-y-8">
-            {sections.map((section, sIdx) => (
-              <SectionCard
-                key={section.id}
-                section={section}
-                index={sIdx}
-                totalSections={sections.length}
-                isAdmin={isAdmin}
-                isEditing={effectiveIsEditing}
-                isCollapsed={!!collapsedSections[section.id]}
-                globalKey={currentKey}
-                globalTimeSignature={timeSignature}
-                isPlaying={isPlaying}
-                activeMeasureId={currentMeasure?.measure.id || null}
-                measureDurationMs={currentMeasure?.durationMs}
-                onToggleCollapse={handleToggleCollapse}
-                onUpdateLabel={(secId, newLabel) => {
-                  setSections((prev) =>
-                    prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
-                  )
-                }}
-                onUpdateSectionKey={handleUpdateSectionKey}
-                onUpdateRepeatCount={handleUpdateSectionRepeatCount}
-                onApplyProgression={handleApplyProgression}
-                onApplySectionCadence={handleApplySectionCadence}
-                onMoveUp={handleMoveSectionUp}
-                onMoveDown={handleMoveSectionDown}
-                onDuplicate={handleDuplicateSection}
-                onRemove={handleRemoveSection}
-                onUpdateGuideLyrics={(secId, newLyrics) => {
-                  setSections((prev) =>
-                    prev.map((s) => (s.id === secId ? { ...s, guideLyrics: newLyrics } : s))
-                  )
-                }}
-                onMeasureClick={(clickedMeasure) => {
-                  jumpToMeasureId(clickedMeasure.id)
-                }}
-                onUpdateMeasures={handleUpdateSectionMeasures}
-                onAddMeasures={handleAddMeasuresToSection}
-                onRemoveMeasure={handleRemoveMeasure}
-              />
-            ))}
-          </div>
-        </SortableContext>
-
-        <DragOverlay
-          dropAnimation={{
-            duration: 250,
-            easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-          }}
-        >
-          {activeDragSection ? (
-            <SectionCard
-              section={activeDragSection}
-              index={sections.findIndex((s) => s.id === activeDragSection.id)}
-              totalSections={sections.length}
-              isAdmin={isAdmin}
-              isEditing={effectiveIsEditing}
-              isCollapsed={!!collapsedSections[activeDragSection.id]}
-              globalKey={currentKey}
-              globalTimeSignature={timeSignature}
-              onToggleCollapse={() => {}}
-              isOverlay={true}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      {/* Lista de Secciones con sus Compases */}
+      <div className="space-y-6 sm:space-y-8">
+        {sections.map((section, sIdx) => (
+          <SectionCard
+            key={section.id}
+            section={section}
+            index={sIdx}
+            totalSections={sections.length}
+            isAdmin={isAdmin}
+            isEditing={effectiveIsEditing}
+            isCollapsed={!!collapsedSections[section.id]}
+            globalKey={currentKey}
+            globalTimeSignature={timeSignature}
+            isPlaying={isPlaying}
+            activeMeasureId={currentMeasure?.measure.id || null}
+            measureDurationMs={currentMeasure?.durationMs}
+            onToggleCollapse={handleToggleCollapse}
+            onUpdateLabel={(secId, newLabel) => {
+              setSections((prev) =>
+                prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
+              )
+            }}
+            onUpdateSectionKey={handleUpdateSectionKey}
+            onUpdateRepeatCount={handleUpdateSectionRepeatCount}
+            onApplyProgression={handleApplyProgression}
+            onApplySectionCadence={handleApplySectionCadence}
+            onMoveUp={handleMoveSectionUp}
+            onMoveDown={handleMoveSectionDown}
+            onDuplicate={handleDuplicateSection}
+            onRemove={handleRemoveSection}
+            onUpdateGuideLyrics={(secId, newLyrics) => {
+              setSections((prev) =>
+                prev.map((s) => (s.id === secId ? { ...s, guideLyrics: newLyrics } : s))
+              )
+            }}
+            onMeasureClick={(clickedMeasure) => {
+              jumpToMeasureId(clickedMeasure.id)
+            }}
+            onUpdateMeasures={handleUpdateSectionMeasures}
+            onAddMeasures={handleAddMeasuresToSection}
+            onRemoveMeasure={handleRemoveMeasure}
+          />
+        ))}
+      </div>
 
       {/* Agregar Nueva Sección en Modo Edición */}
       {effectiveIsEditing && (
