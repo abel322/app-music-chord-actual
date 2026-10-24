@@ -15,6 +15,7 @@ import { getDiatonicChords } from '@/lib/music-theory'
 import { cn } from '@/lib/utils'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
+import { SectionTempoControl } from '@/components/chords/SectionTempoControl'
 import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { MeasureGrid } from '@/components/chords/MeasureGrid'
@@ -28,12 +29,14 @@ export interface SectionCardProps {
   isCollapsed: boolean
   globalKey: string
   globalTimeSignature: string
+  globalTempo?: number
   isPlaying?: boolean
   activeMeasureId?: string | null
   measureDurationMs?: number
   onToggleCollapse: (sectionId: string) => void
   onUpdateLabel?: (sectionId: string, label: string) => void
   onUpdateSectionKey?: (sectionId: string, newKey: string | null, transposeChords: boolean) => void
+  onUpdateSectionTempo?: (sectionId: string, tempo: number | null) => void
   onUpdateRepeatCount?: (sectionId: string, count: number) => void
   onApplyProgression?: (sectionId: string, prog: any) => void
   onApplySectionCadence?: (sectionId: string, cad: any) => void
@@ -59,12 +62,14 @@ export function SectionCard({
   isCollapsed,
   globalKey,
   globalTimeSignature,
+  globalTempo = 120,
   isPlaying = false,
   activeMeasureId = null,
   measureDurationMs,
   onToggleCollapse,
   onUpdateLabel,
   onUpdateSectionKey,
+  onUpdateSectionTempo,
   onUpdateRepeatCount,
   onApplyProgression,
   onApplySectionCadence,
@@ -162,6 +167,17 @@ export function SectionCard({
                     onUpdateRepeatCount={(count) => onUpdateRepeatCount?.(section.id, count)}
                   />
                 </div>
+                {/* Badge visible de tempo personalizado */}
+                {section.tempoOverride && (
+                  <div>
+                    <SectionTempoControl
+                      sectionId={section.id}
+                      tempoOverride={section.tempoOverride}
+                      globalTempo={globalTempo}
+                      isEditing={false}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -176,6 +192,17 @@ export function SectionCard({
                   globalKey={globalKey}
                   isEditing={true}
                   onUpdateSectionKey={onUpdateSectionKey}
+                />
+              )}
+
+              {/* Controles de Tempo de Sección (BPM Override) */}
+              {onUpdateSectionTempo && (
+                <SectionTempoControl
+                  sectionId={section.id}
+                  tempoOverride={section.tempoOverride}
+                  globalTempo={globalTempo}
+                  isEditing={true}
+                  onUpdateSectionTempo={onUpdateSectionTempo}
                 />
               )}
 

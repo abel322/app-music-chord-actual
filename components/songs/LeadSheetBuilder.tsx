@@ -260,6 +260,13 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     )
   }
 
+  // Modificar tempo específico (BPM override) de una sección
+  const handleUpdateSectionTempo = (sectionId: string, newTempo: number | null) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, tempoOverride: newTempo } : s))
+    )
+  }
+
   // Cambiar Tonalidad Específica de una Sección (con opción de transposición armónica de compases)
   const handleUpdateSectionKey = (sectionId: string, newKey: string | null, transposeChords: boolean) => {
     setSections((prev) =>
@@ -711,6 +718,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               isCollapsed={!!collapsedSections[section.id]}
               globalKey={key}
               globalTimeSignature={timeSignature}
+              globalTempo={tempo}
               isPlaying={isPlaying}
               activeMeasureId={currentMeasure?.measure.id || null}
               measureDurationMs={currentMeasure?.durationMs}
@@ -721,6 +729,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
                 )
               }}
               onUpdateSectionKey={handleUpdateSectionKey}
+              onUpdateSectionTempo={handleUpdateSectionTempo}
               onUpdateRepeatCount={handleUpdateSectionRepeatCount}
               onApplyProgression={handleApplyProgression}
               onApplySectionCadence={handleApplySectionCadence}

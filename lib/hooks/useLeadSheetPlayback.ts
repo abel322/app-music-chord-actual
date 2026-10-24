@@ -14,6 +14,8 @@ export interface FlattenedMeasure {
   beatsCount: number
   pulseDurationMs: number
   durationMs: number
+  bpm: number
+  tempoOverride?: number | null
   iteration: number
   repeatCount: number
   totalMeasuresInSection: number
@@ -32,6 +34,7 @@ export interface UseLeadSheetPlaybackReturn {
   currentFlatMeasureIndex: number
   currentMeasure: FlattenedMeasure | null
   currentBeat: number
+  currentBpm: number
   isMuted: boolean
   flatMeasures: FlattenedMeasure[]
   totalMeasuresCount: number
@@ -86,14 +89,17 @@ export function useLeadSheetPlayback({
   }, [isMuted])
 
   // Aplanar la lista de compases en orden cronológico lineal respetando repeticiones de sección (2x, 3x, 4x...)
+  // y tempos específicos (tempoOverride) por sección con sincronización rítmica en milisegundos
   const flatMeasures = useMemo<FlattenedMeasure[]>(() => {
     const list: FlattenedMeasure[] = []
     let globalIndex = 0
 
-    const validBpm = Math.max(30, Math.min(300, Number(tempo) || 72))
-    const pulseDurationMs = (60 / validBpm) * 1000
+    const validGlobalBpm = Math.max(30, Math.min(300, Number(tempo) || 72))
 
     sections.forEach((section) => {
+      // Tempo efectivo: si la sección tiene tempoOverride asignado, utilizarlo; si no, heredar tempo global
+      const sectionBpm = Math.max(30, Math.min(300, Number(section.tempoOverride) || validGlobalBpm))
+      const pulseDurationMs = (60 / sectionBpm) * 1000
       const sectionTimeSig = section.timeSignature || defaultTimeSignature || '4/4'
       const repeats = Math.max(1, Math.min(64, Number(section.repeatCount) || 1))
       const measuresCount = section.measures.length
@@ -114,6 +120,8 @@ export function useLeadSheetPlayback({
             beatsCount,
             pulseDurationMs,
             durationMs,
+            bpm: sectionBpm,
+            tempoOverride: section.tempoOverride ?? null,
             iteration,
             repeatCount: repeats,
             totalMeasuresInSection: measuresCount,
@@ -405,12 +413,14 @@ export function useLeadSheetPlayback({
   }, [])
 
   const currentMeasure = flatMeasures[currentFlatMeasureIndex] || null
+  const currentBpm = currentMeasure ? currentMeasure.bpm : Math.max(30, Math.min(300, Number(tempo) || 72))
 
   return {
     isPlaying,
     currentFlatMeasureIndex,
     currentMeasure,
     currentBeat,
+    currentBpm,
     isMuted,
     flatMeasures,
     totalMeasuresCount: flatMeasures.length,

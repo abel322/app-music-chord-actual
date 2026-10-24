@@ -366,6 +366,13 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     )
   }
 
+  // Modificar tempo específico (BPM override) de una sección
+  const handleUpdateSectionTempo = (sectionId: string, newTempo: number | null) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, tempoOverride: newTempo } : s))
+    )
+  }
+
   // Agregar una nueva sección completa (Intro, Estrofa, Coro, etc.)
   const handleAddSection = (type: string) => {
     const defaultName = getSectionDefaultName(type)
@@ -753,6 +760,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             isCollapsed={!!collapsedSections[section.id]}
             globalKey={currentKey}
             globalTimeSignature={timeSignature}
+            globalTempo={tempo}
             isPlaying={isPlaying}
             activeMeasureId={currentMeasure?.measure.id || null}
             measureDurationMs={currentMeasure?.durationMs}
@@ -763,6 +771,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               )
             }}
             onUpdateSectionKey={handleUpdateSectionKey}
+            onUpdateSectionTempo={handleUpdateSectionTempo}
             onUpdateRepeatCount={handleUpdateSectionRepeatCount}
             onApplyProgression={handleApplyProgression}
             onApplySectionCadence={handleApplySectionCadence}

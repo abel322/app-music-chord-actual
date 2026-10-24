@@ -756,6 +756,7 @@ export function ensureSectionMeasures(
       lyrics: rawSection.lyrics || '',
       lines: rawSection.lines,
       repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
+      tempoOverride: rawSection.tempoOverride !== undefined ? (rawSection.tempoOverride ? Number(rawSection.tempoOverride) : null) : null,
     }
   }
 
@@ -801,6 +802,7 @@ export function ensureSectionMeasures(
     lyrics: rawSection.lyrics || '',
     lines: rawSection.lines,
     repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
+    tempoOverride: rawSection.tempoOverride !== undefined ? (rawSection.tempoOverride ? Number(rawSection.tempoOverride) : null) : null,
   }
 }
 
@@ -1085,6 +1087,8 @@ export function cloneSectionMeasures(
     id: newSectionId,
     label: newLabel,
     keySignature: section.keySignature ?? null,
+    tempoOverride: section.tempoOverride ?? null,
+    repeatCount: section.repeatCount ? Math.max(1, Math.min(64, Number(section.repeatCount))) : 1,
     instruments: section.instruments ? [...section.instruments] : [],
     guideLyrics: section.guideLyrics || '',
     lyrics: section.lyrics || '',

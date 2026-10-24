@@ -38,6 +38,7 @@ import {
   getSectionBadge
 } from '@/lib/measure-utils'
 import { SectionMeasures } from '@/types/measure'
+import { SectionTempoControl, getTempoDescriptor } from '@/components/chords/SectionTempoControl'
 
 interface SongData {
   id: string
@@ -79,6 +80,10 @@ export interface ParsedLyricsSection {
   measuresCount: number
   singleLapDurationMs: number
   totalDurationMs: number
+  tempoOverride?: number | null
+  effectiveBpm: number
+  pulseDurationMs: number
+  measureDurationMs: number
 }
 
 /**
@@ -326,10 +331,10 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   }, [song.id, router])
 
   // 2. Cálculo unificado de secciones para teleprompter a partir del array sections (Single Source of Truth)
+  // con soporte de tempo específico por sección (tempoOverride)
   const parsedSections = useMemo<ParsedLyricsSection[]>(() => {
     const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
-    const pulseDurationMs = (60 / Math.max(30, Math.min(300, tempo || 72))) * 1000
-    const measureDurationMs = pulseDurationMs * beatsPerMeasure
+    const globalBpm = Math.max(30, Math.min(300, tempo || 72))
 
     return sections.map((sec, idx) => {
       const repeats = sec.repeatCount && sec.repeatCount > 0 ? sec.repeatCount : 1
@@ -337,6 +342,9 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       const measuresCount = Array.isArray(sec.measures) && sec.measures.length > 0
         ? sec.measures.length
         : 4
+      const sectionBpm = Math.max(30, Math.min(300, Number(sec.tempoOverride) || globalBpm))
+      const pulseDurationMs = (60 / sectionBpm) * 1000
+      const measureDurationMs = pulseDurationMs * beatsPerMeasure
       const singleLapDurationMs = measuresCount * measureDurationMs
       const totalDurationMs = singleLapDurationMs * repeats
 
@@ -350,6 +358,10 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         measuresCount,
         singleLapDurationMs,
         totalDurationMs,
+        tempoOverride: sec.tempoOverride ?? null,
+        effectiveBpm: sectionBpm,
+        pulseDurationMs,
+        measureDurationMs,
       }
     })
   }, [sections, tempo, song.timeSignature])
@@ -394,8 +406,8 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       setLapProgress(progress)
 
       const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
-      const pulseDurationMs = (60 / Math.max(30, Math.min(300, tempo || 72))) * 1000
-      const measureDurationMs = pulseDurationMs * beatsPerMeasure
+      const pulseDurationMs = curSection.pulseDurationMs
+      const measureDurationMs = curSection.measureDurationMs
 
       const totalBeats = Math.floor(lapElapsedRef.current / pulseDurationMs)
       const beatInMeasure = (totalBeats % beatsPerMeasure) + 1
@@ -410,6 +422,22 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       if (totalBeats !== lastBeatRef.current) {
         lastBeatRef.current = totalBeats
         playMetronomePulse(beatInMeasure === 1)
+      }
+
+      // Desplazamiento progresivo continuo dentro de la sección según el tempo y altura de texto (Teleprompter Scroll)
+      if (scrollContainerRef.current) {
+        const container = scrollContainerRef.current
+        const sectionEl = document.getElementById(curSection.id)
+        if (sectionEl) {
+          const containerHeight = container.clientHeight
+          const sectionTop = sectionEl.offsetTop
+          const sectionHeight = sectionEl.offsetHeight
+          if (sectionHeight > containerHeight * 0.45) {
+            const maxScrollInSection = Math.max(0, sectionHeight - containerHeight * 0.4)
+            const targetScroll = Math.max(0, sectionTop - 24) + (maxScrollInSection * progress)
+            container.scrollTop = targetScroll
+          }
+        }
       }
 
       if (lapElapsedRef.current >= lapDuration) {
@@ -501,6 +529,14 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     setSections((prev) => {
       const updated = prev.map((s, idx) => (idx === secIndex ? { ...s, repeatCount: newRepeats } : s))
       setText(buildFullLyricsText(updated))
+      return updated
+    })
+  }
+
+  // Modificar tempo específico (BPM override) de una sección
+  const handleSetSectionTempo = (secIndex: number, newTempo: number | null) => {
+    setSections((prev) => {
+      const updated = prev.map((s, idx) => (idx === secIndex ? { ...s, tempoOverride: newTempo } : s))
       return updated
     })
   }
@@ -841,6 +877,17 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
               ))}
             </div>
 
+            {/* Indicador de tempo específico de la sección activa durante la reproducción */}
+            {isAutoScrolling && parsedSections[activeSectionIdx]?.tempoOverride && (
+              <span
+                className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black bg-amber-400 text-amber-950 shadow-sm border border-amber-300 animate-pulse shrink-0 ml-1.5"
+                title={`Esta sección corre a ${parsedSections[activeSectionIdx].effectiveBpm} BPM (${getTempoDescriptor(parsedSections[activeSectionIdx].effectiveBpm)})`}
+              >
+                <span>⏱️</span>
+                <span>{parsedSections[activeSectionIdx].effectiveBpm} BPM ({getTempoDescriptor(parsedSections[activeSectionIdx].effectiveBpm)})</span>
+              </span>
+            )}
+
             {/* Tap Tempo */}
             <div className="ml-1">
               <TapTempoButton
@@ -1021,7 +1068,16 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Control de tempo específico de la sección */}
+                        <SectionTempoControl
+                          sectionId={sec.id || `sec-${secIdx}`}
+                          tempoOverride={sec.tempoOverride}
+                          globalTempo={tempo}
+                          isEditing={true}
+                          onUpdateSectionTempo={(_secId, newTempo) => handleSetSectionTempo(secIdx, newTempo)}
+                        />
+
                         {/* Selector de repeticiones de la sección */}
                         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
                           <Repeat className="w-3 h-3 text-slate-400 mr-0.5" />
@@ -1140,6 +1196,22 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                     >
                       {section.cleanName}
                     </span>
+
+                    {/* Badge de Tempo Específico (BPM Override) */}
+                    {section.tempoOverride && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-sans font-bold border shadow-2xs transition-colors',
+                          isActive
+                            ? 'bg-amber-400 text-amber-950 border-amber-300 font-extrabold shadow-sm'
+                            : 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                        )}
+                        title={`Tempo específico de esta sección: ${section.tempoOverride} BPM (${getTempoDescriptor(section.tempoOverride)}). Tempo global: ${tempo} BPM.`}
+                      >
+                        <span className="text-[11px]">⏱️</span>
+                        <span>{section.tempoOverride} BPM ({getTempoDescriptor(section.tempoOverride)})</span>
+                      </span>
+                    )}
 
                     {/* Control Interactivo de Repetición (1x, 2x, 3x, 4x) */}
                     <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>

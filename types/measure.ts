@@ -100,4 +100,5 @@ export interface SectionMeasures {
   lyrics?: string // Texto o estrofas líricas de esta sección específica (Single Source of Truth)
   lines?: any[]
   repeatCount?: number // Cantidad de repeticiones de la sección (por defecto 1, ej. 2, 3, 4, 8)
+  tempoOverride?: number | null // BPM específico para esta sección. Si es null/undefined, hereda song.tempo
 }
