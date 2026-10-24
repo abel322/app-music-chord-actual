@@ -32,6 +32,7 @@ import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
+import { StickyPlaybackTransport } from '@/components/chords/StickyPlaybackTransport'
 import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
@@ -716,12 +717,12 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         </div>
       </div>
 
-      {/* Barra de Herramientas Musicales y Reproducción Fija / Flotante (Sticky Playback Toolbar) */}
-      <div className="sticky top-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl py-3 px-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 text-white transition-all duration-200">
-        <div className="flex items-center gap-4 flex-wrap">
+      {/* Cabecera Estática de Configuración Musical (Hace scroll normal, no fija) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-slate-800 dark:text-slate-200">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           {/* Tonalidad con Badge Destacado */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Tono:
             </span>
             <div className="px-3 py-1 rounded-xl bg-primary-600 font-mono text-base font-extrabold text-white shadow-md shadow-primary-900/40">
@@ -730,11 +731,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </div>
 
           {/* Botones de Transposición Rápida */}
-          <div className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/80">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80">
             <button
               type="button"
               onClick={() => handleTranspose(-1)}
-              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-700 hover:bg-slate-600 transition-colors"
+              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-2xs"
               title="Bajar 1 semitono (♭)"
             >
               ♭ -1
@@ -742,7 +743,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             <button
               type="button"
               onClick={() => handleTranspose(1)}
-              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-700 hover:bg-slate-600 transition-colors"
+              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-2xs"
               title="Subir 1 semitono (#)"
             >
               ♯ +1
@@ -751,7 +752,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               <button
                 type="button"
                 onClick={handleResetTranspose}
-                className="px-2 py-1 text-xs text-primary-400 hover:text-primary-300 underline font-medium"
+                className="px-2 py-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
                 title="Restablecer tono original"
               >
                 Reset ({transposeSemitones > 0 ? `+${transposeSemitones}` : transposeSemitones})
@@ -759,16 +760,18 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             )}
           </div>
 
+          <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+
           {/* Compás (Métrica) */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Compás:
             </span>
             {effectiveIsEditing ? (
               <select
                 value={timeSignature}
                 onChange={(e) => handleTimeSignatureChange(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white focus:outline-none"
+                className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none"
               >
                 <option value="4/4">4/4</option>
                 <option value="3/4">3/4</option>
@@ -777,18 +780,18 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 <option value="12/8">12/8</option>
               </select>
             ) : (
-              <span className="font-mono font-bold text-sm bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+              <span className="font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                 {timeSignature}
               </span>
             )}
           </div>
 
-          {/* Tempo BPM con ajuste en tiempo real para estudio y reproducción */}
+          <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+
+          {/* Tempo BPM Inicial + Tap */}
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-xl border border-slate-700/60">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo:</span>
-              
-              {/* Botón rápido -1 o -5 BPM */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700/60">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tempo:</span>
               <button
                 type="button"
                 onClick={() => {
@@ -797,12 +800,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   setTempoInput(next.toString())
                   if (onUpdateTempo) onUpdateTempo(next)
                 }}
-                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
                 title="Reducir 1 BPM"
               >
                 -
               </button>
-
               <input
                 type="text"
                 inputMode="numeric"
@@ -811,11 +813,9 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 onChange={handleTempoInputChange}
                 onBlur={handleCommitTempo}
                 onKeyDown={handleKeyDown}
-                className="w-12 text-center text-sm font-bold bg-slate-800 text-white rounded-lg py-0.5 border border-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                className="w-12 text-center text-sm font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded py-0.5 border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                 title="Ajustar tempo en BPM (30 - 300)"
               />
-
-              {/* Botón rápido +1 o +5 BPM */}
               <button
                 type="button"
                 onClick={() => {
@@ -824,13 +824,12 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                   setTempoInput(next.toString())
                   if (onUpdateTempo) onUpdateTempo(next)
                 }}
-                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
                 title="Aumentar 1 BPM"
               >
                 +
               </button>
             </div>
-
             <TapTempoButton
               onTempoChange={(bpm) => {
                 setTempoInput(bpm.toString())
@@ -838,63 +837,47 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               }}
               currentTempo={tempo}
               timeSignature={timeSignature}
-              className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
+              className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
             />
           </div>
-
-          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
-
-          {/* Botonera de Control de Reproducción en Vivo (Live Playback Tracker) */}
-          <LeadSheetPlaybackControls
-            isPlaying={isPlaying}
-            isMuted={isMuted}
-            currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
-            currentBeat={currentBeat}
-            beatsCount={currentMeasure?.beatsCount || 4}
-            currentSectionLabel={currentMeasure?.sectionLabel}
-            totalMeasuresCount={totalMeasuresCount}
-            currentFlatMeasureIndex={currentFlatMeasureIndex}
-            iteration={currentMeasure?.iteration}
-            repeatCount={currentMeasure?.repeatCount}
-            measureIndexInSection={currentMeasure?.measureIndexInSection}
-            totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
-            totalDurationFormatted={totalDurationFormatted}
-            onTogglePlay={togglePlay}
-            onStop={stop}
-            onToggleMute={toggleMute}
-          />
-
-          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
-
-          {/* Botón Discreto YouTube en Barra de Herramientas */}
-          <button
-            type="button"
-            onClick={() => setIsYouTubeModalOpen(true)}
-            className={cn(
-              'px-2.5 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs',
-              youtubeUrl
-                ? 'bg-red-950/40 border-red-500/50 text-red-400 hover:bg-red-900/50'
-                : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:text-red-400 hover:border-red-900/60'
-            )}
-            title={youtubeUrl ? 'Ver o editar video de YouTube vinculado' : 'Vincular enlace de YouTube'}
-          >
-            <Youtube className={cn('w-3.5 h-3.5 text-red-500', youtubeUrl && 'fill-current')} />
-            <span className="hidden md:inline">{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
-          </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="hidden sm:inline">Formato Lead Sheet de Estudio</span>
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-[10px] uppercase font-bold text-slate-300">
+        {/* Metadatos de Vista y Duración */}
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+          <span className="hidden lg:inline">Formato:</span>
+          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
             4 Compases / Línea
           </span>
           {totalDurationFormatted && (
-            <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-800/80 text-[10px] font-mono font-bold text-purple-300">
+            <span className="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/80 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300">
               ⏱ {totalDurationFormatted} ({totalMeasuresCount} compases)
             </span>
           )}
         </div>
       </div>
+
+      {/* Barra de Transporte Fija Ultra-Delgada (Single-Row / Máximo 48px con Modo Píldora Móvil) */}
+      <StickyPlaybackTransport
+        isPlaying={isPlaying}
+        isMuted={isMuted}
+        tempo={tempo}
+        currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
+        currentBeat={currentBeat}
+        beatsCount={currentMeasure?.beatsCount || 4}
+        currentSectionLabel={currentMeasure?.sectionLabel}
+        totalMeasuresCount={totalMeasuresCount}
+        iteration={currentMeasure?.iteration}
+        repeatCount={currentMeasure?.repeatCount}
+        measureIndexInSection={currentMeasure?.measureIndexInSection}
+        totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
+        onTogglePlay={togglePlay}
+        onStop={stop}
+        onToggleMute={toggleMute}
+        onUpdateTempo={(newTempo) => {
+          setTempoInput(newTempo.toString())
+          if (onUpdateTempo) onUpdateTempo(newTempo)
+        }}
+      />
 
       {/* Barra Fija de Navegación Rápida por Secciones (Quick Jump) */}
       <SectionNavigationStickyBar
@@ -902,6 +885,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
+        className="sticky top-12 z-20"
       />
 
       {/* Lista de Secciones con sus Compases */}

@@ -32,6 +32,7 @@ import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
+import { StickyPlaybackTransport } from '@/components/chords/StickyPlaybackTransport'
 import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
@@ -772,95 +773,28 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         </div>
       </div>
 
-      {/* Barra de Reproducción Fija / Flotante (Sticky Playback Toolbar) */}
-      <div className="sticky top-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl py-3 px-4 flex flex-wrap items-center justify-between gap-3 text-white transition-all duration-200">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tono:</span>
-            <span className="font-mono font-bold text-xs bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">{key}</span>
-          </div>
-          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Compás:</span>
-            <span className="font-mono font-bold text-xs bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">{timeSignature}</span>
-          </div>
-          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
-          {/* Tempo BPM */}
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-xl border border-slate-700/60">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const current = parseInt(tempoInput, 10) || 120
-                  const next = Math.max(30, current - 1)
-                  setTempoInput(next.toString())
-                  setTempo(next)
-                }}
-                className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
-                title="Reducir 1 BPM"
-              >
-                -
-              </button>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={tempoInput}
-                onChange={handleTempoInputChange}
-                onBlur={handleCommitTempo}
-                onKeyDown={handleTempoKeyDown}
-                className="w-11 text-center text-xs font-bold bg-slate-800 text-white rounded py-0.5 border border-slate-600 focus:outline-none focus:border-purple-500"
-                title="Ajustar tempo en BPM"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const current = parseInt(tempoInput, 10) || 120
-                  const next = Math.min(300, current + 1)
-                  setTempoInput(next.toString())
-                  setTempo(next)
-                }}
-                className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
-                title="Aumentar 1 BPM"
-              >
-                +
-              </button>
-            </div>
-            <TapTempoButton
-              onTempoChange={(bpm) => {
-                setTempoInput(bpm.toString())
-                setTempo(bpm)
-              }}
-              currentTempo={tempo}
-              timeSignature={timeSignature}
-              className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
-            />
-          </div>
-        </div>
-
-        {/* Controles de reproducción siempre a la vista */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <LeadSheetPlaybackControls
-            isPlaying={isPlaying}
-            isMuted={isMuted}
-            currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
-            currentBeat={currentBeat}
-            beatsCount={currentMeasure?.beatsCount || 4}
-            currentSectionLabel={currentMeasure?.sectionLabel}
-            totalMeasuresCount={totalMeasuresCount}
-            currentFlatMeasureIndex={currentFlatMeasureIndex}
-            iteration={currentMeasure?.iteration}
-            repeatCount={currentMeasure?.repeatCount}
-            measureIndexInSection={currentMeasure?.measureIndexInSection}
-            totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
-            totalDurationFormatted={totalDurationFormatted}
-            onTogglePlay={togglePlay}
-            onStop={stop}
-            onToggleMute={toggleMute}
-          />
-        </div>
-      </div>
+      {/* Barra de Transporte Fija Ultra-Delgada (Single-Row / Máximo 48px con Modo Píldora Móvil) */}
+      <StickyPlaybackTransport
+        isPlaying={isPlaying}
+        isMuted={isMuted}
+        tempo={tempo}
+        currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
+        currentBeat={currentBeat}
+        beatsCount={currentMeasure?.beatsCount || 4}
+        currentSectionLabel={currentMeasure?.sectionLabel}
+        totalMeasuresCount={totalMeasuresCount}
+        iteration={currentMeasure?.iteration}
+        repeatCount={currentMeasure?.repeatCount}
+        measureIndexInSection={currentMeasure?.measureIndexInSection}
+        totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
+        onTogglePlay={togglePlay}
+        onStop={stop}
+        onToggleMute={toggleMute}
+        onUpdateTempo={(newTempo) => {
+          setTempoInput(newTempo.toString())
+          setTempo(newTempo)
+        }}
+      />
 
       {/* Barra Fija de Navegación Rápida por Secciones (Quick Jump) */}
       <SectionNavigationStickyBar
@@ -868,7 +802,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        className="sticky top-[68px] z-30"
+        className="sticky top-12 z-30"
       />
 
       {/* Secciones y Constructor de Lead Sheet por Compases */}

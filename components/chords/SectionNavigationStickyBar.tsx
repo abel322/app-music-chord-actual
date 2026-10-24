@@ -28,7 +28,7 @@ export function SectionNavigationStickyBar({
   return (
     <div
       className={cn(
-        'sticky top-14 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 py-2 px-3 flex items-center justify-between gap-2 shadow-xs transition-all',
+        'sticky top-12 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 py-2 px-3 flex items-center justify-between gap-2 shadow-xs transition-all',
         className
       )}
     >
