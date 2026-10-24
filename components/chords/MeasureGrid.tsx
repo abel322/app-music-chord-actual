@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Measure, ChordBeat } from '@/types/measure'
 import {
   getBeatsPerMeasure,
   duplicateMeasure,
+  duplicateMultipleMeasures,
   applyProgressionFromMeasure,
   getCadenceStartPercent,
   getCadenceEndPercent,
@@ -33,7 +34,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { MeasureCell, MeasureCellProps, CadenceBracketInfo, CadenceWrapType } from './measure-cell'
 import { MeasureEditModal } from './MeasureEditModal'
-import { Plus } from 'lucide-react'
+import { Plus, Copy, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SortableMeasureCellProps extends MeasureCellProps {
@@ -167,12 +168,19 @@ export function MeasureGrid({
   }
 
   // Cierre opcional con tecla Escape en teclados físicos (sin click outside para evitar cierres accidentales)
-  useEffect(() => {
-    if (!selectedMeasureId) return
+  // Selección múltiple de compases para acciones en lote
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([])
+  const lastSelectedIdRef = useRef<string | null>(null)
 
+  // Cierre opcional con tecla Escape en teclados físicos (limpia selección múltiple o cierra modal)
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setSelectedMeasureId(null)
+        if (selectedBatchIds.length > 0) {
+          setSelectedBatchIds([])
+        } else if (selectedMeasureId) {
+          setSelectedMeasureId(null)
+        }
       }
     }
 
@@ -180,7 +188,7 @@ export function MeasureGrid({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [selectedMeasureId])
+  }, [selectedMeasureId, selectedBatchIds.length])
 
   const selectedMeasure = measures.find((m) => m.id === selectedMeasureId)
 
@@ -189,10 +197,97 @@ export function MeasureGrid({
     onUpdateMeasures(measures.map((m) => (m.id === updated.id ? updated : m)))
   }
 
-  // Duplicar compás
+  // Duplicar compás individual
   const handleDuplicate = (measureId: string) => {
     const duplicatedList = duplicateMeasure(measures, measureId)
     onUpdateMeasures(duplicatedList)
+  }
+
+  // Agrupar compases en bloques de 4 compases (sistemas musicales)
+  const rows = useMemo(() => {
+    const result: Measure[][] = []
+    for (let i = 0; i < measures.length; i += 4) {
+      result.push(measures.slice(i, i + 4))
+    }
+    return result
+  }, [measures])
+
+  // Duplicar los compases de una fila específica (insertándolos inmediatamente a continuación)
+  const handleDuplicateRow = (rowIdx: number) => {
+    const startIdx = rowIdx * 4
+    const rowMeasures = measures.slice(startIdx, startIdx + 4)
+    if (rowMeasures.length === 0) return
+    const insertAt = startIdx + rowMeasures.length
+    const updated = duplicateMultipleMeasures(measures, rowMeasures, insertAt)
+    onUpdateMeasures(updated)
+  }
+
+  // Duplicar los últimos 4 compases de la sección
+  const handleDuplicateLast4 = () => {
+    if (measures.length < 4) return
+    const last4 = measures.slice(-4)
+    const updated = duplicateMultipleMeasures(measures, last4)
+    onUpdateMeasures(updated)
+  }
+
+  // Alternar selección de un compás (soporte para Shift + Clic)
+  const handleToggleSelectMeasure = (measureId: string, event?: React.MouseEvent) => {
+    setSelectedBatchIds((prev) => {
+      if (event?.shiftKey && lastSelectedIdRef.current) {
+        const startIdx = measures.findIndex((m) => m.id === lastSelectedIdRef.current)
+        const endIdx = measures.findIndex((m) => m.id === measureId)
+        if (startIdx !== -1 && endIdx !== -1) {
+          const from = Math.min(startIdx, endIdx)
+          const to = Math.max(startIdx, endIdx)
+          const rangeIds = measures.slice(from, to + 1).map((m) => m.id)
+          return Array.from(new Set([...prev, ...rangeIds]))
+        }
+      }
+
+      lastSelectedIdRef.current = measureId
+      if (prev.includes(measureId)) {
+        return prev.filter((id) => id !== measureId)
+      } else {
+        return [...prev, measureId]
+      }
+    })
+  }
+
+  // Duplicar compases seleccionados en lote
+  const handleDuplicateSelected = () => {
+    if (selectedBatchIds.length === 0) return
+    const selectedMeasures = measures.filter((m) => selectedBatchIds.includes(m.id))
+    if (selectedMeasures.length === 0) return
+
+    const lastIdx = Math.max(...selectedBatchIds.map((id) => measures.findIndex((m) => m.id === id)))
+    const insertAt = lastIdx !== -1 ? lastIdx + 1 : measures.length
+
+    const updated = duplicateMultipleMeasures(measures, selectedMeasures, insertAt)
+    onUpdateMeasures(updated)
+    setSelectedBatchIds([])
+  }
+
+  // Eliminar compases seleccionados en lote
+  const handleRemoveSelected = () => {
+    if (selectedBatchIds.length === 0) return
+    if (measures.length - selectedBatchIds.length < 1) {
+      alert('Una sección debe conservar al menos 1 compás.')
+      return
+    }
+    if (!confirm(`¿Eliminar los ${selectedBatchIds.length} compases seleccionados?`)) {
+      return
+    }
+
+    const updated = measures
+      .filter((m) => !selectedBatchIds.includes(m.id))
+      .map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
+
+    onUpdateMeasures(updated)
+    setSelectedBatchIds([])
+  }
+
+  const handleClearSelection = () => {
+    setSelectedBatchIds([])
   }
 
   // Dividir el compás en 2 acordes
@@ -396,42 +491,80 @@ export function MeasureGrid({
         onDragCancel={handleDragCancel}
       >
         <SortableContext items={measures.map((m) => m.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-9 sm:pt-10">
-            {measures.map((measure, index) => {
-              const isSelected = selectedMeasureId === measure.id
-              const isActive = activeMeasureId === measure.id
-              const prevMeasure = index > 0 ? measures[index - 1] : null
-              const bracket = cadenceBrackets[measure.id]
-              const isFirst = index === 0
-              const isLast = index === measures.length - 1
-              const sectionRepeatStart = isFirst && (sectionRepeatCount ?? 1) > 1 && !measure.repeatStart
-              const sectionRepeatEnd = isLast && (sectionRepeatCount ?? 1) > 1 && !measure.repeatEnd ? sectionRepeatCount : undefined
-
+          <div className="space-y-6">
+            {rows.map((rowMeasures, rowIdx) => {
+              const startIdx = rowIdx * 4
               return (
-                <SortableMeasureCell
-                  key={measure.id}
-                  id={measure.id}
-                  measure={measure}
-                  timeSignature={timeSignature}
-                  beatsPerMeasure={beatsPerMeasure}
-                  currentKey={currentKey}
-                  isSelected={isSelected}
-                  isEditing={isEditing}
-                  isActive={isActive}
-                  isPlaying={isPlaying}
-                  measureDurationMs={measureDurationMs}
-                  prevMeasure={prevMeasure}
-                  cadenceBracket={bracket}
-                  sectionRepeatStart={sectionRepeatStart}
-                  sectionRepeatEnd={sectionRepeatEnd}
-                  onClick={() => {
-                    if (isEditing) setSelectedMeasureId(measure.id)
-                    onMeasureClick?.(measure)
-                  }}
-                  onDuplicate={isEditing ? handleDuplicate : undefined}
-                  onRemove={isEditing && onRemoveMeasure ? onRemoveMeasure : undefined}
-                  onRemoveCadence={isEditing ? handleRemoveCadence : undefined}
-                />
+                <div key={rowIdx} className="space-y-1 relative group/row">
+                  {/* Encabezado sutil de línea / sistema musical de 4 compases */}
+                  <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-slate-500 dark:text-slate-400 text-[10px] tracking-wider uppercase">
+                        Línea {rowIdx + 1}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                        (C.{startIdx + 1} – C.{startIdx + rowMeasures.length})
+                      </span>
+                    </div>
+
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicateRow(rowIdx)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 transition-all opacity-80 hover:opacity-100 cursor-pointer shadow-2xs"
+                        title={`Duplicar estos ${rowMeasures.length} compases (C.${startIdx + 1}–C.${startIdx + rowMeasures.length})`}
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Duplicar estos {rowMeasures.length} compases</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Grid de compases de esta línea */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-7 sm:pt-8 pb-1">
+                    {rowMeasures.map((measure, mIdx) => {
+                      const globalIndex = startIdx + mIdx
+                      const isSelected = selectedMeasureId === measure.id
+                      const isSelectedForBatch = selectedBatchIds.includes(measure.id)
+                      const isActive = activeMeasureId === measure.id
+                      const prevMeasure = globalIndex > 0 ? measures[globalIndex - 1] : null
+                      const bracket = cadenceBrackets[measure.id]
+                      const isFirst = globalIndex === 0
+                      const isLast = globalIndex === measures.length - 1
+                      const sectionRepeatStart = isFirst && (sectionRepeatCount ?? 1) > 1 && !measure.repeatStart
+                      const sectionRepeatEnd = isLast && (sectionRepeatCount ?? 1) > 1 && !measure.repeatEnd ? sectionRepeatCount : undefined
+
+                      return (
+                        <SortableMeasureCell
+                          key={measure.id}
+                          id={measure.id}
+                          measure={measure}
+                          timeSignature={timeSignature}
+                          beatsPerMeasure={beatsPerMeasure}
+                          currentKey={currentKey}
+                          isSelected={isSelected}
+                          isSelectedForBatch={isSelectedForBatch}
+                          isEditing={isEditing}
+                          isActive={isActive}
+                          isPlaying={isPlaying}
+                          measureDurationMs={measureDurationMs}
+                          prevMeasure={prevMeasure}
+                          cadenceBracket={bracket}
+                          sectionRepeatStart={sectionRepeatStart}
+                          sectionRepeatEnd={sectionRepeatEnd}
+                          onClick={() => {
+                            if (isEditing) setSelectedMeasureId(measure.id)
+                            onMeasureClick?.(measure)
+                          }}
+                          onToggleSelect={handleToggleSelectMeasure}
+                          onDuplicate={isEditing ? handleDuplicate : undefined}
+                          onRemove={isEditing && onRemoveMeasure ? onRemoveMeasure : undefined}
+                          onRemoveCadence={isEditing ? handleRemoveCadence : undefined}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -476,31 +609,89 @@ export function MeasureGrid({
         />
       )}
 
+      {/* Barra de Acciones Flotante de Selección Múltiple (2 o más compases) */}
+      {isEditing && selectedBatchIds.length >= 1 && (
+        <div className="sticky bottom-3 z-30 flex items-center justify-between gap-3 p-3 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white rounded-2xl border border-purple-500/50 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
+            <span className="text-xs font-bold text-purple-200">
+              <strong className="text-white font-mono text-sm">{selectedBatchIds.length}</strong>{' '}
+              {selectedBatchIds.length === 1 ? 'compás seleccionado' : 'compases seleccionados'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDuplicateSelected}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              title="Duplicar los compases seleccionados en orden correlativo"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>Duplicar ({selectedBatchIds.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRemoveSelected}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              title="Eliminar los compases seleccionados"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar ({selectedBatchIds.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Deseleccionar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Botones rápidos para añadir compases en Modo Edición */}
-      {isEditing && onAddMeasures && (
+      {isEditing && (
         <div className="flex items-center gap-2 pt-2 flex-wrap">
           <span className="text-xs text-slate-400 font-semibold">Agregar compases a la sección:</span>
-          <button
-            type="button"
-            onClick={() => onAddMeasures(4)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" /> +4 Compases
-          </button>
-          <button
-            type="button"
-            onClick={() => onAddMeasures(8)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" /> +8 Compases
-          </button>
-          <button
-            type="button"
-            onClick={() => onAddMeasures(1)}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" /> +1 Compás
-          </button>
+          {measures.length >= 4 && (
+            <button
+              type="button"
+              onClick={handleDuplicateLast4}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              title="Duplica los últimos 4 compases de la sección y los añade al final con numeración correlativa"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>📋 Duplicar últimos 4 compases</span>
+            </button>
+          )}
+          {onAddMeasures && (
+            <>
+              <button
+                type="button"
+                onClick={() => onAddMeasures(4)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> +4 Compases
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddMeasures(8)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-primary-600 dark:text-primary-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> +8 Compases
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddMeasures(1)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> +1 Compás
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

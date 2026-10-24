@@ -117,6 +117,52 @@ export function duplicateMeasure(measures: Measure[], measureId: string): Measur
 }
 
 /**
+ * Duplica múltiples compases respetando sus subdivisiones, acordes, cadencias y slots,
+ * generando nuevos IDs únicos y renumerando de forma correlativa.
+ */
+export function duplicateMultipleMeasures(
+  measures: Measure[],
+  measuresToDuplicate: Measure[],
+  insertIndex?: number
+): Measure[] {
+  if (measuresToDuplicate.length === 0) return measures
+
+  const now = Date.now()
+  const cloned: Measure[] = measuresToDuplicate.map((target, idx) => {
+    const randomSuffix = Math.random().toString(36).slice(2, 7)
+    return {
+      ...target,
+      id: `m-dup-${now}-${idx}-${randomSuffix}`,
+      division: target.division,
+      slots: target.slots ? target.slots.map((s) => ({ ...s })) : undefined,
+      subdivision: target.subdivision,
+      subdivisionGrouping: target.subdivisionGrouping,
+      cadence: target.cadence,
+      cadenceLabel: target.cadenceLabel,
+      cadenceColor: target.cadenceColor,
+      cadenceRole: target.cadenceRole,
+      beats: target.beats.map((b, bIdx) => ({
+        ...b,
+        id: `b-dup-${now}-${idx}-${bIdx}-${randomSuffix}`,
+        subSlots: b.subSlots
+          ? b.subSlots.map((s, sIdx) => ({
+              ...s,
+              id: `s-dup-${now}-${idx}-${bIdx}-${sIdx}-${randomSuffix}`,
+            }))
+          : undefined,
+      })),
+    }
+  })
+
+  const targetIndex = insertIndex !== undefined ? insertIndex : measures.length
+  const updated = [...measures]
+  updated.splice(targetIndex, 0, ...cloned)
+
+  // Renumerar correlativamente
+  return updated.map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
+}
+
+/**
  * Aplica una lista de acordes provenientes de una progresión a una lista de compases
  */
 export function applyProgressionToMeasures(

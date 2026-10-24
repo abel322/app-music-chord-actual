@@ -47,6 +47,8 @@ export interface MeasureCellProps {
   isDragging?: boolean
   sectionRepeatStart?: boolean
   sectionRepeatEnd?: number
+  isSelectedForBatch?: boolean
+  onToggleSelect?: (measureId: string, event?: React.MouseEvent) => void
 }
 
 export function MeasureCell({
@@ -55,6 +57,7 @@ export function MeasureCell({
   beatsPerMeasure = 4,
   currentKey = 'C',
   isSelected = false,
+  isSelectedForBatch = false,
   isEditing = false,
   isActive = false,
   isPlaying = false,
@@ -62,6 +65,7 @@ export function MeasureCell({
   prevMeasure,
   cadenceBracket,
   onClick,
+  onToggleSelect,
   onDuplicate,
   onRemove,
   onRemoveCadence,
@@ -113,19 +117,30 @@ export function MeasureCell({
   const fullLabel = effectiveBracket?.label || parsedFull
   const shortLabel = effectiveBracket?.shortLabel || parsedShort
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (e.shiftKey && onToggleSelect) {
+      e.stopPropagation()
+      onToggleSelect(measure.id, e)
+      return
+    }
+    onClick?.()
+  }
+
   return (
     <div
       id={`measure-cell-${measure.id}`}
       data-measure-id={measure.id}
       data-measure-number={measure.measureNumber}
-      onClick={onClick}
+      onClick={handleClick}
       className={cn(
         'group relative flex flex-col justify-between rounded-xl border transition-all duration-200 select-none min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 overflow-visible',
         isActive
           ? 'ring-4 ring-purple-500 border-purple-500 shadow-xl shadow-purple-500/20 scale-[1.03] transition-all duration-200 z-10 bg-purple-50 dark:bg-purple-950/40'
-          : isSelected && isEditing
-            ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
-            : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
+          : isSelectedForBatch
+            ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
+            : isSelected && isEditing
+              ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
+              : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
         (measure.repeatStart || sectionRepeatStart) && 'border-l-[5px] border-l-purple-600 dark:border-l-purple-500',
         (measure.repeatEnd || !!sectionRepeatEnd) && 'border-r-[5px] border-r-purple-600 dark:border-r-purple-500',
         (isEditing || isPlaying) && 'cursor-pointer hover:shadow-md',
@@ -319,7 +334,27 @@ export function MeasureCell({
       {/* 1. Cabecera del Compás: Número, Barra de Repetición, Bracket y Casillas */}
       <div className="flex items-center justify-between text-[11px] leading-none mb-1 gap-1 shrink-0">
         <div className="flex items-center gap-1.5 font-mono shrink-0">
-          <span className="text-slate-400 dark:text-slate-500 font-bold">
+          {/* Checkbox de selección rápida multi-compás (Modo Edición) */}
+          {isEditing && onToggleSelect && (
+            <input
+              type="checkbox"
+              checked={isSelectedForBatch}
+              onChange={(e) => {
+                e.stopPropagation()
+                onToggleSelect(measure.id, e.nativeEvent as unknown as React.MouseEvent)
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600 transition-all opacity-40 group-hover:opacity-100 checked:opacity-100"
+              title="Seleccionar compás para duplicar o eliminar en lote (o Shift + Clic)"
+            />
+          )}
+
+          <span
+            className={cn(
+              'text-slate-400 dark:text-slate-500 font-bold',
+              isSelectedForBatch && 'text-purple-600 dark:text-purple-400 font-black'
+            )}
+          >
             {measure.measureNumber}
           </span>
 
