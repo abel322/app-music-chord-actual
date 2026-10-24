@@ -167,8 +167,8 @@ export function SectionCard({
                     onUpdateRepeatCount={(count) => onUpdateRepeatCount?.(section.id, count)}
                   />
                 </div>
-                {/* Badge visible de tempo personalizado */}
-                {section.tempoOverride && (
+                {/* Badge visible de tempo personalizado solo en modo lectura para evitar duplicidad */}
+                {!isEditing && section.tempoOverride && (
                   <div>
                     <SectionTempoControl
                       sectionId={section.id}
