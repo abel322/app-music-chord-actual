@@ -47,6 +47,20 @@ export const MEASURE_DIVISIONS: MeasureDivisionOption[] = [
     description: '8 subdivisiones para marcar tiempos a tierra y contratiempos (&)',
   },
   {
+    id: 'blanca_2negras',
+    name: 'Blanca + 2N',
+    category: 'regular',
+    slotsCount: 3,
+    description: '3 slots: Blanca en tiempos 1-2 y dos negras en tiempos 3 y 4',
+  },
+  {
+    id: '2negras_blanca',
+    name: '2N + Blanca',
+    category: 'regular',
+    slotsCount: 3,
+    description: '3 slots: Dos negras en tiempos 1 y 2, y Blanca en tiempos 3-4',
+  },
+  {
     id: 'sixteenth',
     name: 'Semicorcheas',
     category: 'regular',
@@ -492,6 +506,20 @@ export function generateSlotsForDivision(
       }))
     }
 
+    case 'blanca_2negras':
+      return [
+        { index: 0, label: 'T. 1-2 (2t)', chord: existingChords[0] || null },
+        { index: 1, label: 'T. 3 (1t)', chord: existingChords[1] || null },
+        { index: 2, label: 'T. 4 (1t)', chord: existingChords[2] || null },
+      ]
+
+    case '2negras_blanca':
+      return [
+        { index: 0, label: 'T. 1 (1t)', chord: existingChords[0] || null },
+        { index: 1, label: 'T. 2 (1t)', chord: existingChords[1] || null },
+        { index: 2, label: 'T. 3-4 (2t)', chord: existingChords[2] || null },
+      ]
+
     case 'sixteenth': {
       if (timeSignature === '12/8') {
         return Array.from({ length: 24 }, (_, i) => ({
@@ -670,6 +698,70 @@ export function syncBeatsFromSlots(
     return result
   }
 
+  if (division === 'blanca_2negras') {
+    const result: ChordBeat[] = []
+    if (slots[0]?.chord) {
+      result.push({
+        id: `beat-b2n-1-${Date.now()}`,
+        beat: 1,
+        chord: slots[0].chord,
+        accent: slots[0]?.accent ? 'accent' : 'normal',
+        duration: 2,
+      })
+    }
+    if (slots[1]?.chord) {
+      result.push({
+        id: `beat-b2n-2-${Date.now()}`,
+        beat: 3,
+        chord: slots[1].chord,
+        accent: slots[1]?.accent ? 'accent' : 'normal',
+        duration: 1,
+      })
+    }
+    if (slots[2]?.chord) {
+      result.push({
+        id: `beat-b2n-3-${Date.now()}`,
+        beat: 4,
+        chord: slots[2].chord,
+        accent: slots[2]?.accent ? 'accent' : 'normal',
+        duration: 1,
+      })
+    }
+    return result
+  }
+
+  if (division === '2negras_blanca') {
+    const result: ChordBeat[] = []
+    if (slots[0]?.chord) {
+      result.push({
+        id: `beat-2nb-1-${Date.now()}`,
+        beat: 1,
+        chord: slots[0].chord,
+        accent: slots[0]?.accent ? 'accent' : 'normal',
+        duration: 1,
+      })
+    }
+    if (slots[1]?.chord) {
+      result.push({
+        id: `beat-2nb-2-${Date.now()}`,
+        beat: 2,
+        chord: slots[1].chord,
+        accent: slots[1]?.accent ? 'accent' : 'normal',
+        duration: 1,
+      })
+    }
+    if (slots[2]?.chord) {
+      result.push({
+        id: `beat-2nb-3-${Date.now()}`,
+        beat: 3,
+        chord: slots[2].chord,
+        accent: slots[2]?.accent ? 'accent' : 'normal',
+        duration: 2,
+      })
+    }
+    return result
+  }
+
   // Para quarter y otras divisiones, mapear los slots con acorde
   const beats: ChordBeat[] = []
   slots.forEach((s) => {
@@ -717,6 +809,15 @@ export function ensureMeasureSlots(measure: Measure, timeSignature: string = '4/
  */
 export function inferMeasureDivision(measure: Measure): MeasureDivision {
   if (measure.division) return measure.division
+  if (Array.isArray(measure.slots) && measure.slots.length > 0) {
+    const len = measure.slots.length
+    if (len === 1) return 'whole'
+    if (len === 2) return 'half'
+    if (len === 4) return 'quarter'
+    if (len === 8) return 'eighth'
+    if (len === 6) return 'triplet_quarter'
+    if (len === 3) return 'triplet_half'
+  }
   const beats = measure.beats || []
   if (beats.length <= 1) return 'whole'
   if (beats.length === 2) return 'half'

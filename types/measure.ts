@@ -25,6 +25,8 @@ export type MeasureDivision =
   | 'amalgam_2_3'    // Amalgama 2+3 (Métrica 5/8)
   | 'amalgam_2_2_3'  // Amalgama 2+2+3 (Métrica 7/8)
   | 'amalgam_3_2_2'  // Amalgama 3+2+2 (Métrica 7/8)
+  | 'blanca_2negras' // Combinación 3 slots (Blanca 2t + 2 Negras 1t c/u)
+  | '2negras_blanca' // Combinación 3 slots (2 Negras 1t c/u + Blanca 2t)
 
 /**
  * Slot rítmico dentro del compás para ubicar acordes, silencios y acentos

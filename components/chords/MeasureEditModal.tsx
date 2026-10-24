@@ -22,6 +22,11 @@ import { ChordSelectorModal } from './ChordSelectorModal'
 import { DivisionPicker } from './DivisionPicker'
 import { normalizeChordInput } from '@/lib/chord-catalog'
 import {
+  RHYTHM_OPTIONS,
+  getRhythmOptionsForTimeSignature,
+  RhythmOption,
+} from '@/constants/rhythms'
+import {
   Copy,
   Trash2,
   X,
@@ -115,37 +120,67 @@ export function MeasureEditModal({
     }
   }, [isOpen, isChordModalOpen, onClose])
 
-  // Opciones rápidas de ritmo para selector horizontal táctil
-  const quickDivisions = useMemo(() => {
-    if (effectiveTimeSig === '3/4') {
-      return [
-        { id: 'whole' as MeasureDivision, label: '1 Compás', count: '1 slot' },
-        { id: 'quarter' as MeasureDivision, label: '3 Negras', count: '3 slots' },
-        { id: 'eighth' as MeasureDivision, label: '6 Corcheas', count: '6 slots' },
-      ]
-    }
-    if (effectiveTimeSig === '6/8') {
-      return [
-        { id: 'whole' as MeasureDivision, label: '1 Compás', count: '1 slot' },
-        { id: 'half' as MeasureDivision, label: '2 Pulsos', count: '2 slots' },
-        { id: 'eighth' as MeasureDivision, label: '6 Corcheas', count: '6 slots' },
-      ]
-    }
-    // Por defecto 4/4 y métricas comunes
-    return [
-      { id: 'whole' as MeasureDivision, label: '1 Redonda', count: '1 slot' },
-      { id: 'half' as MeasureDivision, label: '2 Blancas', count: '2 slots' },
-      { id: 'quarter' as MeasureDivision, label: '4 Negras', count: '4 slots' },
-    ]
+  // Catálogo completo de opciones rítmicas según compás
+  const rhythmOptions = useMemo(() => {
+    return getRhythmOptionsForTimeSignature(effectiveTimeSig)
   }, [effectiveTimeSig])
 
-  const isCurrentInQuick = quickDivisions.some((qd) => qd.id === currentDivision)
+  // Categoría rítmica activa en las pestañas compactas ('regular' | 'irregular')
+  const [rhythmCategory, setRhythmCategory] = useState<'regular' | 'irregular'>('regular')
+
+  // Sincronizar automáticamente la pestaña si el compás activo tiene una subdivisión irregular
+  useEffect(() => {
+    if (
+      currentDivision === 'triplet_half' ||
+      currentDivision === 'triplet_quarter' ||
+      currentDivision === 'triplet_eighth' ||
+      currentDivision === 'quintuplet' ||
+      currentDivision === 'sextuplet' ||
+      currentDivision === 'septuplet' ||
+      currentDivision === 'nonuplet'
+    ) {
+      setRhythmCategory('irregular')
+    } else {
+      setRhythmCategory('regular')
+    }
+  }, [selectedMeasure.id, currentDivision])
+
+  // Opciones filtradas por la categoría de pestaña seleccionada
+  const filteredRhythmOptions = useMemo(() => {
+    return rhythmOptions.filter((opt) => opt.category === rhythmCategory)
+  }, [rhythmOptions, rhythmCategory])
+
+  // Opción rítmica actual identificada
+  const currentRhythmOption = useMemo(() => {
+    return (
+      rhythmOptions.find(
+        (opt) =>
+          opt.division === currentDivision && opt.slotsCount === currentSlots.length
+      ) ||
+      rhythmOptions.find((opt) => opt.division === currentDivision) ||
+      null
+    )
+  }, [rhythmOptions, currentDivision, currentSlots.length])
+
+  const isCurrentInCatalog = rhythmOptions.some(
+    (opt) => opt.division === currentDivision && opt.slotsCount === currentSlots.length
+  )
 
   // Cambiar la división rítmica global del compás
-  const handleSelectDivision = (newDivision: MeasureDivision) => {
+  const handleSelectDivision = (newDivision: MeasureDivision, option?: RhythmOption) => {
     setActiveSlotIndex(0)
     const existingChords = currentSlots.map((s) => s.chord)
     const newSlots = generateSlotsForDivision(newDivision, existingChords, effectiveTimeSig)
+
+    // Si la opción rítmica define etiquetas específicas de slot, las asignamos
+    if (option?.slotLabels && option.slotLabels.length === newSlots.length) {
+      newSlots.forEach((slot, idx) => {
+        if (option.slotLabels?.[idx]) {
+          slot.label = option.slotLabels[idx]
+        }
+      })
+    }
+
     const syncedBeats = syncBeatsFromSlots(newSlots, newDivision, effectiveTimeSig)
 
     onUpdateMeasure({
@@ -154,7 +189,9 @@ export function MeasureEditModal({
       division: newDivision,
       slots: newSlots,
       beats: syncedBeats,
-      subdivisionGrouping: getDivisionBracket(newDivision) || undefined,
+      subdivisionGrouping:
+        getDivisionBracket(newDivision) ||
+        (option?.category === 'irregular' ? `[ ${option.slotsCount} ]` : undefined),
     })
   }
 
@@ -362,37 +399,77 @@ export function MeasureEditModal({
               </button>
             </div>
 
-            {/* Selector horizontal rápido (1 Redonda, 2 Blancas, 4 Negras, etc.) */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-              {quickDivisions.map((qd) => {
-                const isActive = currentDivision === qd.id
+            {/* Segmented Control / Pestañas Compactas */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-3 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setRhythmCategory('regular')}
+                className={cn(
+                  'flex-1 py-1.5 px-3 rounded-lg text-center transition-all cursor-pointer font-bold',
+                  rhythmCategory === 'regular'
+                    ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                )}
+              >
+                Regulares
+              </button>
+              <button
+                type="button"
+                onClick={() => setRhythmCategory('irregular')}
+                className={cn(
+                  'flex-1 py-1.5 px-3 rounded-lg text-center transition-all cursor-pointer font-bold',
+                  rhythmCategory === 'irregular'
+                    ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                )}
+              >
+                Tresillos / Irregulares
+              </button>
+            </div>
+
+            {/* Cuadrícula de Opciones (Cards Compactas) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {filteredRhythmOptions.map((opt) => {
+                const isSelected =
+                  currentDivision === opt.division &&
+                  currentSlots.length === opt.slotsCount
+
                 return (
                   <button
-                    key={qd.id}
+                    key={opt.id}
                     type="button"
-                    onClick={() => handleSelectDivision(qd.id)}
+                    onClick={() => handleSelectDivision(opt.division, opt)}
                     className={cn(
-                      'py-2 px-2 rounded-xl text-center border text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer active:scale-98',
-                      isActive
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm shadow-purple-900/30 ring-2 ring-purple-500/30'
-                        : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300'
+                      'p-2.5 rounded-xl text-left transition-all flex flex-col justify-between cursor-pointer active:scale-98 select-none',
+                      isSelected
+                        ? 'border-2 border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 shadow-sm'
+                        : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
                     )}
                   >
-                    <span>{qd.label}</span>
-                    <span className={cn('text-[10px] font-medium opacity-80', isActive ? 'text-purple-100' : 'text-slate-400')}>
-                      {qd.count}
+                    <span className="text-xs font-bold leading-tight truncate w-full">
+                      {opt.name}
+                    </span>
+                    <span
+                      className={cn(
+                        'text-[10px] font-mono mt-0.5 truncate w-full',
+                        isSelected
+                          ? 'text-purple-600 dark:text-purple-400 font-semibold'
+                          : 'text-slate-400 dark:text-slate-500'
+                      )}
+                    >
+                      {opt.badge}
                     </span>
                   </button>
                 )
               })}
 
-              {/* Botón / Indicador si la división actual es avanzada */}
-              {!isCurrentInQuick && (
-                <div className="py-2 px-2 rounded-xl text-center border text-xs font-bold bg-purple-600 text-white border-purple-600 shadow-sm flex flex-col items-center justify-center gap-0.5">
-                  <span className="truncate max-w-full">
+              {/* Indicador adicional si la división activa proviene de opciones avanzadas */}
+              {!isCurrentInCatalog && (
+                <div className="p-2.5 rounded-xl text-left border-2 border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 shadow-sm flex flex-col justify-between">
+                  <span className="text-xs font-bold leading-tight truncate w-full">
                     {divisionOptions.find((d) => d.id === currentDivision)?.name || 'Especial'}
                   </span>
-                  <span className="text-[10px] text-purple-100 font-medium">
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono mt-0.5">
                     {currentSlots.length} slots
                   </span>
                 </div>
@@ -507,23 +584,33 @@ export function MeasureEditModal({
                 </button>
               </div>
             ) : (
-              /* Casos Múltiples Slots: Blancas (2), Negras (4), Corcheas (8), etc. */
+              /* Casos Múltiples Slots: Blancas (2), Negras (4), Corcheas (8), Tresillos, etc. */
               <div
                 className={cn(
                   'grid gap-2',
-                  currentSlots.length === 2 && 'grid-cols-2',
-                  currentSlots.length === 3 && 'grid-cols-3',
-                  currentSlots.length === 4 && 'grid-cols-2 sm:grid-cols-4',
-                  currentSlots.length === 5 && 'grid-cols-5',
-                  currentSlots.length === 6 && 'grid-cols-3 sm:grid-cols-6',
-                  currentSlots.length >= 7 && 'grid-cols-4 sm:grid-cols-8'
+                  currentSlots.length > 4
+                    ? 'grid-cols-2 sm:grid-cols-4'
+                    : currentSlots.length === 3
+                    ? 'grid-cols-3'
+                    : 'grid-cols-2'
                 )}
               >
                 {currentSlots.map((slot) => {
-                  const isOffbeat = slot.label === '&'
+                  const isOffbeat = slot.label === '&' || slot.label.includes('&')
                   const isRest = slot.isRest || slot.chord === '%'
                   const hasChord = !!slot.chord && !isRest
                   const isActive = activeSlotIndex === slot.index
+
+                  // Indicador minimalista de tiempo (ej. T. 1, T. 1.5, T. 2, etc.)
+                  const slotTimingLabel =
+                    currentRhythmOption?.slotLabels?.[slot.index] ||
+                    (slot.label.startsWith('T.')
+                      ? slot.label
+                      : slot.label === '&'
+                      ? `T. ${Math.floor(slot.index / 2) + 1}.5`
+                      : /^\d+$/.test(slot.label)
+                      ? `T. ${slot.label}`
+                      : slot.label)
 
                   return (
                     <div
@@ -543,13 +630,13 @@ export function MeasureEditModal({
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
                         <span
                           className={cn(
-                            'font-mono px-1 py-0.2 rounded text-[10px] font-black',
+                            'font-mono px-1.5 py-0.5 rounded text-[10px] font-bold',
                             isOffbeat
-                              ? 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-950'
-                              : 'text-slate-700 dark:text-slate-300'
+                              ? 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/80'
+                              : 'text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800'
                           )}
                         >
-                          {slot.label.replace(/^Mitad\s*\d+\s*\(?/i, '').replace(/\)$/, '').trim() || slot.label}
+                          {slotTimingLabel}
                         </span>
 
                         <div className="flex items-center gap-0.5">
