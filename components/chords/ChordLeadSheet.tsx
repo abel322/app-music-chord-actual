@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -95,10 +95,19 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const [currentKey, setCurrentKey] = useState(song.key || 'C')
   const [timeSignature, setTimeSignature] = useState(song.timeSignature || '4/4')
   const [tempo, setTempo] = useState<number>(song.tempo || 120)
+  const [tempoInput, setTempoInput] = useState<string>(song?.tempo?.toString() || '120')
   const tempoDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Sincronizar si el tempo de la canción cambia externamente
+  useEffect(() => {
+    if (song?.tempo) {
+      setTempo(song.tempo)
+      setTempoInput(song.tempo.toString())
+    }
+  }, [song?.tempo])
+
   // Cambio de Tempo con auto-sincronización bidireccional inmediata en BD
-  const handleTempoChange = (newTempo: number) => {
+  const onUpdateTempo = (newTempo: number) => {
     const validBpm = Math.max(30, Math.min(300, newTempo))
     setTempo(validBpm)
 
@@ -117,6 +126,45 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         console.error('Error auto-guardando tempo en acordes:', err)
       }
     }, 400)
+  }
+
+  // Compatibilidad interna
+  const handleTempoChange = onUpdateTempo
+
+  // Función de confirmación al salir del campo (onBlur) o presionar Enter
+  const handleCommitTempo = () => {
+    let parsed = parseInt(tempoInput, 10)
+    
+    if (isNaN(parsed) || parsed < 30) {
+      parsed = 30
+    } else if (parsed > 300) {
+      parsed = 300
+    }
+
+    setTempoInput(parsed.toString())
+    if (onUpdateTempo && parsed !== tempo) {
+      onUpdateTempo(parsed)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur()
+    }
+  }
+
+  const handleTempoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    // Permitir borrar completamente el input o ingresar dígitos sin auto-bloqueo
+    if (value === '' || /^\d+$/.test(value)) {
+      setTempoInput(value)
+      
+      // Si el usuario escribe un número completo dentro de los límites válidos, actualizar en vivo
+      const num = parseInt(value, 10)
+      if (!isNaN(num) && num >= 30 && num <= 300) {
+        if (onUpdateTempo) onUpdateTempo(num)
+      }
+    }
   }
 
   const [youtubeUrl, setYoutubeUrl] = useState<string | null>(song.youtubeUrl || null)
@@ -662,27 +710,62 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </div>
 
           {/* Tempo BPM con ajuste en tiempo real para estudio y reproducción */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Tempo:
-            </span>
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-xl border border-slate-700/60">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo:</span>
+              
+              {/* Botón rápido -1 o -5 BPM */}
+              <button
+                type="button"
+                onClick={() => {
+                  const current = parseInt(tempoInput, 10) || 120
+                  const next = Math.max(30, current - 1)
+                  setTempoInput(next.toString())
+                  if (onUpdateTempo) onUpdateTempo(next)
+                }}
+                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Reducir 1 BPM"
+              >
+                -
+              </button>
+
               <input
-                type="number"
-                min={30}
-                max={280}
-                value={tempo}
-                onChange={(e) => handleTempoChange(parseInt(e.target.value) || 120)}
-                className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-white text-center focus:outline-none focus:ring-1 focus:ring-primary-500"
-                title="Ajustar tempo en BPM"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={tempoInput}
+                onChange={handleTempoInputChange}
+                onBlur={handleCommitTempo}
+                onKeyDown={handleKeyDown}
+                className="w-12 text-center text-sm font-bold bg-slate-800 text-white rounded-lg py-0.5 border border-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                title="Ajustar tempo en BPM (30 - 300)"
               />
-              <TapTempoButton
-                onTempoChange={(bpm) => handleTempoChange(bpm)}
-                currentTempo={tempo}
-                timeSignature={timeSignature}
-                className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
-              />
+
+              {/* Botón rápido +1 o +5 BPM */}
+              <button
+                type="button"
+                onClick={() => {
+                  const current = parseInt(tempoInput, 10) || 120
+                  const next = Math.min(300, current + 1)
+                  setTempoInput(next.toString())
+                  if (onUpdateTempo) onUpdateTempo(next)
+                }}
+                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Aumentar 1 BPM"
+              >
+                +
+              </button>
             </div>
+
+            <TapTempoButton
+              onTempoChange={(bpm) => {
+                setTempoInput(bpm.toString())
+                if (onUpdateTempo) onUpdateTempo(bpm)
+              }}
+              currentTempo={tempo}
+              timeSignature={timeSignature}
+              className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
+            />
           </div>
 
           <div className="h-5 w-px bg-slate-800 hidden sm:block" />

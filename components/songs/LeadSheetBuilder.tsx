@@ -97,9 +97,35 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   const [key, setKey] = useState(initialData?.key || 'C')
   const [timeSignature, setTimeSignature] = useState(initialData?.timeSignature || '4/4')
   const [tempo, setTempo] = useState<number>(initialData?.tempo || 120)
+  const [tempoInput, setTempoInput] = useState<string>(initialData?.tempo?.toString() || '120')
   const [genre, setGenre] = useState(initialData?.genre || '')
   const [youtubeUrl, setYoutubeUrl] = useState(initialData?.youtubeUrl || '')
   const [isYouTubeModalOpen, setIsYouTubeModalOpen] = useState(false)
+
+  const handleCommitTempo = () => {
+    let parsed = parseInt(tempoInput, 10)
+    if (isNaN(parsed) || parsed < 30) parsed = 30
+    else if (parsed > 300) parsed = 300
+    setTempoInput(parsed.toString())
+    setTempo(parsed)
+  }
+
+  const handleTempoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur()
+    }
+  }
+
+  const handleTempoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    if (value === '' || /^\d+$/.test(value)) {
+      setTempoInput(value)
+      const num = parseInt(value, 10)
+      if (!isNaN(num) && num >= 30 && num <= 300) {
+        setTempo(num)
+      }
+    }
+  }
 
   // Estados de proceso
   const [isLoading, setIsLoading] = useState(false)
@@ -601,14 +627,23 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
             </label>
             <div className="flex items-center gap-2">
               <input
-                type="number"
-                min={30}
-                max={280}
-                value={tempo}
-                onChange={(e) => setTempo(parseInt(e.target.value) || 120)}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={tempoInput}
+                onChange={handleTempoInputChange}
+                onBlur={handleCommitTempo}
+                onKeyDown={handleTempoKeyDown}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-center"
               />
-              <TapTempoButton onTempoChange={(bpm) => setTempo(bpm)} currentTempo={tempo} timeSignature={timeSignature} />
+              <TapTempoButton
+                onTempoChange={(bpm) => {
+                  setTempoInput(bpm.toString())
+                  setTempo(bpm)
+                }}
+                currentTempo={tempo}
+                timeSignature={timeSignature}
+              />
             </div>
           </div>
 

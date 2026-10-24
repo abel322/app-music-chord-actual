@@ -173,9 +173,17 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
 
   // BPM Rítmico Compartido (Single Source of Truth)
   const [tempo, setTempo] = useState<number>(song.tempo || 120)
+  const [tempoInput, setTempoInput] = useState<string>(song.tempo?.toString() || '120')
   const [isSavingTempo, setIsSavingTempo] = useState(false)
   const [tempoSavedIndicator, setTempoSavedIndicator] = useState(false)
   const tempoDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (song?.tempo) {
+      setTempo(song.tempo)
+      setTempoInput(song.tempo.toString())
+    }
+  }, [song?.tempo])
 
   // Metrónomo Web Audio API
   const [isMetronomeActive, setIsMetronomeActive] = useState<boolean>(false)
@@ -329,6 +337,36 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       }
     }, 400)
   }, [song.id, router])
+
+  const handleCommitTempo = () => {
+    let parsed = parseInt(tempoInput, 10)
+    if (isNaN(parsed) || parsed < 30) {
+      parsed = 30
+    } else if (parsed > 300) {
+      parsed = 300
+    }
+    setTempoInput(parsed.toString())
+    if (parsed !== tempo) {
+      handleTempoChange(parsed)
+    }
+  }
+
+  const handleTempoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur()
+    }
+  }
+
+  const handleTempoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    if (value === '' || /^\d+$/.test(value)) {
+      setTempoInput(value)
+      const num = parseInt(value, 10)
+      if (!isNaN(num) && num >= 30 && num <= 300) {
+        handleTempoChange(num)
+      }
+    }
+  }
 
   // 2. Cálculo unificado de secciones para teleprompter a partir del array sections (Single Source of Truth)
   // con soporte de tempo específico por sección (tempoOverride)
@@ -829,7 +867,12 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             {/* Decremento rápido -1 */}
             <button
               type="button"
-              onClick={() => handleTempoChange(tempo - 1)}
+              onClick={() => {
+                const current = parseInt(tempoInput, 10) || 120
+                const next = Math.max(30, current - 1)
+                setTempoInput(next.toString())
+                handleTempoChange(next)
+              }}
               className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 font-bold text-white text-xs transition-colors cursor-pointer"
               title="Reducir 1 BPM"
             >
@@ -838,11 +881,13 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
 
             {/* Input numérico directo */}
             <input
-              type="number"
-              min={30}
-              max={300}
-              value={tempo}
-              onChange={(e) => handleTempoChange(parseInt(e.target.value) || 120)}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={tempoInput}
+              onChange={handleTempoInputChange}
+              onBlur={handleCommitTempo}
+              onKeyDown={handleTempoKeyDown}
               className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-0.5 text-xs font-mono font-black text-center text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
               title="Tempo de la canción en BPM (Sincronizado con Acordes)"
             />
@@ -850,7 +895,12 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             {/* Incremento rápido +1 */}
             <button
               type="button"
-              onClick={() => handleTempoChange(tempo + 1)}
+              onClick={() => {
+                const current = parseInt(tempoInput, 10) || 120
+                const next = Math.min(300, current + 1)
+                setTempoInput(next.toString())
+                handleTempoChange(next)
+              }}
               className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 font-bold text-white text-xs transition-colors cursor-pointer"
               title="Aumentar 1 BPM"
             >
@@ -863,7 +913,10 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                 <button
                   key={presetBpm}
                   type="button"
-                  onClick={() => handleTempoChange(presetBpm)}
+                  onClick={() => {
+                    setTempoInput(presetBpm.toString())
+                    handleTempoChange(presetBpm)
+                  }}
                   className={cn(
                     'px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer',
                     tempo === presetBpm
@@ -891,7 +944,10 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             {/* Tap Tempo */}
             <div className="ml-1">
               <TapTempoButton
-                onTempoChange={(bpm) => handleTempoChange(bpm)}
+                onTempoChange={(bpm) => {
+                  setTempoInput(bpm.toString())
+                  handleTempoChange(bpm)
+                }}
                 currentTempo={tempo}
                 timeSignature={song.timeSignature || '4/4'}
                 className="px-2 py-1 text-[11px] bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
