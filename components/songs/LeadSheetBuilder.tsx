@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -204,6 +204,10 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
 
 
 
+  // Pausar temporalmente el auto-scroll si el usuario interviene manualmente (wheel/touch)
+  const userScrollPausedUntilRef = useRef<number>(0)
+  const touchStartYRef = useRef<number>(0)
+
   // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
   const {
     isPlaying,
@@ -228,21 +232,94 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         }
         return prev
       })
+
+      // Auto-desplazamiento inteligente no invasivo:
       requestAnimationFrame(() => {
         setTimeout(() => {
-          const el = document.getElementById(`measure-cell-${measure.id}`)
-          if (!el) return
-          const rect = el.getBoundingClientRect()
+          // Si el usuario scrolleó manualmente hacia arriba recientemente, respetar su vista por 3 segundos
+          if (Date.now() < userScrollPausedUntilRef.current) {
+            return
+          }
+
+          const activeElement =
+            document.getElementById(`measure-cell-${measure.id}`) ||
+            document.getElementById(`measure-${measure.id}`)
+          if (!activeElement) return
+
+          const rect = activeElement.getBoundingClientRect()
           const viewportHeight = window.innerHeight || document.documentElement.clientHeight
-          const isNearBottom = rect.bottom > viewportHeight - 140
-          const isAboveTop = rect.top < 120
-          if (isNearBottom || isAboveTop) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Visible cómodamente entre la barra superior (~120px) y el borde inferior (~80px)
+          const isVisible = rect.top >= 120 && rect.bottom <= viewportHeight - 80
+
+          // Solo hacer scroll suave si no está visible cómodamente
+          if (!isVisible) {
+            activeElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest',
+              inline: 'nearest',
+            })
           }
         }, 50)
       })
     },
   })
+
+  // Detección de intervención manual del usuario para no forzar scroll
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        userScrollPausedUntilRef.current = Date.now() + 3000
+      }
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartYRef.current = e.touches[0].clientY
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const currentY = e.touches[0].clientY
+        if (currentY - touchStartYRef.current > 15) {
+          userScrollPausedUntilRef.current = Date.now() + 3000
+        }
+      }
+    }
+
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel)
+      window.removeEventListener('touchstart', handleTouchStart)
+      window.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [])
+
+  // Atajo de Teclado Global: Barra Espaciadora para Play / Pause
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"], [role="dialog"]')
+      ) {
+        return
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        togglePlay()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [togglePlay])
 
   // Acordes diatónicos de la tonalidad actual
   const diatonicChords = useMemo(() => {
@@ -695,12 +772,103 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         </div>
       </div>
 
+      {/* Barra de Reproducción Fija / Flotante (Sticky Playback Toolbar) */}
+      <div className="sticky top-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl py-3 px-4 flex flex-wrap items-center justify-between gap-3 text-white transition-all duration-200">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tono:</span>
+            <span className="font-mono font-bold text-xs bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">{key}</span>
+          </div>
+          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Compás:</span>
+            <span className="font-mono font-bold text-xs bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">{timeSignature}</span>
+          </div>
+          <div className="h-5 w-px bg-slate-800 hidden sm:block" />
+          {/* Tempo BPM */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-xl border border-slate-700/60">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tempo:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const current = parseInt(tempoInput, 10) || 120
+                  const next = Math.max(30, current - 1)
+                  setTempoInput(next.toString())
+                  setTempo(next)
+                }}
+                className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                title="Reducir 1 BPM"
+              >
+                -
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={tempoInput}
+                onChange={handleTempoInputChange}
+                onBlur={handleCommitTempo}
+                onKeyDown={handleTempoKeyDown}
+                className="w-11 text-center text-xs font-bold bg-slate-800 text-white rounded py-0.5 border border-slate-600 focus:outline-none focus:border-purple-500"
+                title="Ajustar tempo en BPM"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const current = parseInt(tempoInput, 10) || 120
+                  const next = Math.min(300, current + 1)
+                  setTempoInput(next.toString())
+                  setTempo(next)
+                }}
+                className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                title="Aumentar 1 BPM"
+              >
+                +
+              </button>
+            </div>
+            <TapTempoButton
+              onTempoChange={(bpm) => {
+                setTempoInput(bpm.toString())
+                setTempo(bpm)
+              }}
+              currentTempo={tempo}
+              timeSignature={timeSignature}
+              className="px-2 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white border-slate-700"
+            />
+          </div>
+        </div>
+
+        {/* Controles de reproducción siempre a la vista */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <LeadSheetPlaybackControls
+            isPlaying={isPlaying}
+            isMuted={isMuted}
+            currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
+            currentBeat={currentBeat}
+            beatsCount={currentMeasure?.beatsCount || 4}
+            currentSectionLabel={currentMeasure?.sectionLabel}
+            totalMeasuresCount={totalMeasuresCount}
+            currentFlatMeasureIndex={currentFlatMeasureIndex}
+            iteration={currentMeasure?.iteration}
+            repeatCount={currentMeasure?.repeatCount}
+            measureIndexInSection={currentMeasure?.measureIndexInSection}
+            totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
+            totalDurationFormatted={totalDurationFormatted}
+            onTogglePlay={togglePlay}
+            onStop={stop}
+            onToggleMute={toggleMute}
+          />
+        </div>
+      </div>
+
       {/* Barra Fija de Navegación Rápida por Secciones (Quick Jump) */}
       <SectionNavigationStickyBar
         sections={sections}
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
+        className="sticky top-[68px] z-30"
       />
 
       {/* Secciones y Constructor de Lead Sheet por Compases */}
@@ -715,30 +883,9 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               Cada sección contiene compases interactivos de {getBeatsPerMeasure(timeSignature)} tiempos ({timeSignature}) con detección automática de cadencias armónicas.
             </p>
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <LeadSheetPlaybackControls
-              isPlaying={isPlaying}
-              isMuted={isMuted}
-              currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
-              currentBeat={currentBeat}
-              beatsCount={currentMeasure?.beatsCount || 4}
-              currentSectionLabel={currentMeasure?.sectionLabel}
-              totalMeasuresCount={totalMeasuresCount}
-              currentFlatMeasureIndex={currentFlatMeasureIndex}
-              iteration={currentMeasure?.iteration}
-              repeatCount={currentMeasure?.repeatCount}
-              measureIndexInSection={currentMeasure?.measureIndexInSection}
-              totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
-              totalDurationFormatted={totalDurationFormatted}
-              onTogglePlay={togglePlay}
-              onStop={stop}
-              onToggleMute={toggleMute}
-            />
-            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-              {sections.length} {sections.length === 1 ? 'Sección' : 'Secciones'}
-            </span>
-          </div>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            {sections.length} {sections.length === 1 ? 'Sección' : 'Secciones'}
+          </span>
         </div>
 
         <div className="space-y-6 sm:space-y-8">

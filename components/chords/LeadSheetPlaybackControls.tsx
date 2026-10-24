@@ -52,10 +52,10 @@ export function LeadSheetPlaybackControls({
         className={cn(
           'px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all duration-200 active:scale-95 cursor-pointer shadow-md',
           isPlaying
-            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/25 ring-2 ring-amber-400/50'
+            ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 ring-2 ring-rose-400/50'
             : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30 ring-2 ring-emerald-400/40 hover:shadow-emerald-500/40'
         )}
-        title={isPlaying ? 'Pausar reproducción en este compás' : 'Iniciar reproducción al tempo de la canción'}
+        title={isPlaying ? 'Pausar reproducción (Barra Espaciadora)' : 'Iniciar reproducción (Barra Espaciadora)'}
       >
         {isPlaying ? (
           <>

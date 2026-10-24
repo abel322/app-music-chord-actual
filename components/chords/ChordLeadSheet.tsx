@@ -244,6 +244,10 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     return syncSectionsWithLyrics(normalized, song.lyrics || song.content)
   })
 
+  // Pausar temporalmente el auto-scroll si el usuario interviene manualmente (wheel/touch)
+  const userScrollPausedUntilRef = useRef<number>(0)
+  const touchStartYRef = useRef<number>(0)
+
   // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
   const {
     isPlaying,
@@ -270,23 +274,93 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         return prev
       })
 
-      // Auto-desplazamiento suave (Follow Playhead):
-      // Si el compás activo sale del viewport o se acerca al borde inferior de la pantalla:
+      // Auto-desplazamiento inteligente no invasivo:
       requestAnimationFrame(() => {
         setTimeout(() => {
-          const el = document.getElementById(`measure-cell-${measure.id}`)
-          if (!el) return
-          const rect = el.getBoundingClientRect()
+          // Si el usuario scrolleó manualmente hacia arriba recientemente, respetar su vista por 3 segundos
+          if (Date.now() < userScrollPausedUntilRef.current) {
+            return
+          }
+
+          const activeElement =
+            document.getElementById(`measure-cell-${measure.id}`) ||
+            document.getElementById(`measure-${measure.id}`)
+          if (!activeElement) return
+
+          const rect = activeElement.getBoundingClientRect()
           const viewportHeight = window.innerHeight || document.documentElement.clientHeight
-          const isNearBottom = rect.bottom > viewportHeight - 140
-          const isAboveTop = rect.top < 120
-          if (isNearBottom || isAboveTop) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Visible cómodamente entre la barra superior (~120px) y el borde inferior (~80px)
+          const isVisible = rect.top >= 120 && rect.bottom <= viewportHeight - 80
+
+          // Solo hacer scroll si el compás activo no está visible cómodamente
+          if (!isVisible) {
+            activeElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest',
+              inline: 'nearest',
+            })
           }
         }, 50)
       })
     },
   })
+
+  // Detección de intervención manual del usuario para no forzar scroll
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        userScrollPausedUntilRef.current = Date.now() + 3000
+      }
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        touchStartYRef.current = e.touches[0].clientY
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const currentY = e.touches[0].clientY
+        if (currentY - touchStartYRef.current > 15) {
+          userScrollPausedUntilRef.current = Date.now() + 3000
+        }
+      }
+    }
+
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel)
+      window.removeEventListener('touchstart', handleTouchStart)
+      window.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [])
+
+  // Atajo de Teclado Global: Barra Espaciadora para Play / Pause
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"], [role="dialog"]')
+      ) {
+        return
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        togglePlay()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [togglePlay])
 
   // Acordes diatónicos de la tonalidad actual para sugerencias
   const diatonicChords = useMemo(() => {
@@ -642,8 +716,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         </div>
       </div>
 
-      {/* Barra de Herramientas Musicales: Tonalidad, Transposición y Métrica */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-950 text-white shadow-lg border border-slate-800">
+      {/* Barra de Herramientas Musicales y Reproducción Fija / Flotante (Sticky Playback Toolbar) */}
+      <div className="sticky top-0 z-40 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl py-3 px-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 text-white transition-all duration-200">
         <div className="flex items-center gap-4 flex-wrap">
           {/* Tonalidad con Badge Destacado */}
           <div className="flex items-center gap-2">
