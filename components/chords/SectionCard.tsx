@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -42,6 +42,7 @@ export interface SectionCardProps {
   onDuplicate?: (sectionId: string) => void
   onRemove?: (sectionId: string) => void
   onUpdateGuideLyrics?: (sectionId: string, lyrics: string) => void
+  onUpdateLyrics?: (sectionId: string, lyrics: string) => void
   onMeasureClick?: (measure: Measure) => void
   onUpdateMeasures?: (sectionId: string, measures: Measure[]) => void
   onAddMeasures?: (sectionId: string, count: number) => void
@@ -72,11 +73,14 @@ export function SectionCard({
   onDuplicate,
   onRemove,
   onUpdateGuideLyrics,
+  onUpdateLyrics,
   onMeasureClick,
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
 }: SectionCardProps) {
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false)
+
   const effectiveKey = section.keySignature || globalKey
   const sectionDiatonicChords = React.useMemo(() => {
     try {
@@ -86,6 +90,9 @@ export function SectionCard({
       return ['C', 'Dm', 'Em', 'F', 'G', 'Am', 'Bdim']
     }
   }, [effectiveKey])
+
+  const hasLyrics = !!(section.lyrics && section.lyrics.trim().length > 0)
+  const lineCount = hasLyrics ? section.lyrics!.trim().split('\n').filter(Boolean).length : 0
 
   return (
     <div
@@ -193,6 +200,28 @@ export function SectionCard({
                 />
               )}
 
+              {/* Botón Discreto para Letra de la Sección (Single Source of Truth) */}
+              <button
+                type="button"
+                onClick={() => setIsLyricsOpen((prev) => !prev)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shrink-0 cursor-pointer shadow-xs',
+                  hasLyrics
+                    ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/80 hover:bg-purple-100'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-purple-600 hover:border-purple-300 dark:hover:text-purple-300'
+                )}
+                title={hasLyrics ? 'Ver o editar letra lírica de esta sección' : 'Añadir letra lírica a esta sección'}
+              >
+                <span>📝 Letra de la sección</span>
+                {hasLyrics ? (
+                  <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-200/80 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
+                    {lineCount} {lineCount === 1 ? 'verso' : 'versos'}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-normal">(vacío)</span>
+                )}
+              </button>
+
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* Botones discretos de reordenamiento (solo para Administrador) */}
                 {isAdmin && (
@@ -256,42 +285,105 @@ export function SectionCard({
             </div>
           )}
 
-          {/* Botones discretos de reordenamiento en modo lectura (solo para Administrador) */}
-          {!isEditing && isAdmin && (onMoveUp || onMoveDown) && (
-            <div className="flex items-center gap-1.5 shrink-0 justify-end">
-              {onMoveUp && (
+          {/* Botones discretos en modo lectura (solo para Administrador o con Letra) */}
+          {!isEditing && (
+            <div className="flex items-center gap-2 shrink-0 justify-end flex-wrap">
+              {/* Botón Ver Letra en Lectura si existe */}
+              {hasLyrics && (
                 <button
                   type="button"
-                  onClick={() => onMoveUp(index)}
-                  disabled={index === 0}
-                  className={cn(
-                    'p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-800',
-                    index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
-                  )}
-                  title="Mover sección arriba (↑)"
-                  aria-label="Mover sección arriba"
+                  onClick={() => setIsLyricsOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 hover:bg-purple-100 transition-colors shrink-0 cursor-pointer"
+                  title="Ver letra lírica de esta sección"
                 >
-                  <ArrowUp className="w-4 h-4" />
+                  <span>📝 Letra</span>
+                  <span className="text-[10px] font-bold">({lineCount})</span>
                 </button>
               )}
-              {onMoveDown && (
-                <button
-                  type="button"
-                  onClick={() => onMoveDown(index)}
-                  disabled={index === totalSections - 1}
-                  className={cn(
-                    'p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-800',
-                    index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+
+              {/* Botones de movimiento de sección */}
+              {isAdmin && (onMoveUp || onMoveDown) && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {onMoveUp && (
+                    <button
+                      type="button"
+                      onClick={() => onMoveUp(index)}
+                      disabled={index === 0}
+                      className={cn(
+                        'p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-800',
+                        index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                      )}
+                      title="Mover sección arriba (↑)"
+                      aria-label="Mover sección arriba"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
                   )}
-                  title="Mover sección abajo (↓)"
-                  aria-label="Mover sección abajo"
-                >
-                  <ArrowDown className="w-4 h-4" />
-                </button>
+                  {onMoveDown && (
+                    <button
+                      type="button"
+                      onClick={() => onMoveDown(index)}
+                      disabled={index === totalSections - 1}
+                      className={cn(
+                        'p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 dark:text-slate-400 dark:hover:text-purple-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-800',
+                        index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                      )}
+                      title="Mover sección abajo (↓)"
+                      aria-label="Mover sección abajo"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
         </div>
+
+        {/* Área Desplegable de Letra de la Sección (Single Source of Truth) */}
+        {isLyricsOpen && (
+          <div className="pt-2.5 pb-1 border-t border-slate-100 dark:border-slate-800/80 animate-in fade-in space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <span>📝 Letra de {section.label}</span>
+                </span>
+                {hasLyrics ? (
+                  <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400">
+                    • {lineCount} {lineCount === 1 ? 'verso' : 'versos'}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-400 italic">
+                    (Sección actualmente considerada instrumental)
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLyricsOpen(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            {isEditing ? (
+              <textarea
+                value={section.lyrics || ''}
+                onChange={(e) => onUpdateLyrics?.(section.id, e.target.value)}
+                placeholder="Escribe o pega aquí la letra para esta sección (ej. versos del coro)..."
+                rows={Math.max(3, Math.min(10, (section.lyrics || '').split('\n').length + 1))}
+                className="w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
+              />
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm font-sans leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line">
+                {section.lyrics?.trim() || (
+                  <span className="italic text-slate-400">Sin letra asignada (Sección instrumental)</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Vista Colapsada vs Vista Expandida */}
         {isCollapsed ? (

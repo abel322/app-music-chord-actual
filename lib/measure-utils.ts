@@ -753,6 +753,7 @@ export function ensureSectionMeasures(
       instruments: Array.isArray(rawSection.instruments) ? rawSection.instruments : [],
       measures: normalizedMeasures,
       guideLyrics: rawSection.guideLyrics || '',
+      lyrics: rawSection.lyrics || '',
       lines: rawSection.lines,
       repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
     }
@@ -797,6 +798,7 @@ export function ensureSectionMeasures(
     instruments: Array.isArray(rawSection.instruments) ? rawSection.instruments : [],
     measures,
     guideLyrics: guideLines.join('\n'),
+    lyrics: rawSection.lyrics || '',
     lines: rawSection.lines,
     repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
   }
@@ -1085,6 +1087,7 @@ export function cloneSectionMeasures(
     keySignature: section.keySignature ?? null,
     instruments: section.instruments ? [...section.instruments] : [],
     guideLyrics: section.guideLyrics || '',
+    lyrics: section.lyrics || '',
     measures: clonedMeasures,
     lines: section.lines ? JSON.parse(JSON.stringify(section.lines)) : undefined,
   }
@@ -1118,4 +1121,131 @@ export function getSectionChordsPreview(section: SectionMeasures, maxChords: num
   const preview = displayChords.join(' - ')
   return chords.length > maxChords ? `[ ${preview} ... ]` : `[ ${preview} ]`
 }
+
+/**
+ * Ensambla el texto lírico unificado de una canción a partir de sus secciones.
+ * Cada sección aporta su encabezado [Label 2x] y sus versos limpios.
+ */
+export function buildFullLyricsText(sections: SectionMeasures[]): string {
+  if (!Array.isArray(sections) || sections.length === 0) return ''
+  return sections
+    .map((sec) => {
+      const repeats = sec.repeatCount && sec.repeatCount > 1 ? ` ${sec.repeatCount}x` : ''
+      const header = `[${sec.label}${repeats}]`
+      const text = (sec.lyrics || '').trim()
+      return text ? `${header}\n${text}` : header
+    })
+    .join('\n\n')
+}
+
+/**
+ * Parsea un texto de letra crudo separándolo en bloques de secciones por etiquetas [Tag].
+ */
+export function parseLyricsBlocks(text: string): Array<{
+  rawHeader: string
+  cleanName: string
+  repeats: number
+  lines: string[]
+}> {
+  if (!text || typeof text !== 'string') return []
+  const lines = text.split('\n')
+  const blocks: Array<{
+    rawHeader: string
+    cleanName: string
+    repeats: number
+    lines: string[]
+  }> = []
+
+  let currentBlock: {
+    rawHeader: string
+    cleanName: string
+    repeats: number
+    lines: string[]
+  } | null = null
+
+  const repeatRegex = /(?:[\s\-_]+|\s*\()(?:x\s*(\d+)|(\d+)\s*x)\s*\)?$/i
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const headerMatch = trimmed.match(/^\[([^\]]+)\]$/)
+
+    if (headerMatch) {
+      if (currentBlock) blocks.push(currentBlock)
+      const rawInside = headerMatch[1].trim()
+      const match = rawInside.match(repeatRegex)
+      let cleanName = rawInside
+      let repeats = 1
+      if (match) {
+        const numStr = match[1] || match[2]
+        const parsed = parseInt(numStr, 10)
+        repeats = !isNaN(parsed) && parsed > 0 ? parsed : 1
+        cleanName = rawInside.replace(repeatRegex, '').trim()
+      }
+      currentBlock = {
+        rawHeader: trimmed,
+        cleanName: cleanName || rawInside,
+        repeats,
+        lines: [],
+      }
+    } else if (currentBlock) {
+      currentBlock.lines.push(line)
+    }
+  }
+
+  if (currentBlock) blocks.push(currentBlock)
+  return blocks
+}
+
+/**
+ * Sincroniza y migra las letras existentes en una canción hacia sus secciones correspondientes.
+ * Si las secciones ya tienen 'lyrics' asignado, se preserva.
+ * Si 'section.lyrics' está vacío pero 'rawLyricsText' tiene contenido estructurado con [Tags],
+ * extrae los versos del tag correspondiente y los asocia a la sección.
+ */
+export function syncSectionsWithLyrics(
+  sections: SectionMeasures[],
+  rawLyricsText?: string | null
+): SectionMeasures[] {
+  if (!Array.isArray(sections) || sections.length === 0) return []
+
+  const hasAnyLyrics = sections.some((s) => s.lyrics && s.lyrics.trim().length > 0)
+  if (hasAnyLyrics || !rawLyricsText || rawLyricsText.trim().length === 0) {
+    return sections
+  }
+
+  const parsedBlocks = parseLyricsBlocks(rawLyricsText)
+  if (parsedBlocks.length === 0) return sections
+
+  return sections.map((sec) => {
+    if (sec.lyrics && sec.lyrics.trim().length > 0) return sec
+
+    const secLabelNorm = sec.label.toLowerCase().trim()
+    const secTypeNorm = sec.type.toLowerCase().trim()
+
+    // Buscar coincidencia en los bloques parseados
+    const match = parsedBlocks.find((block) => {
+      const blockClean = block.cleanName.toLowerCase().trim()
+      return (
+        blockClean === secLabelNorm ||
+        secLabelNorm.includes(blockClean) ||
+        blockClean.includes(secLabelNorm) ||
+        blockClean === secTypeNorm
+      )
+    })
+
+    if (match && match.lines.length > 0) {
+      const content = match.lines.join('\n').trim()
+      if (content.length > 0) {
+        return {
+          ...sec,
+          lyrics: content,
+          repeatCount: sec.repeatCount && sec.repeatCount > 1 ? sec.repeatCount : (match.repeats || 1),
+        }
+      }
+    }
+
+    return sec
+  })
+}
+
 

@@ -48,7 +48,8 @@ import {
   getSectionBadge,
   getSectionDefaultName,
   cloneSectionMeasures,
-  getSectionChordsPreview
+  getSectionChordsPreview,
+  buildFullLyricsText
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { POPULAR_PROGRESSIONS, getProgressionChords, HarmonicProgression, CadenceDefinition } from '@/lib/harmonic-theory'
@@ -414,16 +415,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     setErrorMessage(null)
 
     try {
-      // Extraer letras de guía de los compases para alimentar el campo lyrics si está vacío
-      const extractedLyrics = sections
-        .flatMap((s) => [
-          `[${s.label}]`,
-          ...(s.guideLyrics ? [s.guideLyrics.trim()] : []),
-          ...s.measures.map((m) => m.guideLyric?.trim()).filter(Boolean),
-          '',
-        ])
-        .join('\n')
-        .trim()
+      const fullLyrics = buildFullLyricsText(sections) || initialData?.lyrics || undefined
 
       const payload = {
         title: title.trim(),
@@ -433,7 +425,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         tempo,
         genre: genre.trim() || undefined,
         youtubeUrl: youtubeUrl.trim() || undefined,
-        lyrics: initialData?.lyrics || (extractedLyrics.length > 0 ? extractedLyrics : undefined),
+        lyrics: fullLyrics,
         sections: sections as any,
       }
 
@@ -739,6 +731,11 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               onUpdateGuideLyrics={(secId, newLyrics) => {
                 setSections(
                   sections.map((s) => (s.id === secId ? { ...s, guideLyrics: newLyrics } : s))
+                )
+              }}
+              onUpdateLyrics={(secId, newLyrics) => {
+                setSections((prev) =>
+                  prev.map((s) => (s.id === secId ? { ...s, lyrics: newLyrics } : s))
                 )
               }}
               onMeasureClick={(clickedMeasure) => {

@@ -51,21 +51,13 @@ interface LyricsClientProps {
  * Extrae un extracto limpio de letra a partir del modelo Song
  */
 function extractLyricsSnippet(song: SerializedSong): { text: string; hasLyrics: boolean; linesCount: number } {
-  // 1. Prioridad: campo lyrics directo
-  if (song.lyrics && song.lyrics.trim().length > 0) {
-    const lines = song.lyrics.split('\n').map(l => l.trim()).filter(Boolean)
-    return {
-      text: lines.slice(0, 3).join('\n'),
-      hasLyrics: true,
-      linesCount: lines.length,
-    }
-  }
-
-  // 2. Extraer de sections si existen
+  // 1. Extraer de sections.lyrics si existen
   if (Array.isArray(song.sections) && song.sections.length > 0) {
     const extractedLines: string[] = []
     for (const section of song.sections) {
-      if (Array.isArray(section.lines)) {
+      if (section.lyrics && typeof section.lyrics === 'string' && section.lyrics.trim().length > 0) {
+        extractedLines.push(...section.lyrics.split('\n').map((l: string) => l.trim()).filter(Boolean))
+      } else if (Array.isArray(section.lines)) {
         for (const line of section.lines) {
           if (line.lyrics && line.lyrics.trim().length > 0) {
             extractedLines.push(line.lyrics.trim())
@@ -79,6 +71,16 @@ function extractLyricsSnippet(song: SerializedSong): { text: string; hasLyrics: 
         hasLyrics: true,
         linesCount: extractedLines.length,
       }
+    }
+  }
+
+  // 2. Campo lyrics directo
+  if (song.lyrics && song.lyrics.trim().length > 0) {
+    const lines = song.lyrics.split('\n').map(l => l.trim()).filter(Boolean)
+    return {
+      text: lines.slice(0, 3).join('\n'),
+      hasLyrics: true,
+      linesCount: lines.length,
     }
   }
 

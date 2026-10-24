@@ -28,7 +28,16 @@ import { TapTempoButton } from '@/components/ui/TapTempoButton'
 import { updateSongAction } from '@/app/actions/songs'
 import { useAuth } from '@/lib/context/auth-context'
 import { cn } from '@/lib/utils'
-import { getBeatsPerMeasure } from '@/lib/measure-utils'
+import { 
+  ensureSectionMeasures,
+  generateMeasures,
+  getBeatsPerMeasure,
+  buildFullLyricsText,
+  parseLyricsBlocks,
+  syncSectionsWithLyrics,
+  getSectionBadge
+} from '@/lib/measure-utils'
+import { SectionMeasures } from '@/types/measure'
 
 interface SongData {
   id: string
@@ -101,20 +110,56 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   const router = useRouter()
   const { isAdmin } = useAuth()
 
-  // Extraer texto inicial de letras (priorizando lyrics, o limpiando content)
-  const initialText = () => {
-    if (song.lyrics && song.lyrics.trim().length > 0) {
-      return song.lyrics
+  // 1. Single Source of Truth: Inicializar y migrar secciones directamente de song.sections
+  const initialSections = useMemo<SectionMeasures[]>(() => {
+    let rawList: SectionMeasures[] = []
+    if (Array.isArray(song.sections) && song.sections.length > 0) {
+      const counter = { current: 1 }
+      rawList = song.sections.map((sec: any, idx: number) =>
+        ensureSectionMeasures(sec, idx, song.timeSignature || '4/4', counter)
+      )
+      // Sincronizar automáticamente letras previas de song.lyrics si section.lyrics estaba vacío
+      rawList = syncSectionsWithLyrics(rawList, song.lyrics || song.content)
+    } else {
+      // Si la canción no tenía secciones creadas en acordes, construirlas a partir del texto de letras
+      const blocks = parseLyricsBlocks(song.lyrics || song.content || '')
+      if (blocks.length > 0) {
+        rawList = blocks.map((b, idx) => ({
+          id: `sec-${idx}-${Date.now()}`,
+          type: 'verse',
+          label: b.cleanName,
+          repeatCount: b.repeats || 1,
+          measures: generateMeasures(4, idx * 4 + 1, song.timeSignature || '4/4', [song.key || 'C']),
+          lyrics: b.lines.join('\n').trim(),
+        }))
+      } else {
+        rawList = [
+          {
+            id: `sec-intro-${Date.now()}`,
+            type: 'intro',
+            label: 'Intro',
+            repeatCount: 1,
+            measures: generateMeasures(4, 1, song.timeSignature || '4/4', [song.key || 'C']),
+            lyrics: '',
+          },
+          {
+            id: `sec-verse-${Date.now()}`,
+            type: 'verse',
+            label: 'Estrofa 1',
+            repeatCount: 1,
+            measures: generateMeasures(4, 5, song.timeSignature || '4/4', [song.key || 'C']),
+            lyrics: '',
+          },
+        ]
+      }
     }
-    if (song.content && song.content.trim().length > 0) {
-      // Limpiar posibles acordes entre corchetes si es texto crudo
-      return song.content.replace(/\[[A-G][#b]?[^\]]*\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
-    }
-    return `[Intro]\n\n[Estrofa 1]\nEscribe aquí la primera estrofa...\n\n[Coro]\nEscribe aquí el coro de la canción...\n\n[Outro]`
-  }
+    return rawList
+  }, [song.sections, song.lyrics, song.content, song.timeSignature, song.key])
 
-  const [text, setText] = useState<string>(initialText)
+  const [sections, setSections] = useState<SectionMeasures[]>(initialSections)
+  const [text, setText] = useState<string>(() => buildFullLyricsText(initialSections))
   const [viewMode, setViewMode] = useState<'read' | 'edit'>('read')
+  const [editTab, setEditTab] = useState<'cards' | 'raw'>('cards')
   const effectiveViewMode = isAdmin ? viewMode : 'read'
   const [fontSize, setFontSize] = useState<number>(18) // px
   const [isSaving, setIsSaving] = useState(false)
@@ -188,8 +233,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   }, [])
 
   // Reproducir clic sutil de metrónomo sintetizado
-  // Pulso acentuado (tiempo 1): 1000 Hz, duración 50 ms
-  // Pulsos secundarios (tiempos 2, 3, 4): 700 Hz, duración 40 ms
   const playMetronomePulse = useCallback((isDownbeat: boolean) => {
     if (!isMetronomeActiveRef.current) return
     const ctx = getAudioContext()
@@ -207,7 +250,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
 
       osc.frequency.setValueAtTime(freq, now)
 
-      // Control suave de ganancia para evitar chasquidos (pops/clicks)
       gain.gain.setValueAtTime(0.0001, now)
       gain.gain.linearRampToValueAtTime(peakGain, now + 0.003)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSec)
@@ -223,7 +265,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   }, [getAudioContext])
 
   // Alternar metrónomo sonoro (1 clic sin pausar teleprompter)
-  const toggleMetronome = () => {
+  const toggleMetronome = useCallback(() => {
     setIsMetronomeActive((prev) => {
       const next = !prev
       isMetronomeActiveRef.current = next
@@ -232,7 +274,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       }
       return next
     })
-  }
+  }, [getAudioContext])
 
   // Desplazamiento suave de una sección al área de lectura confortable
   const scrollToSection = useCallback((secIndex: number, resetToTop: boolean = false) => {
@@ -245,7 +287,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     const sectionRect = sectionEl.getBoundingClientRect()
     const relativeTop = sectionRect.top - containerRect.top + container.scrollTop
 
-    // Dejar un margen superior de 24px para respirar debajo de la barra
     const targetScrollTop = Math.max(0, relativeTop - 24)
 
     container.scrollTo({
@@ -254,7 +295,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     })
   }, [])
 
-  // Modificación y auto-sincronización de BPM en base de datos (PATCH /api/songs/[id])
+  // Modificación y auto-sincronización de BPM en base de datos
   const handleTempoChange = useCallback((newTempo: number) => {
     const validBpm = Math.max(30, Math.min(300, Math.round(newTempo)))
     setTempo(validBpm)
@@ -284,117 +325,34 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     }, 400)
   }, [song.id, router])
 
-  // Cálculo físico de secciones líricas con compases y duración rítmica real
+  // 2. Cálculo unificado de secciones para teleprompter a partir del array sections (Single Source of Truth)
   const parsedSections = useMemo<ParsedLyricsSection[]>(() => {
-    const lines = text.split('\n')
-    const sections: ParsedLyricsSection[] = []
-
     const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
     const pulseDurationMs = (60 / Math.max(30, Math.min(300, tempo || 72))) * 1000
     const measureDurationMs = pulseDurationMs * beatsPerMeasure
 
-    const songSectionsList: any[] = Array.isArray(song.sections) ? song.sections : []
+    return sections.map((sec, idx) => {
+      const repeats = sec.repeatCount && sec.repeatCount > 0 ? sec.repeatCount : 1
+      const lines = sec.lyrics ? sec.lyrics.split('\n') : []
+      const measuresCount = Array.isArray(sec.measures) && sec.measures.length > 0
+        ? sec.measures.length
+        : 4
+      const singleLapDurationMs = measuresCount * measureDurationMs
+      const totalDurationMs = singleLapDurationMs * repeats
 
-    let currentSection: ParsedLyricsSection | null = null
-
-    lines.forEach((line, lineIdx) => {
-      const trimmed = line.trim()
-      const headerMatch = trimmed.match(/^\[([^\]]+)\]$/)
-
-      if (headerMatch) {
-        if (currentSection) {
-          sections.push(finalizeSection(currentSection, measureDurationMs, songSectionsList))
-        }
-        const rawInside = headerMatch[1]
-        const { cleanName, repeats } = parseSectionTag(rawInside)
-        currentSection = {
-          id: `lyrics-sec-${sections.length}`,
-          rawHeader: trimmed,
-          cleanName,
-          repeats,
-          headerLineIndex: lineIdx,
-          lines: [],
-          measuresCount: 4,
-          singleLapDurationMs: 4 * measureDurationMs,
-          totalDurationMs: 4 * measureDurationMs * repeats,
-        }
-      } else {
-        if (!currentSection) {
-          // Si el texto no inicia con corchetes, crear sección inicial por defecto
-          currentSection = {
-            id: 'lyrics-sec-0',
-            rawHeader: '[Canción]',
-            cleanName: 'Canción',
-            repeats: 1,
-            headerLineIndex: -1,
-            lines: [],
-            measuresCount: 4,
-            singleLapDurationMs: 4 * measureDurationMs,
-            totalDurationMs: 4 * measureDurationMs,
-          }
-        }
-        currentSection.lines.push(line)
+      return {
+        id: `lyrics-sec-${idx}`,
+        rawHeader: `[${sec.label}${repeats > 1 ? ` ${repeats}x` : ''}]`,
+        cleanName: sec.label,
+        repeats,
+        headerLineIndex: idx,
+        lines,
+        measuresCount,
+        singleLapDurationMs,
+        totalDurationMs,
       }
     })
-
-    if (currentSection) {
-      sections.push(finalizeSection(currentSection, measureDurationMs, songSectionsList))
-    }
-
-    return sections
-  }, [text, tempo, song.timeSignature, song.sections])
-
-  function finalizeSection(
-    sec: ParsedLyricsSection,
-    measureDurationMs: number,
-    songSections: any[]
-  ): ParsedLyricsSection {
-    let measuresCount = 4
-    if (songSections && songSections.length > 0) {
-      const cleanLower = sec.cleanName.toLowerCase().trim()
-      const match = songSections.find((s) => {
-        const sLabel = (s.label || '').toLowerCase().trim()
-        const sType = (s.type || '').toLowerCase().trim()
-        return (
-          sLabel === cleanLower ||
-          sLabel.includes(cleanLower) ||
-          cleanLower.includes(sLabel) ||
-          sType === cleanLower
-        )
-      })
-
-      let effectiveRepeats = sec.repeats
-      if (match) {
-        if (Array.isArray(match.measures) && match.measures.length > 0) {
-          measuresCount = match.measures.length
-        } else {
-          const nonBlank = sec.lines.filter((l) => l.trim().length > 0).length
-          measuresCount = Math.max(4, nonBlank * 2)
-        }
-        if (effectiveRepeats === 1 && match.repeatCount && match.repeatCount > 1) {
-          effectiveRepeats = match.repeatCount
-        }
-      } else {
-        const nonBlank = sec.lines.filter((l) => l.trim().length > 0).length
-        measuresCount = Math.max(4, nonBlank * 2)
-      }
-    } else {
-      const nonBlank = sec.lines.filter((l) => l.trim().length > 0).length
-      measuresCount = Math.max(4, nonBlank * 2)
-    }
-
-    const effectiveRepeats = sec.repeats
-    const singleLapDurationMs = measuresCount * measureDurationMs
-    const totalDurationMs = singleLapDurationMs * effectiveRepeats
-
-    return {
-      ...sec,
-      repeats: effectiveRepeats,
-      measuresCount,
-      singleLapDurationMs,
-      totalDurationMs,
-    }
-  }
+  }, [sections, tempo, song.timeSignature])
 
   // Ref a secciones para uso seguro en el loop de requestAnimationFrame
   const parsedSectionsRef = useRef(parsedSections)
@@ -402,7 +360,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     parsedSectionsRef.current = parsedSections
   }, [parsedSections])
 
-  // Bucle de Teleprompter Inteligente con Sincronización Rítmica, Metrónomo y Repeticiones (2x, 4x)
+  // Bucle de Teleprompter Inteligente con Sincronización Rítmica, Metrónomo y Repeticiones
   useEffect(() => {
     if (!isAutoScrolling) {
       if (rafIdRef.current !== null) {
@@ -421,12 +379,11 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       const dt = currentTime - lastTimeRef.current
       lastTimeRef.current = currentTime
 
-      const sections = parsedSectionsRef.current
+      const sectionsList = parsedSectionsRef.current
       const curSecIdx = activeSectionIdxRef.current
-      const curSection = sections[curSecIdx]
+      const curSection = sectionsList[curSecIdx]
 
       if (!curSection) {
-        // Fin de la canción
         setIsAutoScrolling(false)
         return
       }
@@ -436,7 +393,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       const progress = Math.min(1, Math.max(0, lapElapsedRef.current / lapDuration))
       setLapProgress(progress)
 
-      // Cálculo de compases y pulsos rítmicos para el metrónomo y secciones instrumentales
       const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
       const pulseDurationMs = (60 / Math.max(30, Math.min(300, tempo || 72))) * 1000
       const measureDurationMs = pulseDurationMs * beatsPerMeasure
@@ -448,51 +404,25 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         Math.floor(lapElapsedRef.current / measureDurationMs) + 1
       )
 
+      setCurrentBeat(beatInMeasure)
+      setCurrentMeasure(measureInSec)
+
       if (totalBeats !== lastBeatRef.current) {
         lastBeatRef.current = totalBeats
-        setCurrentBeat(beatInMeasure)
-        setCurrentMeasure(measureInSec)
-        if (isMetronomeActiveRef.current) {
-          playMetronomePulse(beatInMeasure === 1)
-        }
+        playMetronomePulse(beatInMeasure === 1)
       }
 
-      // Desplazamiento progresivo vertical dentro de la sección si es muy extensa
-      if (scrollContainerRef.current) {
-        const container = scrollContainerRef.current
-        const sectionEl = document.getElementById(curSection.id)
-        if (sectionEl) {
-          const containerHeight = container.clientHeight
-          const sectionHeight = sectionEl.offsetHeight
-          // Si la sección es más alta que el viewport, realizar scroll pausado a lo largo de la vuelta
-          if (sectionHeight > containerHeight - 100) {
-            const containerRect = container.getBoundingClientRect()
-            const sectionRect = sectionEl.getBoundingClientRect()
-            const relativeTop = sectionRect.top - containerRect.top + container.scrollTop
-            const maxDelta = sectionHeight - containerHeight + 80
-            const calculatedScroll = relativeTop - 24 + progress * maxDelta
-            container.scrollTop = calculatedScroll
-          }
-        }
-      }
-
-      // Si ha transcurrido el tiempo musical de la vuelta actual
       if (lapElapsedRef.current >= lapDuration) {
-        // ¿Faltan repeticiones en esta misma sección?
         if (currentRepeatRef.current < curSection.repeats) {
-          // Avanzar a la siguiente vuelta de la misma sección
-          const nextRep = currentRepeatRef.current + 1
-          currentRepeatRef.current = nextRep
-          setCurrentRepeat(nextRep)
+          currentRepeatRef.current += 1
+          setCurrentRepeat(currentRepeatRef.current)
           lapElapsedRef.current = 0
           setLapProgress(0)
           lastBeatRef.current = -1
-          // Reposicionar la vista suavemente al inicio de esta sección para la siguiente vuelta
           scrollToSection(curSecIdx, false)
         } else {
-          // Se completaron todas las repeticiones musicales asignadas
           const nextSecIdx = curSecIdx + 1
-          if (nextSecIdx < sections.length) {
+          if (nextSecIdx < sectionsList.length) {
             activeSectionIdxRef.current = nextSecIdx
             setActiveSectionIdx(nextSecIdx)
             currentRepeatRef.current = 1
@@ -500,10 +430,8 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             lapElapsedRef.current = 0
             setLapProgress(0)
             lastBeatRef.current = -1
-            // Avanzar suavemente a la siguiente parte de la canción (ej. Interludio o Puente)
             scrollToSection(nextSecIdx, false)
           } else {
-            // Se terminó la última sección del tema
             setIsAutoScrolling(false)
             return
           }
@@ -524,7 +452,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   }, [isAutoScrolling, scrollToSection, song.timeSignature, tempo, playMetronomePulse])
 
   // Iniciar / Pausar Teleprompter
-  const handleTogglePlay = () => {
+  const handleTogglePlay = useCallback(() => {
     setIsAutoScrolling((prev) => {
       const next = !prev
       if (next) {
@@ -535,7 +463,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       }
       return next
     })
-  }
+  }, [getAudioContext, scrollToSection])
 
   // Reiniciar teleprompter al inicio de la canción
   const handleRestart = () => {
@@ -569,20 +497,51 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   }
 
   // Modificar interactivamente repeticiones de una sección (1x, 2x, 3x, 4x)
-  const handleSetSectionRepeat = (headerLineIndex: number, cleanName: string, newRepeats: number) => {
-    const lines = text.split('\n')
-    if (headerLineIndex >= 0 && headerLineIndex < lines.length) {
-      const newTag = newRepeats > 1 ? `[${cleanName} ${newRepeats}x]` : `[${cleanName}]`
-      lines[headerLineIndex] = newTag
-      const newText = lines.join('\n')
-      setText(newText)
-    }
+  const handleSetSectionRepeat = (secIndex: number, newRepeats: number) => {
+    setSections((prev) => {
+      const updated = prev.map((s, idx) => (idx === secIndex ? { ...s, repeatCount: newRepeats } : s))
+      setText(buildFullLyricsText(updated))
+      return updated
+    })
   }
 
-  // Insertar tag de estructura en la posición del cursor en modo edición
+  // Actualizar letra de una sección específica (Single Source of Truth)
+  const handleUpdateSectionLyrics = (secIndex: number, newLyrics: string) => {
+    setSections((prev) => {
+      const updated = prev.map((s, idx) => (idx === secIndex ? { ...s, lyrics: newLyrics } : s))
+      setText(buildFullLyricsText(updated))
+      return updated
+    })
+  }
+
+  // Manejar edición de texto plano continuo y sincronizar de vuelta a las secciones
+  const handleRawTextChange = (newText: string) => {
+    setText(newText)
+    const blocks = parseLyricsBlocks(newText)
+    if (blocks.length === 0) return
+
+    setSections((prev) => {
+      return prev.map((sec, idx) => {
+        const match = blocks.find(
+          (b) => b.cleanName.toLowerCase().trim() === sec.label.toLowerCase().trim()
+        ) || blocks[idx]
+
+        if (match) {
+          return {
+            ...sec,
+            lyrics: match.lines.join('\n').trim(),
+            repeatCount: match.repeats || sec.repeatCount || 1,
+          }
+        }
+        return sec
+      })
+    })
+  }
+
+  // Insertar tag de estructura en la posición del cursor en modo edición cruda
   const handleInsertTag = (tag: string) => {
     if (!textareaRef.current) {
-      setText((prev) => `${prev}\n\n${tag}\n`)
+      handleRawTextChange(`${text}\n\n${tag}\n`)
       return
     }
 
@@ -597,7 +556,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     const insertion = `${prefix}${tag}${suffix}`
 
     const updated = `${previousContent}${insertion}${afterContent}`
-    setText(updated)
+    handleRawTextChange(updated)
 
     setTimeout(() => {
       textarea.focus()
@@ -609,7 +568,8 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   // Copiar letra limpia al portapapeles
   const handleCopyLyrics = async () => {
     try {
-      await navigator.clipboard.writeText(text)
+      const fullText = buildFullLyricsText(sections) || text
+      await navigator.clipboard.writeText(fullText)
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch {
@@ -620,7 +580,8 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   // Exportar a archivo de texto plano (.txt)
   const handleExportTxt = () => {
     const filename = `${song.title} - ${song.artist || 'MusicChord'} (Letra).txt`
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const fullText = buildFullLyricsText(sections) || text
+    const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -629,13 +590,15 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     URL.revokeObjectURL(url)
   }
 
-  // Guardar letra y tempo en la base de datos
+  // Guardar estructura unificada en base de datos (secciones + letras + tempo)
   const handleSave = async () => {
     setIsSaving(true)
     setSaveSuccess(false)
     try {
+      const fullLyrics = buildFullLyricsText(sections)
       await updateSongAction(song.id, {
-        lyrics: text,
+        sections: sections as any,
+        lyrics: fullLyrics,
         tempo,
       })
       setSaveSuccess(true)
@@ -652,7 +615,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
   // Atajos de teclado: Barra espaciadora para Play/Pause y 'M' para Metrónomo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Si el foco está en un textarea o input, no intervenir
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
@@ -671,9 +633,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleTogglePlay, toggleMetronome])
 
-  // Conteo de líneas y palabras
-  const linesCount = text.split('\n').filter((l) => l.trim().length > 0).length
-  const wordsCount = text.trim().length > 0 ? text.trim().split(/\s+/).length : 0
   const beatsPerMeasure = getBeatsPerMeasure(song.timeSignature || '4/4')
 
   return (
@@ -716,7 +675,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                 type="button"
                 onClick={() => setViewMode('read')}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer',
                   viewMode === 'read'
                     ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -729,19 +688,19 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                 type="button"
                 onClick={() => setViewMode('edit')}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer',
                   viewMode === 'edit'
                     ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 )}
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Editor de Texto</span>
+                <span>Editar Letra</span>
               </button>
             </div>
           )}
 
-          {/* Guardar Letra y Tempo (Solo Administrador) */}
+          {/* Guardar Letra y Estructura (Solo Administrador) */}
           {isAdmin && (
             <Button
               variant="gradient"
@@ -835,7 +794,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             <button
               type="button"
               onClick={() => handleTempoChange(tempo - 1)}
-              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 font-bold text-white text-xs transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 font-bold text-white text-xs transition-colors cursor-pointer"
               title="Reducir 1 BPM"
             >
               <Minus className="w-3 h-3" />
@@ -856,7 +815,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             <button
               type="button"
               onClick={() => handleTempoChange(tempo + 1)}
-              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 font-bold text-white text-xs transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-700 hover:bg-slate-600 font-bold text-white text-xs transition-colors cursor-pointer"
               title="Aumentar 1 BPM"
             >
               <Plus className="w-3 h-3" />
@@ -870,7 +829,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                   type="button"
                   onClick={() => handleTempoChange(presetBpm)}
                   className={cn(
-                    'px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors',
+                    'px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-colors cursor-pointer',
                     tempo === presetBpm
                       ? 'bg-purple-600 text-white'
                       : 'text-slate-400 hover:text-white hover:bg-slate-700'
@@ -915,7 +874,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             <button
               type="button"
               onClick={() => setFontSize((prev) => Math.max(14, prev - 2))}
-              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 font-bold"
+              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 font-bold cursor-pointer"
               title="Reducir fuente"
             >
               A-
@@ -924,7 +883,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             <button
               type="button"
               onClick={() => setFontSize((prev) => Math.min(36, prev + 2))}
-              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 font-bold"
+              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 font-bold cursor-pointer"
               title="Aumentar fuente"
             >
               A+
@@ -957,8 +916,50 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         </div>
       </div>
 
-      {/* Barra de Tags Rápidos en Modo Edición */}
+      {/* Sub-Navegación en Modo Edición */}
       {effectiveViewMode === 'edit' && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex-wrap animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
+              Modo de Edición:
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditTab('cards')}
+              className={cn(
+                'px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer',
+                editTab === 'cards'
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-purple-600'
+              )}
+            >
+              📝 Por Secciones ({sections.length} partes)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setText(buildFullLyricsText(sections))
+                setEditTab('raw')
+              }}
+              className={cn(
+                'px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer',
+                editTab === 'raw'
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-purple-600'
+              )}
+            >
+              📄 Texto Continuo
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-400 font-medium">
+            Single Source of Truth: enlazado 1:1 con la estructura de Acordes
+          </div>
+        </div>
+      )}
+
+      {/* Barra de Tags Rápidos en Modo Edición Cruda */}
+      {effectiveViewMode === 'edit' && editTab === 'raw' && (
         <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2 flex-wrap animate-in fade-in">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">
             Insertar Sección:
@@ -968,7 +969,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
               key={tag}
               type="button"
               onClick={() => handleInsertTag(tag)}
-              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-colors shadow-sm"
+              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-colors shadow-sm cursor-pointer"
             >
               {tag}
             </button>
@@ -976,7 +977,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         </div>
       )}
 
-      {/* Área Principal de Visualización / Edición con Teleprompter Inteligente */}
+      {/* Área Principal de Visualización / Edición */}
       <div
         ref={scrollContainerRef}
         className={cn(
@@ -987,20 +988,101 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         )}
       >
         {effectiveViewMode === 'edit' ? (
-          /* Modo Edición: Textarea Estructurado */
-          <div className="flex flex-col gap-2">
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              style={{ fontSize: `${fontSize}px` }}
-              rows={22}
-              placeholder="Escribe o pega aquí la letra de la canción..."
-              className="w-full bg-transparent border-0 focus:outline-none resize-none font-serif leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
-            />
-          </div>
+          editTab === 'cards' ? (
+            /* Modo Edición A: Tarjetas estructuradas 1:1 con las secciones de la canción */
+            <div className="space-y-6 max-w-3xl mx-auto">
+              <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50 text-xs text-purple-800 dark:text-purple-300 flex items-center justify-between">
+                <span>
+                  💡 Cada sección editada aquí se guarda directamente en <code>section.lyrics</code> de la canción. Las secciones sin texto se consideran automáticamente instrumentales.
+                </span>
+              </div>
+
+              {sections.map((sec, secIdx) => {
+                const hasSecLyrics = !!(sec.lyrics && sec.lyrics.trim().length > 0)
+                const secLinesCount = hasSecLyrics ? sec.lyrics!.trim().split('\n').filter(Boolean).length : 0
+
+                return (
+                  <div
+                    key={sec.id || secIdx}
+                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-950/80 border border-primary-200 dark:border-primary-800 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold text-xs uppercase shrink-0">
+                          {getSectionBadge(sec.type, sec.label)}
+                        </div>
+                        <div>
+                          <h3 className="font-black text-base text-slate-900 dark:text-white leading-tight">
+                            {sec.label}
+                          </h3>
+                          <span className="text-[11px] text-slate-400">
+                            {sec.measures?.length || 4} compases • {sec.timeSignature || song.timeSignature || '4/4'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Selector de repeticiones de la sección */}
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                          <Repeat className="w-3 h-3 text-slate-400 mr-0.5" />
+                          <span className="text-[11px] font-bold text-slate-500 mr-1">Repetir:</span>
+                          {[1, 2, 4].map((r) => (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => handleSetSectionRepeat(secIdx, r)}
+                              className={cn(
+                                'px-1.5 py-0.5 rounded text-[10px] font-black transition-colors cursor-pointer',
+                                (sec.repeatCount || 1) === r
+                                  ? 'bg-purple-600 text-white'
+                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                              )}
+                            >
+                              {r}x
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Indicador de estado */}
+                        {hasSecLyrics ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            ✓ {secLinesCount} {secLinesCount === 1 ? 'verso' : 'versos'}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700">
+                            🎵 Instrumental
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <textarea
+                      value={sec.lyrics || ''}
+                      onChange={(e) => handleUpdateSectionLyrics(secIdx, e.target.value)}
+                      placeholder={`Escribe o pega aquí los versos para "${sec.label}" (dejar vacío si es instrumental)...`}
+                      rows={Math.max(3, Math.min(8, (sec.lyrics || '').split('\n').length + 1))}
+                      className="w-full bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            /* Modo Edición B: Textarea Continuo */
+            <div className="flex flex-col gap-2">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => handleRawTextChange(e.target.value)}
+                style={{ fontSize: `${fontSize}px` }}
+                rows={22}
+                placeholder="Escribe o pega aquí la letra de la canción estructurada con [Sección]..."
+                className="w-full bg-transparent border-0 focus:outline-none resize-none font-serif leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+              />
+            </div>
+          )
         ) : (
-          /* Modo Lectura / Escenario / Prompter con Karaoke y Sincronización Rítmica */
+          /* Modo Lectura / Escenario / Teleprompter Inteligente */
           <div
             style={{ fontSize: `${fontSize}px` }}
             className="font-serif leading-loose tracking-wide select-text max-w-3xl mx-auto space-y-6"
@@ -1009,13 +1091,12 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
               const isActive = isAutoScrolling && activeSectionIdx === secIdx
               const nonBlankLines = section.lines.filter((l) => l.trim().length > 0)
               const isInstrumental = nonBlankLines.length === 0
+              const totalMeasures = section.measuresCount * section.repeats
 
-              // Cálculo de la línea y palabra activa para el resaltador de frase / karaoke
               let activeLineIndex = -1
               let activeWordIndex = -1
 
               if (isActive && !isInstrumental && nonBlankLines.length > 0) {
-                // progresión de la línea en la vuelta actual
                 activeLineIndex = Math.min(
                   nonBlankLines.length - 1,
                   Math.floor(lapProgress * nonBlankLines.length)
@@ -1060,7 +1141,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                       {section.cleanName}
                     </span>
 
-                    {/* Control Interactivo de Repetición (Badge / Dropdown: 1x, 2x, 3x, 4x) */}
+                    {/* Control Interactivo de Repetición (1x, 2x, 3x, 4x) */}
                     <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
@@ -1085,16 +1166,16 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                           <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             Repetición Musical
                           </div>
-                          {[1, 2, 3, 4].map((rep) => (
+                          {[1, 2, 3, 4, 8].map((rep) => (
                             <button
                               key={rep}
                               type="button"
                               onClick={() => {
-                                handleSetSectionRepeat(section.headerLineIndex, section.cleanName, rep)
+                                handleSetSectionRepeat(secIdx, rep)
                                 setOpenRepeatDropdown(null)
                               }}
                               className={cn(
-                                'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-left transition-colors',
+                                'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-left transition-colors cursor-pointer',
                                 section.repeats === rep
                                   ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold'
                                   : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1120,7 +1201,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                           </span>
                         </div>
 
-                        {/* Barra de progreso de la vuelta actual */}
                         <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300/40 dark:border-slate-700/60">
                           <div
                             className="h-full bg-gradient-to-r from-purple-500 to-amber-500 rounded-full transition-all duration-75"
@@ -1131,14 +1211,13 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                     )}
                   </div>
 
-                  {/* CASO A: Sección Instrumental (Intro, Interludios, Solos) */}
+                  {/* CASO A: Sección Instrumental (Intro, Interludios, Solos, Improvisación) */}
                   {isInstrumental ? (
                     isActive ? (
-                      /* Tarjeta de Sección Instrumental Activa con Cuenta de Compases y Pulsos en Vivo */
+                      /* Tarjeta de Sección Instrumental Activa en Teleprompter */
                       <div className="rounded-xl border border-purple-300/60 dark:border-purple-700/60 bg-gradient-to-r from-purple-50/90 via-purple-100/40 to-purple-50/90 dark:from-purple-950/40 dark:via-purple-900/20 dark:to-purple-950/40 p-4 sm:p-5 my-2 shadow-xs transition-all animate-in fade-in select-none">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            {/* Pulso numérico actual */}
                             <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-mono font-black text-lg shadow-md shadow-purple-600/30">
                               {currentBeat}
                             </div>
@@ -1152,12 +1231,12 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                                 </span>
                               </div>
                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                Preparando entrada vocal para la siguiente sección...
+                                Conduciendo compases instrumentales hacia la siguiente sección...
                               </p>
                             </div>
                           </div>
 
-                          {/* Medidor visual de tiempos por compás */}
+                          {/* Medidor visual de pulsos */}
                           <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800/80">
                             <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">
                               Tiempos:
@@ -1182,7 +1261,7 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                           </div>
                         </div>
 
-                        {/* Barra de progreso del compás e instrumental */}
+                        {/* Barra de progreso */}
                         <div className="mt-3.5 space-y-1">
                           <div className="flex justify-between text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold">
                             <span>Compás {currentMeasure} de {section.measuresCount}</span>
@@ -1197,14 +1276,31 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                         </div>
                       </div>
                     ) : (
-                      /* Sección Instrumental en Reposo */
-                      <div className="py-2.5 px-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-500 flex items-center gap-2">
-                        <Music className="w-3.5 h-3.5 text-purple-500" />
-                        <span>Sección Instrumental • {section.measuresCount} compases</span>
+                      /* Sección Instrumental en Reposo (Single Source of Truth) */
+                      <div className="py-2.5 px-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-500 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Music className="w-3.5 h-3.5 text-purple-500" />
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            🎵 Sección Instrumental • {totalMeasures} compases
+                          </span>
+                        </div>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setViewMode('edit')
+                              setEditTab('cards')
+                            }}
+                            className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-semibold cursor-pointer"
+                          >
+                            + Añadir letra
+                          </button>
+                        )}
                       </div>
                     )
                   ) : (
-                    /* CASO B: Sección con Letra (Versos con Resaltador Karaoke y Frase Tracker) */
+                    /* CASO B: Sección con Letra (Versos con Resaltador Karaoke) */
                     <div className="text-slate-800 dark:text-slate-100 select-text">
                       {section.lines.map((line, lIdx) => {
                         const trimmedLine = line.trim()
@@ -1215,7 +1311,6 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                         const lineIndexInNonBlank = nonBlankCounter++
 
                         if (isActive) {
-                          // Línea actual en curso
                           if (lineIndexInNonBlank === activeLineIndex) {
                             const words = trimmedLine.split(/\s+/)
                             return (
@@ -1246,32 +1341,29 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
                             )
                           }
 
-                          // Línea ya leída / cantada
                           if (lineIndexInNonBlank < activeLineIndex) {
                             return (
                               <p
                                 key={lIdx}
-                                className="my-1 leading-relaxed text-slate-400 dark:text-slate-500 opacity-60 transition-opacity duration-200"
+                                className="my-1 opacity-45 text-slate-500 dark:text-slate-400 transition-opacity duration-300"
                               >
                                 {line}
                               </p>
                             )
                           }
 
-                          // Línea próxima por cantar
                           return (
                             <p
                               key={lIdx}
-                              className="my-1 leading-relaxed text-slate-800 dark:text-slate-200 transition-opacity duration-200"
+                              className="my-1 text-slate-800 dark:text-slate-100 transition-colors"
                             >
                               {line}
                             </p>
                           )
                         }
 
-                        // Modo inactivo normal
                         return (
-                          <p key={lIdx} className="my-1 leading-relaxed">
+                          <p key={lIdx} className="my-0.5">
                             {line}
                           </p>
                         )
@@ -1285,18 +1377,16 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         )}
       </div>
 
-      {/* Resumen de Conteo en la parte inferior */}
-      <div className="flex items-center justify-between text-xs text-slate-400 px-2">
+      {/* Footer Informativo */}
+      <div className="flex items-center justify-between text-xs text-slate-400 px-2 flex-wrap gap-2">
         <span>
-          <strong>{linesCount}</strong> líneas de verso • <strong>{wordsCount}</strong> palabras •{' '}
-          <strong>{parsedSections.length}</strong> secciones
+          {sections.length} secciones en total • {sections.filter(s => s.lyrics && s.lyrics.trim()).length} con lírica • {sections.filter(s => !s.lyrics || !s.lyrics.trim()).length} instrumentales
         </span>
-        <span>
-          Modo actual:{' '}
-          <strong className="text-slate-600 dark:text-slate-300 capitalize">
-            {effectiveViewMode === 'read' ? 'Lectura Prompter' : 'Edición'}
-          </strong>
-        </span>
+        <div className="flex items-center gap-3">
+          <span>Barra espaciadora: Play/Pause</span>
+          <span>•</span>
+          <span>Tecla M: Metrónomo</span>
+        </div>
       </div>
     </div>
   )

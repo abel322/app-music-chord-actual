@@ -65,6 +65,7 @@ export const SectionSchema = z.object({
   lines: z.array(LineSchema).optional().default([]),
   measures: z.array(z.any()).optional().default([]),
   guideLyrics: z.string().optional(),
+  lyrics: z.string().optional(),
 }).passthrough()
 
 /**

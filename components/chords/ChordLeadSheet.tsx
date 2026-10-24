@@ -47,7 +47,9 @@ import {
   getSectionBadge,
   getSectionDefaultName,
   cloneSectionMeasures,
-  getSectionChordsPreview
+  getSectionChordsPreview,
+  buildFullLyricsText,
+  syncSectionsWithLyrics
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
@@ -188,9 +190,10 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       ]
     }
 
-    return rawSections.map((sec, idx) =>
+    const normalized = rawSections.map((sec, idx) =>
       ensureSectionMeasures(sec, idx, song.timeSignature || '4/4', counter)
     )
+    return syncSectionsWithLyrics(normalized, song.lyrics || song.content)
   })
 
   // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
@@ -419,7 +422,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections(updated)
     if (isAdmin && song.id) {
       try {
-        await updateSongAction(song.id, { sections: updated as any })
+        const fullLyrics = buildFullLyricsText(updated)
+        await updateSongAction(song.id, { sections: updated as any, lyrics: fullLyrics })
       } catch (err) {
         console.error('Error al mover sección arriba:', err)
       }
@@ -435,7 +439,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setSections(updated)
     if (isAdmin && song.id) {
       try {
-        await updateSongAction(song.id, { sections: updated as any })
+        const fullLyrics = buildFullLyricsText(updated)
+        await updateSongAction(song.id, { sections: updated as any, lyrics: fullLyrics })
       } catch (err) {
         console.error('Error al mover sección abajo:', err)
       }
@@ -462,12 +467,14 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setIsSaving(true)
     setSaveSuccess(false)
     try {
+      const fullLyrics = buildFullLyricsText(sections)
       await updateSongAction(song.id, {
         key: currentKey,
         timeSignature,
         tempo,
         youtubeUrl,
         sections: sections as any,
+        lyrics: fullLyrics,
       })
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
@@ -766,6 +773,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             onUpdateGuideLyrics={(secId, newLyrics) => {
               setSections((prev) =>
                 prev.map((s) => (s.id === secId ? { ...s, guideLyrics: newLyrics } : s))
+              )
+            }}
+            onUpdateLyrics={(secId, newLyrics) => {
+              setSections((prev) =>
+                prev.map((s) => (s.id === secId ? { ...s, lyrics: newLyrics } : s))
               )
             }}
             onMeasureClick={(clickedMeasure) => {
