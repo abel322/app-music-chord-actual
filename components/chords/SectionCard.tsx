@@ -216,133 +216,66 @@ export function SectionCard({
           </div>
         </div>
 
-        {/* Barra de herramientas en modo edición */}
+        {/* Acciones de administración de sección en la cabecera (Reordenar / Duplicar / Eliminar) */}
         {isEditing && (
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end shrink-0">
-            {/* Controles de Tonalidad de Sección */}
-            {onUpdateSectionKey && (
-              <SectionKeyControl
-                section={section}
-                globalKey={globalKey}
-                isEditing={true}
-                onUpdateSectionKey={onUpdateSectionKey}
-              />
-            )}
-
-            {/* Controles de Tempo de Sección (BPM Override) */}
-            {onUpdateSectionTempo && (
-              <SectionTempoControl
-                sectionId={section.id}
-                tempoOverride={section.tempoOverride}
-                globalTempo={globalTempo}
-                isEditing={true}
-                onUpdateSectionTempo={onUpdateSectionTempo}
-              />
-            )}
-
-            {/* Selector Desacoplado de Progresiones */}
-            {onApplyProgression && (
-              <ProgressionPicker
-                currentKey={effectiveKey}
-                buttonLabel="✦ Progresión"
-                buttonVariant="subtle"
-                onSelectProgression={(prog) => onApplyProgression(section.id, prog)}
-              />
-            )}
-
-            {/* Selector Desacoplado de Cadencias al cierre de sección */}
-            {onApplySectionCadence && (
-              <CadencePicker
-                currentKey={effectiveKey}
-                currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
-                buttonLabel="✦ Cadencia Final"
-                buttonVariant="subtle"
-                onSelectCadence={(cad) => onApplySectionCadence(section.id, cad)}
-              />
-            )}
-
-            {/* Botón Discreto para Letra de la Sección (Single Source of Truth) */}
-            <button
-              type="button"
-              onClick={() => setIsLyricsOpen((prev) => !prev)}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border shrink-0 cursor-pointer shadow-xs',
-                hasLyrics
-                  ? 'bg-purple-950/70 text-purple-300 border-purple-800 hover:bg-purple-900/60'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700'
-              )}
-              title={hasLyrics ? 'Ver o editar letra lírica de esta sección' : 'Añadir letra lírica a esta sección'}
-            >
-              <span>📝 Letra</span>
-              {hasLyrics ? (
-                <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-900 text-purple-200">
-                  {lineCount}
-                </span>
-              ) : (
-                <span className="text-[10px] text-slate-400 font-normal">(vacío)</span>
-              )}
-            </button>
-
-            <div className="flex items-center gap-1 shrink-0">
-              {/* Botones discretos de reordenamiento (solo para Administrador) */}
-              {isAdmin && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onMoveUp?.(index)}
-                    disabled={index === 0}
-                    className={cn(
-                      'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700',
-                      index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
-                    )}
-                    title="Mover sección arriba (↑)"
-                    aria-label="Mover sección arriba"
-                  >
-                    <ArrowUp className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onMoveDown?.(index)}
-                    disabled={index === totalSections - 1}
-                    className={cn(
-                      'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700',
-                      index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
-                    )}
-                    title="Mover sección abajo (↓)"
-                    aria-label="Mover sección abajo"
-                  >
-                    <ArrowDown className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
-
-              {/* Duplicar Sección */}
-              {isAdmin && onDuplicate && (
+          <div className="flex items-center gap-1 shrink-0 justify-end">
+            {isAdmin && (
+              <>
                 <button
                   type="button"
-                  onClick={() => onDuplicate(section.id)}
-                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700"
-                  title="Duplicar sección"
-                  aria-label="Duplicar sección"
+                  onClick={() => onMoveUp?.(index)}
+                  disabled={index === 0}
+                  className={cn(
+                    'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer',
+                    index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                  )}
+                  title="Mover sección arriba (↑)"
+                  aria-label="Mover sección arriba"
                 >
-                  <Copy className="w-3.5 h-3.5" />
+                  <ArrowUp className="w-3.5 h-3.5" />
                 </button>
-              )}
 
-              {/* Eliminar Sección */}
-              {isAdmin && onRemove && (
                 <button
                   type="button"
-                  onClick={() => onRemove(section.id)}
-                  className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors border border-slate-700"
-                  title="Eliminar sección"
-                  aria-label="Eliminar sección"
+                  onClick={() => onMoveDown?.(index)}
+                  disabled={index === totalSections - 1}
+                  className={cn(
+                    'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer',
+                    index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                  )}
+                  title="Mover sección abajo (↓)"
+                  aria-label="Mover sección abajo"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <ArrowDown className="w-3.5 h-3.5" />
                 </button>
-              )}
-            </div>
+              </>
+            )}
+
+            {/* Duplicar Sección */}
+            {isAdmin && onDuplicate && (
+              <button
+                type="button"
+                onClick={() => onDuplicate(section.id)}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                title="Duplicar sección"
+                aria-label="Duplicar sección"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Eliminar Sección */}
+            {isAdmin && onRemove && (
+              <button
+                type="button"
+                onClick={() => onRemove(section.id)}
+                className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                title="Eliminar sección"
+                aria-label="Eliminar sección"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         )}
 
@@ -401,6 +334,88 @@ export function SectionCard({
 
       {/* Cuerpo de la Sección */}
       <div className="p-3 sm:p-5 space-y-3">
+        {/* Barra de Herramientas de Edición de Sección (Visible solo en Modo Edición / Admin) */}
+        {isEditing && (
+          <div className="w-full bg-slate-900/40 dark:bg-slate-950/40 rounded-xl p-2.5 my-2 border border-slate-800/80 space-y-2">
+            {/* FILA 1: Tono y Tempo de la sección */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* Selector de Tono local */}
+              {onUpdateSectionKey && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  <SectionKeyControl
+                    section={section}
+                    globalKey={globalKey}
+                    isEditing={true}
+                    onUpdateSectionKey={onUpdateSectionKey}
+                  />
+                </div>
+              )}
+
+              {/* Control de Tempo local */}
+              {onUpdateSectionTempo && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  <SectionTempoControl
+                    sectionId={section.id}
+                    tempoOverride={section.tempoOverride}
+                    globalTempo={globalTempo}
+                    isEditing={true}
+                    onUpdateSectionTempo={onUpdateSectionTempo}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* FILA 2: Acciones avanzadas (Progresión, Cadencia, Letra) con flex-wrap */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-800/60">
+              {/* Botón Progresión */}
+              {onApplyProgression && (
+                <div className="w-full sm:w-auto">
+                  <ProgressionPicker
+                    currentKey={effectiveKey}
+                    buttonLabel="✨ Progresión"
+                    buttonVariant="subtle"
+                    className="w-full sm:w-auto"
+                    onSelectProgression={(prog) => onApplyProgression(section.id, prog)}
+                  />
+                </div>
+              )}
+
+              {/* Botón Cadencia */}
+              {onApplySectionCadence && (
+                <div className="w-full sm:w-auto">
+                  <CadencePicker
+                    currentKey={effectiveKey}
+                    currentCadenceId={section.measures[section.measures.length - 1]?.cadence}
+                    buttonLabel="🏷️ Cadencia"
+                    buttonVariant="subtle"
+                    className="w-full sm:w-auto"
+                    onSelectCadence={(cad) => onApplySectionCadence(section.id, cad)}
+                  />
+                </div>
+              )}
+
+              {/* Botón Letra de la Sección */}
+              <button
+                type="button"
+                onClick={() => setIsLyricsOpen((prev) => !prev)}
+                className={cn(
+                  'col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer w-full sm:w-auto',
+                  hasLyrics
+                    ? 'bg-purple-950/50 border-purple-500/50 text-purple-300'
+                    : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700'
+                )}
+                title={hasLyrics ? 'Ver o editar letra lírica de esta sección' : 'Añadir letra lírica a esta sección'}
+              >
+                <span>📝 Letra de la sección</span>
+                {hasLyrics && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-900 text-purple-200">
+                    {lineCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
         {/* Área Desplegable de Letra de la Sección (Single Source of Truth) */}
         {isLyricsOpen && (
           <div className="pt-2 pb-1 border-b border-slate-100 dark:border-slate-800/80 animate-in fade-in space-y-2">

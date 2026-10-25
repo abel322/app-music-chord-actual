@@ -44,5 +44,9 @@ export default async function SongChordsDetailPage({ params }: SongChordsDetailP
     updatedAt: song.updatedAt instanceof Date ? song.updatedAt.toISOString() : (song.updatedAt || new Date().toISOString()),
   }
 
-  return <ChordLeadSheet song={serializedSong} />
+  return (
+    <div className="w-full max-w-full overflow-x-hidden min-h-screen">
+      <ChordLeadSheet song={serializedSong} />
+    </div>
+  )
 }

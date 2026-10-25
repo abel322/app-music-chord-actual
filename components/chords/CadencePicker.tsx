@@ -296,7 +296,7 @@ export function CadencePicker({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs',
+          'inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs w-full sm:w-auto cursor-pointer',
           buttonVariant === 'default'
             ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
             : buttonVariant === 'subtle'

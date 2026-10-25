@@ -144,6 +144,23 @@ export function ChordSelectorModal({
     }
   }, [isOpen, initialChord, currentKey])
 
+  // Bloqueo de scroll de fondo mientras el modal está activo
+  useEffect(() => {
+    if (!isOpen) return
+    const originalBodyOverflow = document.body.style.overflow
+    const originalHtmlOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.classList.add('overflow-hidden')
+    document.documentElement.classList.add('overflow-hidden')
+    return () => {
+      document.body.style.overflow = originalBodyOverflow
+      document.documentElement.style.overflow = originalHtmlOverflow
+      document.body.classList.remove('overflow-hidden')
+      document.documentElement.classList.remove('overflow-hidden')
+    }
+  }, [isOpen])
+
   // Escuchar tecla Escape
   useEffect(() => {
     if (!isOpen) return
@@ -213,13 +230,13 @@ export function ChordSelectorModal({
 
   return (
     <div
-      className="chord-picker-modal fixed inset-0 z-[60] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in"
+      className="chord-picker-modal fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in overflow-hidden"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150"
+        className="w-[95vw] sm:max-w-2xl mx-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Encabezado del Modal */}

@@ -546,7 +546,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-7xl mx-auto pb-80 md:pb-96 min-h-[120vh]">
+    <form onSubmit={handleSubmit} className="w-full max-w-full overflow-x-hidden min-h-screen space-y-8 max-w-7xl mx-auto pb-80 md:pb-96">
       {/* Header Superior y Botón de Volver */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">

@@ -497,7 +497,7 @@ export function MeasureGrid({
         onDragCancel={handleDragCancel}
       >
         <SortableContext items={measures.map((m) => m.id)} strategy={rectSortingStrategy}>
-          <div className="space-y-6">
+          <div className="space-y-6 w-full max-w-full">
             {rows.map((rowMeasures, rowIdx) => {
               const startIdx = rowIdx * 4
               return (
@@ -521,13 +521,13 @@ export function MeasureGrid({
                         title={`Duplicar estos ${rowMeasures.length} compases (C.${startIdx + 1}–C.${startIdx + rowMeasures.length})`}
                       >
                         <Copy className="w-3 h-3" />
-                        <span>Duplicar estos {rowMeasures.length} compases</span>
+                        <span className="truncate">Duplicar <span className="hidden sm:inline">estos </span>{rowMeasures.length} compases</span>
                       </button>
                     )}
                   </div>
 
                   {/* Grid de compases de esta línea */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-7 sm:pt-8 pb-1">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-7 sm:pt-8 pb-1 w-full max-w-full">
                     {rowMeasures.map((measure, mIdx) => {
                       const globalIndex = startIdx + mIdx
                       const isSelected = selectedMeasureId === measure.id
@@ -663,8 +663,8 @@ export function MeasureGrid({
 
       {/* Botones rápidos para añadir compases en Modo Edición */}
       {isEditing && (
-        <div className="flex items-center gap-2 pt-2 flex-wrap">
-          <span className="text-xs text-slate-400 font-semibold">Agregar compases a la sección:</span>
+        <div className="flex flex-wrap items-center gap-2 mt-3 w-full">
+          <span className="text-xs text-slate-400 font-semibold w-full sm:w-auto">Agregar compases a la sección:</span>
           {measures.length >= 4 && (
             <button
               type="button"

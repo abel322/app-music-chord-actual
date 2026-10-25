@@ -279,7 +279,7 @@ export function ProgressionPicker({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs',
+          'inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs w-full sm:w-auto cursor-pointer',
           buttonVariant === 'default'
             ? 'bg-primary-600 hover:bg-primary-500 text-white shadow-primary-900/30'
             : buttonVariant === 'subtle'
