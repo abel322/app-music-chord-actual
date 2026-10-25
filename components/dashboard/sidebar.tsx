@@ -50,6 +50,7 @@ interface NavItem {
 
 export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarProps) {
   const pathname = usePathname()
+  const isLeadSheetPage = pathname?.includes('/dashboard/songs/chords/')
   const [isOpen, setIsOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
 
@@ -187,7 +188,10 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 sticky top-0 z-40 w-full">
+      <div className={cn(
+        "md:hidden flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 w-full",
+        isLeadSheetPage ? "relative" : "sticky top-0 z-40"
+      )}>
         <div className="flex items-center gap-3">
           <Button 
             variant="ghost" 

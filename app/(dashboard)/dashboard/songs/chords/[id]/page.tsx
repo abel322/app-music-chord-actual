@@ -45,7 +45,7 @@ export default async function SongChordsDetailPage({ params }: SongChordsDetailP
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-h-screen">
+    <div className="w-full max-w-full min-h-screen">
       <ChordLeadSheet song={serializedSong} />
     </div>
   )

@@ -32,7 +32,7 @@ import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionQuickNav } from '@/components/chords/SectionQuickNav'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
-import { StickyPlaybackTransport } from '@/components/chords/StickyPlaybackTransport'
+import { LeadSheetToolbar, StickyPlaybackTransport } from '@/components/chords/LeadSheetToolbar'
 import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
@@ -338,7 +338,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         return
       }
 
-      if (e.code === 'Space') {
+      if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault()
         togglePlay()
       }
@@ -602,7 +602,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-h-screen space-y-6 max-w-7xl mx-auto pb-80 md:pb-96">
+    <div className="w-full max-w-full min-h-screen space-y-6 max-w-7xl mx-auto pb-80 md:pb-96">
       {/* Barra Superior de Control y Navegación */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
@@ -841,27 +841,18 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         </div>
       </div>
 
-      {/* Barra de Transporte Fija Ultra-Delgada (Single-Row / Máximo 48px con Modo Píldora Móvil) */}
-      <StickyPlaybackTransport
+      {/* Barra de Transporte Sticky Permanente (Single-Row / Siempre Accesible) */}
+      <LeadSheetToolbar
         isPlaying={isPlaying}
-        isMuted={isMuted}
-        tempo={tempo}
-        currentMeasureNumber={currentMeasure?.measure.measureNumber || 1}
-        currentBeat={currentBeat}
-        beatsCount={currentMeasure?.beatsCount || 4}
-        currentSectionLabel={currentMeasure?.sectionLabel}
-        sectionName={currentMeasure?.sectionLabel}
-        nextSectionName={currentMeasure?.nextSectionLabel || nextSectionName}
-        totalMeasuresCount={totalMeasuresCount}
-        iteration={currentMeasure?.iteration}
-        currentRepeat={currentMeasure?.iteration}
-        repeatCount={currentMeasure?.repeatCount}
-        totalRepeats={currentMeasure?.repeatCount}
-        measureIndexInSection={currentMeasure?.measureIndexInSection}
-        totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
-        onTogglePlay={togglePlay}
-        onStop={stop}
-        onToggleMute={toggleMute}
+        togglePlayPause={togglePlay}
+        handleRestart={stop}
+        activeMeasureNumber={currentMeasure?.measure.measureNumber || 1}
+        activeSectionName={currentMeasure?.sectionLabel || 'Intro'}
+        totalRepeats={currentMeasure?.repeatCount || 1}
+        currentRepeat={currentMeasure?.iteration || 1}
+        isMetronomeOn={!isMuted}
+        toggleMetronome={toggleMute}
+        effectiveTempo={tempo}
         onUpdateTempo={(newTempo) => {
           setTempoInput(newTempo.toString())
           if (onUpdateTempo) onUpdateTempo(newTempo)

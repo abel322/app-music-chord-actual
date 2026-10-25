@@ -44,7 +44,7 @@ export function SectionQuickNav({
       : sectionsList.length > 0 && sectionsList.every((s) => collapsedSections[s.id])
 
   return (
-    <div className={cn('w-full my-3 px-1 sm:px-0 select-none', className)}>
+    <div className={cn('relative w-full my-3 px-1 sm:px-0 select-none', className)}>
       <div className="flex items-center justify-between gap-2 bg-slate-100/80 dark:bg-slate-900/60 backdrop-blur-sm p-1.5 sm:p-2 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
         {/* Título o Ícono sutil a la izquierda */}
         <div className="hidden sm:flex items-center gap-1.5 text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-wider pl-2 shrink-0">
