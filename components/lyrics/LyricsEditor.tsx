@@ -742,6 +742,14 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
             </Button>
           </Link>
 
+          {/* Enlace directo a la vista de Batería */}
+          <Link href={`/dashboard/songs/drums/${song.id}`}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+              <span>🥁</span>
+              <span>Ver Batería</span>
+            </Button>
+          </Link>
+
           {/* Toggle Modo Lectura / Edición (Solo Administrador) */}
           {isAdmin && (
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">

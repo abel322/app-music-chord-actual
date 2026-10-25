@@ -634,6 +634,14 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             </Button>
           </Link>
 
+          {/* Enlace directo a la vista de Batería */}
+          <Link href={`/dashboard/songs/drums/${song.id}`}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+              <span>🥁</span>
+              <span>Ver Batería</span>
+            </Button>
+          </Link>
+
           {/* Botón Enlace de YouTube */}
           {isAdmin ? (
             <Button

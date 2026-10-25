@@ -17,7 +17,8 @@ import {
   Layers, 
   FileText,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  CircleDot,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -50,7 +51,7 @@ interface NavItem {
 
 export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarProps) {
   const pathname = usePathname()
-  const isLeadSheetPage = pathname?.includes('/dashboard/songs/chords/')
+  const isLeadSheetPage = pathname?.includes('/dashboard/songs/chords/') || pathname?.includes('/dashboard/songs/drums/')
   const [isOpen, setIsOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
 
@@ -72,6 +73,7 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
       subItems: [
         { href: '/dashboard/songs/lyrics', label: 'Letras', icon: FileText },
         { href: '/dashboard/songs/chords', label: 'Acordes', icon: Music },
+        { href: '/dashboard/songs/drums', label: 'Batería', icon: CircleDot },
       ],
     },
     { href: '/dashboard/chords', label: 'Progresiones', icon: Layers },

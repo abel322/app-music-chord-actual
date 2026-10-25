@@ -104,4 +104,5 @@ export interface SectionMeasures {
   lines?: any[]
   repeatCount?: number // Cantidad de repeticiones de la sección (por defecto 1, ej. 2, 3, 4, 8)
   tempoOverride?: number | null // BPM específico para esta sección. Si es null/undefined, hereda song.tempo
+  drumGroove?: import('./drum').DrumGrooveData | null // Patrón o groove de batería asignado a esta sección
 }

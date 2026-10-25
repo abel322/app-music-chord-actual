@@ -108,9 +108,11 @@ export async function updateSongAction(id: string, rawData: UpdateSongInput) {
   revalidatePath('/dashboard/songs')
   revalidatePath('/dashboard/songs/chords')
   revalidatePath('/dashboard/songs/lyrics')
+  revalidatePath('/dashboard/songs/drums')
   revalidatePath(`/dashboard/songs/${id}`)
   revalidatePath(`/dashboard/songs/chords/${id}`)
   revalidatePath(`/dashboard/songs/lyrics/${id}`)
+  revalidatePath(`/dashboard/songs/drums/${id}`)
 
   return { success: true, song: updatedSong }
 }
