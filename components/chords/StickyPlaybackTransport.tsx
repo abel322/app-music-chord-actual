@@ -13,9 +13,13 @@ export interface StickyPlaybackTransportProps {
   currentBeat?: number
   beatsCount?: number
   currentSectionLabel?: string
+  sectionName?: string
+  nextSectionName?: string | null
   totalMeasuresCount?: number
   iteration?: number
+  currentRepeat?: number
   repeatCount?: number
+  totalRepeats?: number
   measureIndexInSection?: number
   totalMeasuresInSection?: number
   onTogglePlay: () => void
@@ -33,9 +37,13 @@ export function StickyPlaybackTransport({
   currentBeat = 1,
   beatsCount = 4,
   currentSectionLabel,
+  sectionName,
+  nextSectionName,
   totalMeasuresCount,
   iteration = 1,
+  currentRepeat,
   repeatCount = 1,
+  totalRepeats,
   measureIndexInSection = 0,
   totalMeasuresInSection,
   onTogglePlay,
@@ -46,6 +54,10 @@ export function StickyPlaybackTransport({
 }: StickyPlaybackTransportProps) {
   const [isEditingTempo, setIsEditingTempo] = useState(false)
   const [localTempoVal, setLocalTempoVal] = useState(tempo.toString())
+
+  const effSectionName = sectionName || currentSectionLabel || ''
+  const effCurrentRepeat = currentRepeat ?? iteration ?? 1
+  const effTotalRepeats = totalRepeats ?? repeatCount ?? 1
 
   const handleCommitLocalTempo = () => {
     setIsEditingTempo(false)
@@ -106,9 +118,9 @@ export function StickyPlaybackTransport({
         </button>
       </div>
 
-      {/* 2. Centro: Monitor de Posición en Tiempo Real */}
-      <div className="flex items-center justify-center min-w-0 flex-1 px-1">
-        <div className="text-xs font-mono bg-slate-800/80 px-2 py-1 rounded-md text-slate-200 border border-slate-700/50 flex items-center gap-1.5 max-w-full truncate shadow-2xs">
+      {/* 2. Centro: Monitor de Posición en Tiempo Real y Monitor Permanente de Repeticiones (Sticky HUD) */}
+      <div className="flex items-center justify-center min-w-0 flex-1 px-1 gap-2">
+        <div className="text-xs font-mono bg-slate-800/80 px-2 py-1 rounded-md text-slate-200 border border-slate-700/50 flex items-center gap-1.5 max-w-full truncate shadow-2xs shrink-0">
           <span className="font-bold text-white whitespace-nowrap">
             C.{currentMeasureNumber}
             {totalMeasuresCount ? (
@@ -118,11 +130,11 @@ export function StickyPlaybackTransport({
             ) : null}
           </span>
 
-          {currentSectionLabel && (
+          {effSectionName && (
             <>
               <span className="text-slate-500 text-[10px]">•</span>
-              <span className="text-purple-300 font-sans font-bold truncate text-[11px] max-w-[80px] sm:max-w-[130px]">
-                {currentSectionLabel}
+              <span className="text-purple-300 font-sans font-bold truncate text-[11px] max-w-[70px] sm:max-w-[120px]">
+                {effSectionName}
               </span>
             </>
           )}
@@ -150,19 +162,28 @@ export function StickyPlaybackTransport({
               )
             })}
           </div>
-
-          {/* Badge diminuto de repetición / vuelta */}
-          {repeatCount > 1 && (
-            <span
-              className="text-[10px] font-sans font-black bg-purple-500/25 text-purple-300 border border-purple-500/40 px-1 py-0.2 rounded shrink-0"
-              title={`Vuelta ${iteration} de ${repeatCount}${
-                totalMeasuresInSection ? ` (${measureIndexInSection + 1}/${totalMeasuresInSection})` : ''
-              }`}
-            >
-              {iteration}/{repeatCount}
-            </span>
-          )}
         </div>
+
+        {/* Monitor Permanente de Repetición en la Barra Superior Sticky */}
+        {effTotalRepeats > 1 && (
+          effCurrentRepeat === effTotalRepeats ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-400 text-slate-950 rounded-full text-xs font-extrabold shadow-lg animate-pulse shrink-0">
+              <span>⚠️ ÚLTIMA VUELTA</span>
+              {nextSectionName && (
+                <span className="bg-amber-300 px-1.5 py-0.5 rounded text-[11px] font-black">
+                  → Viene {nextSectionName}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-700 text-white rounded-full text-xs font-bold shadow-md shrink-0">
+              <span className="truncate max-w-[80px] sm:max-w-[130px]">🔁 {effSectionName}</span>
+              <span className="bg-purple-900/80 px-1.5 py-0.5 rounded text-[11px] whitespace-nowrap">
+                Vuelta {effCurrentRepeat}/{effTotalRepeats}
+              </span>
+            </div>
+          )
+        )}
       </div>
 
       {/* 3. Derecha: Metrónomo y Tempo Esenciales */}

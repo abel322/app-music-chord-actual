@@ -33,10 +33,14 @@ export interface MeasureCellProps {
   beatsPerMeasure?: number
   currentKey?: string
   isSelected?: boolean
+  isSelectedForBatch?: boolean
   isEditing?: boolean
   isActive?: boolean
   isPlaying?: boolean
   measureDurationMs?: number
+  currentRepeat?: number
+  totalRepeats?: number
+  nextSectionName?: string | null
   prevMeasure?: Measure | null
   cadenceBracket?: CadenceBracketInfo | null
   onClick?: () => void
@@ -47,7 +51,6 @@ export interface MeasureCellProps {
   isDragging?: boolean
   sectionRepeatStart?: boolean
   sectionRepeatEnd?: number
-  isSelectedForBatch?: boolean
   onToggleSelect?: (measureId: string, event?: React.MouseEvent) => void
 }
 
@@ -62,6 +65,9 @@ export function MeasureCell({
   isActive = false,
   isPlaying = false,
   measureDurationMs = 3333,
+  currentRepeat = 1,
+  totalRepeats = 1,
+  nextSectionName,
   prevMeasure,
   cadenceBracket,
   onClick,
@@ -375,8 +381,21 @@ export function MeasureCell({
           )}
         </div>
 
-        {/* Volta y Cierre de Repetición */}
+        {/* Volta, Micro-Badge de Repetición Activa y Cierre de Repetición */}
         <div className="flex items-center gap-1 shrink-0">
+          {/* Micro-Badge en el Compás Activo */}
+          {isActive && totalRepeats > 1 && (
+            currentRepeat === totalRepeats ? (
+              <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded font-black animate-pulse shadow-xs whitespace-nowrap">
+                Última{nextSectionName ? ` → ${nextSectionName}` : ''}
+              </span>
+            ) : (
+              <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono font-bold shadow-xs whitespace-nowrap">
+                V.{currentRepeat}/{totalRepeats}
+              </span>
+            )
+          )}
+
           {measure.volta && (
             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
               {measure.volta}ª

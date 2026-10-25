@@ -219,6 +219,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
     isMuted,
     totalMeasuresCount,
     totalDurationFormatted,
+    nextSectionName,
     togglePlay,
     stop,
     toggleMute,
@@ -766,9 +767,13 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         currentBeat={currentBeat}
         beatsCount={currentMeasure?.beatsCount || 4}
         currentSectionLabel={currentMeasure?.sectionLabel}
+        sectionName={currentMeasure?.sectionLabel}
+        nextSectionName={currentMeasure?.nextSectionLabel || nextSectionName}
         totalMeasuresCount={totalMeasuresCount}
         iteration={currentMeasure?.iteration}
+        currentRepeat={currentMeasure?.iteration}
         repeatCount={currentMeasure?.repeatCount}
+        totalRepeats={currentMeasure?.repeatCount}
         measureIndexInSection={currentMeasure?.measureIndexInSection}
         totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
         onTogglePlay={togglePlay}
@@ -780,13 +785,13 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         }}
       />
 
-      {/* Barra Fija de Navegación Rápida por Secciones (Quick Jump) */}
+      {/* Barra de Navegación Rápida por Secciones (Quick Jump) */}
       <SectionNavigationStickyBar
         sections={sections}
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        className="sticky top-12 z-30"
+        className="relative z-10"
       />
 
       {/* Secciones y Constructor de Lead Sheet por Compases */}
@@ -807,22 +812,33 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         </div>
 
         <div className="space-y-6 sm:space-y-8 pb-80 md:pb-96">
-          {sections.map((section, index) => (
-            <SectionCard
-              key={section.id}
-              section={section}
-              index={index}
-              totalSections={sections.length}
-              isAdmin={true}
-              isEditing={true}
-              isCollapsed={!!collapsedSections[section.id]}
-              globalKey={key}
-              globalTimeSignature={timeSignature}
-              globalTempo={tempo}
-              isPlaying={isPlaying}
-              activeMeasureId={currentMeasure?.measure.id || null}
-              measureDurationMs={currentMeasure?.durationMs}
-              onToggleCollapse={handleToggleCollapse}
+          {sections.map((section, index) => {
+            const isSectionActive =
+              currentMeasure?.sectionId === section.id ||
+              section.measures.some((m) => m.id === currentMeasure?.measure.id)
+            const nextSec = sections[index + 1]
+            const nextSecName = nextSec ? nextSec.label : null
+
+            return (
+              <SectionCard
+                key={section.id}
+                section={section}
+                index={index}
+                totalSections={sections.length}
+                isAdmin={true}
+                isEditing={true}
+                isCollapsed={!!collapsedSections[section.id]}
+                globalKey={key}
+                globalTimeSignature={timeSignature}
+                globalTempo={tempo}
+                isPlaying={isPlaying}
+                activeMeasureId={currentMeasure?.measure.id || null}
+                measureDurationMs={currentMeasure?.durationMs}
+                currentRepeat={isSectionActive ? currentMeasure?.iteration || 1 : 1}
+                totalRepeats={section.repeatCount || 1}
+                nextSectionName={nextSecName}
+                isSectionActive={isSectionActive}
+                onToggleCollapse={handleToggleCollapse}
               onUpdateLabel={(secId, newLabel) => {
                 setSections(
                   sections.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
@@ -858,7 +874,8 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
               onAddMeasures={handleAddMeasuresToSection}
               onRemoveMeasure={handleRemoveMeasure}
             />
-          ))}
+          )
+        })}
         </div>
       </div>
 

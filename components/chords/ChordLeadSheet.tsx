@@ -259,6 +259,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     isMuted,
     totalMeasuresCount,
     totalDurationFormatted,
+    nextSectionName,
     togglePlay,
     stop,
     toggleMute,
@@ -849,9 +850,13 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         currentBeat={currentBeat}
         beatsCount={currentMeasure?.beatsCount || 4}
         currentSectionLabel={currentMeasure?.sectionLabel}
+        sectionName={currentMeasure?.sectionLabel}
+        nextSectionName={currentMeasure?.nextSectionLabel || nextSectionName}
         totalMeasuresCount={totalMeasuresCount}
         iteration={currentMeasure?.iteration}
+        currentRepeat={currentMeasure?.iteration}
         repeatCount={currentMeasure?.repeatCount}
+        totalRepeats={currentMeasure?.repeatCount}
         measureIndexInSection={currentMeasure?.measureIndexInSection}
         totalMeasuresInSection={currentMeasure?.totalMeasuresInSection}
         onTogglePlay={togglePlay}
@@ -863,33 +868,44 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         }}
       />
 
-      {/* Barra Fija de Navegación Rápida por Secciones (Quick Jump) */}
+      {/* Barra de Navegación Rápida por Secciones (Quick Jump) */}
       <SectionNavigationStickyBar
         sections={sections}
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        className="sticky top-12 z-20"
+        className="relative z-10"
       />
 
       {/* Lista de Secciones con sus Compases */}
       <div className="space-y-6 sm:space-y-8 pb-80 md:pb-96">
-        {sections.map((section, sIdx) => (
-          <SectionCard
-            key={section.id}
-            section={section}
-            index={sIdx}
-            totalSections={sections.length}
-            isAdmin={isAdmin}
-            isEditing={effectiveIsEditing}
-            isCollapsed={!!collapsedSections[section.id]}
-            globalKey={currentKey}
-            globalTimeSignature={timeSignature}
-            globalTempo={tempo}
-            isPlaying={isPlaying}
-            activeMeasureId={currentMeasure?.measure.id || null}
-            measureDurationMs={currentMeasure?.durationMs}
-            onToggleCollapse={handleToggleCollapse}
+        {sections.map((section, sIdx) => {
+          const isSectionActive =
+            currentMeasure?.sectionId === section.id ||
+            section.measures.some((m) => m.id === currentMeasure?.measure.id)
+          const nextSec = sections[sIdx + 1]
+          const nextSecName = nextSec ? nextSec.label : null
+
+          return (
+            <SectionCard
+              key={section.id}
+              section={section}
+              index={sIdx}
+              totalSections={sections.length}
+              isAdmin={isAdmin}
+              isEditing={effectiveIsEditing}
+              isCollapsed={!!collapsedSections[section.id]}
+              globalKey={currentKey}
+              globalTimeSignature={timeSignature}
+              globalTempo={tempo}
+              isPlaying={isPlaying}
+              activeMeasureId={currentMeasure?.measure.id || null}
+              measureDurationMs={currentMeasure?.durationMs}
+              currentRepeat={isSectionActive ? currentMeasure?.iteration || 1 : 1}
+              totalRepeats={section.repeatCount || 1}
+              nextSectionName={nextSecName}
+              isSectionActive={isSectionActive}
+              onToggleCollapse={handleToggleCollapse}
             onUpdateLabel={(secId, newLabel) => {
               setSections((prev) =>
                 prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
@@ -921,7 +937,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             onAddMeasures={handleAddMeasuresToSection}
             onRemoveMeasure={handleRemoveMeasure}
           />
-        ))}
+        )
+      })}
       </div>
 
       {/* Agregar Nueva Sección en Modo Edición */}

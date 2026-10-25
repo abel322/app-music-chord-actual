@@ -19,6 +19,7 @@ export interface FlattenedMeasure {
   iteration: number
   repeatCount: number
   totalMeasuresInSection: number
+  nextSectionLabel?: string | null
 }
 
 export interface UseLeadSheetPlaybackOptions {
@@ -40,6 +41,7 @@ export interface UseLeadSheetPlaybackReturn {
   totalMeasuresCount: number
   totalDurationMs: number
   totalDurationFormatted: string
+  nextSectionName: string | null
   play: () => void
   pause: () => void
   togglePlay: () => void
@@ -96,13 +98,15 @@ export function useLeadSheetPlayback({
 
     const validGlobalBpm = Math.max(30, Math.min(300, Number(tempo) || 72))
 
-    sections.forEach((section) => {
+    sections.forEach((section, sIdx) => {
       // Tempo efectivo: si la sección tiene tempoOverride asignado, utilizarlo; si no, heredar tempo global
       const sectionBpm = Math.max(30, Math.min(300, Number(section.tempoOverride) || validGlobalBpm))
       const pulseDurationMs = (60 / sectionBpm) * 1000
       const sectionTimeSig = section.timeSignature || defaultTimeSignature || '4/4'
       const repeats = Math.max(1, Math.min(64, Number(section.repeatCount) || 1))
       const measuresCount = section.measures.length
+      const nextSection = sections[sIdx + 1]
+      const nextSectionName = nextSection ? nextSection.label : null
 
       for (let iteration = 1; iteration <= repeats; iteration++) {
         section.measures.forEach((measure, mIdx) => {
@@ -125,6 +129,7 @@ export function useLeadSheetPlayback({
             iteration,
             repeatCount: repeats,
             totalMeasuresInSection: measuresCount,
+            nextSectionLabel: nextSectionName,
           })
         })
       }
@@ -426,6 +431,7 @@ export function useLeadSheetPlayback({
     totalMeasuresCount: flatMeasures.length,
     totalDurationMs,
     totalDurationFormatted,
+    nextSectionName: currentMeasure?.nextSectionLabel || null,
     play,
     pause,
     togglePlay,

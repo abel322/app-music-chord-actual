@@ -88,6 +88,9 @@ interface MeasureGridProps {
   measureDurationMs?: number
   sectionName?: string
   sectionRepeatCount?: number
+  currentRepeat?: number
+  totalRepeats?: number
+  nextSectionName?: string | null
   onUpdateMeasures: (updatedMeasures: Measure[]) => void
   onAddMeasures?: (count: number) => void
   onRemoveMeasure?: (measureId: string) => void
@@ -105,6 +108,9 @@ export function MeasureGrid({
   measureDurationMs,
   sectionName,
   sectionRepeatCount = 1,
+  currentRepeat = 1,
+  totalRepeats,
+  nextSectionName,
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
@@ -547,6 +553,9 @@ export function MeasureGrid({
                           isEditing={isEditing}
                           isActive={isActive}
                           isPlaying={isPlaying}
+                          currentRepeat={currentRepeat}
+                          totalRepeats={totalRepeats ?? sectionRepeatCount ?? 1}
+                          nextSectionName={nextSectionName}
                           measureDurationMs={measureDurationMs}
                           prevMeasure={prevMeasure}
                           cadenceBracket={bracket}
