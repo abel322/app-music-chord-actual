@@ -94,6 +94,7 @@ export interface SectionMeasures {
   id: string
   type: string
   label: string
+  name?: string
   timeSignature?: string
   keySignature?: string | null // Tonalidad específica de la sección. Si es null o undefined, hereda song.keySignature.
   instruments?: string[]

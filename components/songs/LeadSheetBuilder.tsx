@@ -30,7 +30,7 @@ import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
-import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
+import { SectionQuickNav } from '@/components/chords/SectionQuickNav'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
 import { StickyPlaybackTransport } from '@/components/chords/StickyPlaybackTransport'
 import { SectionCard } from '@/components/chords/SectionCard'
@@ -785,13 +785,13 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
         }}
       />
 
-      {/* Barra de Navegación Rápida por Secciones (Quick Jump) */}
-      <SectionNavigationStickyBar
+      {/* Barra de Navegación Rápida de Secciones */}
+      <SectionQuickNav
         sections={sections}
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        className="relative z-10"
+        activeSectionId={currentMeasure?.sectionId}
       />
 
       {/* Secciones y Constructor de Lead Sheet por Compases */}
@@ -811,7 +811,7 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
           </span>
         </div>
 
-        <div className="space-y-6 sm:space-y-8 pb-80 md:pb-96">
+        <div className="space-y-4 pt-1 pb-80 md:pb-96">
           {sections.map((section, index) => {
             const isSectionActive =
               currentMeasure?.sectionId === section.id ||

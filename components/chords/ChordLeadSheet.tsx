@@ -30,7 +30,7 @@ import { ProgressionPicker } from '@/components/chords/ProgressionPicker'
 import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
-import { SectionNavigationStickyBar } from '@/components/chords/SectionNavigationStickyBar'
+import { SectionQuickNav } from '@/components/chords/SectionQuickNav'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
 import { StickyPlaybackTransport } from '@/components/chords/StickyPlaybackTransport'
 import { SectionCard } from '@/components/chords/SectionCard'
@@ -868,17 +868,17 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         }}
       />
 
-      {/* Barra de Navegación Rápida por Secciones (Quick Jump) */}
-      <SectionNavigationStickyBar
+      {/* Barra de Navegación Rápida de Secciones */}
+      <SectionQuickNav
         sections={sections}
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        className="relative z-10"
+        activeSectionId={currentMeasure?.sectionId}
       />
 
       {/* Lista de Secciones con sus Compases */}
-      <div className="space-y-6 sm:space-y-8 pb-80 md:pb-96">
+      <div className="space-y-4 pt-1 pb-80 md:pb-96">
         {sections.map((section, sIdx) => {
           const isSectionActive =
             currentMeasure?.sectionId === section.id ||
