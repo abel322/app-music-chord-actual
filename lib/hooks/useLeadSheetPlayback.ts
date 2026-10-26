@@ -42,6 +42,8 @@ export interface UseLeadSheetPlaybackReturn {
   totalDurationMs: number
   totalDurationFormatted: string
   nextSectionName: string | null
+  isLastRepeat: boolean
+  isLastMeasureOfSection: boolean
   play: () => void
   pause: () => void
   togglePlay: () => void
@@ -420,6 +422,18 @@ export function useLeadSheetPlayback({
   const currentMeasure = flatMeasures[currentFlatMeasureIndex] || null
   const currentBpm = currentMeasure ? currentMeasure.bpm : Math.max(30, Math.min(300, Number(tempo) || 72))
 
+  const isLastRepeat = Boolean(
+    isPlaying &&
+    currentMeasure &&
+    currentMeasure.repeatCount > 1 &&
+    currentMeasure.iteration === currentMeasure.repeatCount
+  )
+
+  const isLastMeasureOfSection = Boolean(
+    currentMeasure &&
+    currentMeasure.measureIndexInSection === currentMeasure.totalMeasuresInSection - 1
+  )
+
   return {
     isPlaying,
     currentFlatMeasureIndex,
@@ -432,6 +446,8 @@ export function useLeadSheetPlayback({
     totalDurationMs,
     totalDurationFormatted,
     nextSectionName: currentMeasure?.nextSectionLabel || null,
+    isLastRepeat,
+    isLastMeasureOfSection,
     play,
     pause,
     togglePlay,

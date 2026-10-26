@@ -16,6 +16,7 @@ interface DrumScoreRendererProps {
   height?: number
   className?: string
   onMeasureClick?: () => void
+  isFillAlert?: boolean
 }
 
 /**
@@ -34,6 +35,7 @@ export function DrumScoreRenderer({
   height = 135,
   className,
   onMeasureClick,
+  isFillAlert = false,
 }: DrumScoreRendererProps) {
   // Configuración geométrica del pentagrama
   // 5 líneas: Línea 5 (arriba) a Línea 1 (abajo)
@@ -98,30 +100,57 @@ export function DrumScoreRenderer({
       className={cn(
         'relative bg-white dark:bg-slate-900/90 rounded-2xl border transition-all duration-150 select-none overflow-hidden p-2.5 shadow-sm',
         isActive
-          ? 'border-purple-500 ring-2 ring-purple-400/50 dark:bg-purple-950/20 shadow-md shadow-purple-900/20'
-          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700',
+          ? isFillAlert
+            ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/20'
+            : 'border-purple-500 ring-2 ring-purple-400/50 dark:bg-purple-950/20 shadow-md shadow-purple-900/20'
+          : isFillAlert
+            ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-500/5 transition-all shadow-md shadow-amber-500/10'
+            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700',
         onMeasureClick && 'cursor-pointer',
         className
       )}
     >
       {/* Cabecera del Compás */}
-      <div className="flex items-center justify-between mb-1 text-[11px] font-bold">
-        <span
-          className={cn(
-            'font-mono px-2 py-0.5 rounded-lg border',
-            isActive
-              ? 'bg-purple-600 border-purple-500 text-white font-black'
-              : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+      <div className="flex items-center justify-between mb-1 text-[11px] font-bold gap-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={cn(
+              'font-mono px-2 py-0.5 rounded-lg border',
+              isActive
+                ? isFillAlert
+                  ? 'bg-amber-400 border-amber-300 text-slate-950 font-black'
+                  : 'bg-purple-600 border-purple-500 text-white font-black'
+                : isFillAlert
+                  ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-extrabold'
+                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+            )}
+          >
+            C.{measureNumber}
+          </span>
+
+          {/* Señal de Remate / Redoble en el Último Compás */}
+          {isFillAlert && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-slate-950 shadow-sm animate-pulse border border-amber-300">
+              🥁 Redoble / Corte final
+            </span>
           )}
-        >
-          C.{measureNumber}
-        </span>
+        </div>
 
         {/* Indicador de Pulso Activo durante Reproducción */}
         {isActive && (
-          <div className="flex items-center gap-1 text-[10px] text-purple-400 font-mono font-extrabold animate-pulse">
+          <div
+            className={cn(
+              'flex items-center gap-1 text-[10px] font-mono font-extrabold animate-pulse shrink-0',
+              isFillAlert ? 'text-amber-500 dark:text-amber-400' : 'text-purple-400'
+            )}
+          >
             <span>PULSO {currentBeat}</span>
-            <span className="w-2 h-2 rounded-full bg-purple-500 shadow-sm shadow-purple-400" />
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full shadow-sm',
+                isFillAlert ? 'bg-amber-400 shadow-amber-400' : 'bg-purple-500 shadow-purple-400'
+              )}
+            />
           </div>
         )}
       </div>
@@ -139,7 +168,11 @@ export function DrumScoreRenderer({
             width={scoreAreaWidth / 4}
             height={height - 20}
             fill="currentColor"
-            className="text-purple-500/10 dark:text-purple-500/15"
+            className={
+              isFillAlert
+                ? 'text-amber-500/15 dark:text-amber-500/25'
+                : 'text-purple-500/10 dark:text-purple-500/15'
+            }
             rx="6"
           />
         )}

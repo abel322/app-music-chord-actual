@@ -52,6 +52,7 @@ export function LeadSheetToolbar({
   currentRepeat,
   iteration,
   isLastRepeat: isLastRepeatProp,
+  nextSectionName,
   toggleMetronome,
   onToggleMute,
   isMetronomeOn,
@@ -139,24 +140,29 @@ export function LeadSheetToolbar({
 
         {/* Monitor Central: Compás Actual y Sección */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-center px-1">
-          <div className="bg-slate-800/90 text-slate-100 text-xs font-mono font-bold px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 truncate">
-            <span className="text-purple-400 font-extrabold shrink-0">
-              C.{effActiveMeasure}
-            </span>
-            <span className="text-slate-500 shrink-0">•</span>
-            <span className="truncate">{effActiveSection}</span>
-            {effTotalRepeats > 1 && (
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded font-bold shrink-0 ${
-                  effIsLastRepeat
-                    ? 'bg-amber-400 text-slate-950 font-black'
-                    : 'bg-purple-900 text-purple-200'
-                }`}
-              >
-                {effIsLastRepeat ? 'Última' : `${effCurrentRepeat}/${effTotalRepeats}`}
+          {isPlaying && effIsLastRepeat ? (
+            <div className="bg-amber-400 text-slate-950 font-black text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1.5 animate-pulse truncate ring-1 ring-amber-300">
+              <span className="shrink-0">C.{effActiveMeasure}</span>
+              <span className="shrink-0">•</span>
+              <span className="truncate">{effActiveSection}</span>
+              <span className="bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded text-[10px] uppercase font-black shrink-0">
+                ⚠️ Última {nextSectionName ? `→ ${nextSectionName}` : ''}
               </span>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="bg-slate-800/90 text-slate-100 text-xs font-mono font-bold px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 truncate">
+              <span className="text-purple-400 font-extrabold shrink-0">
+                C.{effActiveMeasure}
+              </span>
+              <span className="text-slate-500 shrink-0">•</span>
+              <span className="truncate">{effActiveSection}</span>
+              {effTotalRepeats > 1 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 bg-purple-900 text-purple-200">
+                  {isPlaying ? `${effCurrentRepeat}/${effTotalRepeats}` : `${effTotalRepeats} Vueltas`}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Extremo Derecho: Metrónomo y Tempo */}

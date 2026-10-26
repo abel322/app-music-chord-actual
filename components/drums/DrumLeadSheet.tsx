@@ -148,6 +148,7 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
     isMuted,
     totalMeasuresCount,
     nextSectionName,
+    isLastRepeat: isPlaybackLastRepeat,
     togglePlay,
     stop,
     toggleMute,
@@ -263,6 +264,24 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
   // Sección activa en el grabador de groove
   const activeRecorderSection = sections.find((s) => s.id === recorderSectionId)
 
+  // Transiciones y Alertas de Reproducción para el Baterista
+  const activeSectionId = currentMeasure?.sectionId || null
+  const currentSectionIndex = activeSectionId
+    ? sections.findIndex((s) => s.id === activeSectionId)
+    : -1
+  const currentSection = currentSectionIndex !== -1 ? sections[currentSectionIndex] : null
+  const nextSection =
+    currentSectionIndex !== -1 && currentSectionIndex < sections.length - 1
+      ? sections[currentSectionIndex + 1]
+      : null
+  const effectiveNextSectionName = nextSection ? nextSection.label : (nextSectionName || null)
+
+  const currentRepeat = currentMeasure?.iteration || 1
+  const totalRepeats = currentSection?.repeatCount || currentMeasure?.repeatCount || 1
+  const isLastRepeat = Boolean(
+    isPlaying && (isPlaybackLastRepeat || (totalRepeats > 1 && currentRepeat === totalRepeats))
+  )
+
   return (
     <div className="w-full max-w-full min-h-screen space-y-6 max-w-7xl mx-auto pb-80 md:pb-96">
       {/* Barra Superior de Control y Navegación */}
@@ -373,8 +392,10 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
         handleRestart={stop}
         activeMeasureNumber={currentMeasure?.measure.measureNumber || 1}
         activeSectionName={currentMeasure?.sectionLabel || 'Intro'}
-        totalRepeats={currentMeasure?.repeatCount || 1}
-        currentRepeat={currentMeasure?.iteration || 1}
+        totalRepeats={totalRepeats}
+        currentRepeat={currentRepeat}
+        isLastRepeat={isLastRepeat}
+        nextSectionName={effectiveNextSectionName}
         isMetronomeOn={!isMuted}
         toggleMetronome={toggleMute}
         effectiveTempo={tempo}
@@ -394,9 +415,18 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
       {/* Lista de Secciones y Pentagramas de Batería Compás por Compás */}
       <div className="space-y-6">
         {sections.map((section, sIdx) => {
-          const isSectionActive = currentMeasure?.sectionId === section.id
+          const isSectionActive = isPlaying && currentMeasure?.sectionId === section.id
           const groove = section.drumGroove
           const hitsCount = groove?.hits?.length || 0
+
+          const sectionRepeats = Math.max(1, section.repeatCount || 1)
+          const sectionCurrentRepeat = isSectionActive ? (currentMeasure?.iteration || 1) : 1
+          const sectionIsLastRepeat = Boolean(
+            isSectionActive && sectionRepeats > 1 && sectionCurrentRepeat === sectionRepeats
+          )
+
+          const nextSec = sIdx < sections.length - 1 ? sections[sIdx + 1] : null
+          const sectionNextSectionName = nextSec ? nextSec.label : null
 
           return (
             <div
@@ -405,7 +435,9 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
               className={cn(
                 'rounded-3xl border transition-all duration-200 overflow-hidden bg-white dark:bg-slate-900 shadow-sm p-4 sm:p-5 space-y-4',
                 isSectionActive
-                  ? 'border-purple-500/80 ring-2 ring-purple-500/30'
+                  ? sectionIsLastRepeat
+                    ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-md shadow-amber-500/10'
+                    : 'border-purple-500/80 ring-2 ring-purple-500/30'
                   : 'border-slate-200 dark:border-slate-800'
               )}
             >
@@ -416,10 +448,28 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
                     {section.label}
                   </span>
 
-                  {section.repeatCount && section.repeatCount > 1 ? (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                      {section.repeatCount} Vueltas
-                    </span>
+                  {/* Badge de Vueltas / Alerta de Transición */}
+                  {sectionRepeats > 1 ? (
+                    isSectionActive ? (
+                      sectionIsLastRepeat ? (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 text-slate-950 font-black rounded-full text-xs shadow-lg animate-pulse ring-2 ring-amber-300/60 shrink-0">
+                          <span>⚠️ ÚLTIMA VUELTA</span>
+                          {sectionNextSectionName && (
+                            <span className="bg-amber-300/80 px-1.5 py-0.5 rounded text-[11px] font-black uppercase">
+                              → Viene {sectionNextSectionName}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-600 text-white font-bold rounded-full text-xs shadow-md shrink-0">
+                          <span>🔁 Vuelta {sectionCurrentRepeat} de {sectionRepeats}</span>
+                        </div>
+                      )
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0">
+                        {sectionRepeats} Vueltas
+                      </span>
+                    )
                   ) : null}
 
                   {/* Badge del Ritmo Asignado */}
@@ -449,6 +499,8 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
                 {section.measures.map((measure, mIdx) => {
                   const isMeasureActive =
                     isPlaying && currentMeasure?.measure.id === measure.id
+                  const isLastMeasureOfSection = mIdx === section.measures.length - 1
+                  const isFillAlert = Boolean(isSectionActive && sectionIsLastRepeat && isLastMeasureOfSection)
 
                   return (
                     <div
@@ -464,6 +516,7 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
                         currentBeat={currentBeat}
                         showClef={mIdx === 0}
                         onMeasureClick={() => jumpToMeasureId(measure.id)}
+                        isFillAlert={isFillAlert}
                       />
                     </div>
                   )
