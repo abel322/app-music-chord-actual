@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { MidiCalibratorModal } from '@/components/drums/MidiCalibratorModal'
 import { useWebMidi } from '@/hooks/useWebMidi'
+import { useAuth } from '@/lib/context/auth-context'
 import { cn } from '@/lib/utils'
 
 interface DrumsClientProps {
@@ -24,6 +25,7 @@ interface DrumsClientProps {
 }
 
 export function DrumsClient({ initialSongs }: DrumsClientProps) {
+  const { isAdmin } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [isCalibratorOpen, setIsCalibratorOpen] = useState(false)
   const { isConnected, deviceName } = useWebMidi()
@@ -55,28 +57,30 @@ export function DrumsClient({ initialSongs }: DrumsClientProps) {
           </p>
         </div>
 
-        {/* Botón de Calibrador Donner USB */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setIsCalibratorOpen(true)}
-            className={cn(
-              'gap-2 text-xs font-bold transition-all shadow-xs h-10 px-4 rounded-xl',
-              isConnected
-                ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
-                : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-            )}
-          >
-            <span
+        {/* Botón de Calibrador Donner USB (Solo Administrador) */}
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCalibratorOpen(true)}
               className={cn(
-                'w-2.5 h-2.5 rounded-full',
-                isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                'gap-2 text-xs font-bold transition-all shadow-xs h-10 px-4 rounded-xl',
+                isConnected
+                  ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                  : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
               )}
-            />
-            <Usb className="w-4 h-4" />
-            <span>{isConnected ? `Donner Conectada (${deviceName || 'USB'})` : 'Calibrar Batería Donner'}</span>
-          </Button>
-        </div>
+            >
+              <span
+                className={cn(
+                  'w-2.5 h-2.5 rounded-full',
+                  isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                )}
+              />
+              <Usb className="w-4 h-4" />
+              <span>{isConnected ? `Donner Conectada (${deviceName || 'USB'})` : 'Calibrar Batería Donner'}</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Buscador de Canciones */}
@@ -190,11 +194,13 @@ export function DrumsClient({ initialSongs }: DrumsClientProps) {
         </div>
       )}
 
-      {/* Modal Calibrador Donner */}
-      <MidiCalibratorModal
-        isOpen={isCalibratorOpen}
-        onClose={() => setIsCalibratorOpen(false)}
-      />
+      {/* Modal Calibrador Donner (Solo Administrador) */}
+      {isAdmin && isCalibratorOpen && (
+        <MidiCalibratorModal
+          isOpen={isCalibratorOpen}
+          onClose={() => setIsCalibratorOpen(false)}
+        />
+      )}
     </div>
   )
 }

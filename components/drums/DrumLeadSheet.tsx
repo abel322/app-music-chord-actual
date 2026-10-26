@@ -289,31 +289,33 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
 
         {/* Grupo de Acciones Principales y Enlaces Cruzados */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Botón Calibrador MIDI Donner */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsCalibratorOpen(true)}
-            className={cn(
-              'gap-1.5 text-xs font-bold transition-all shadow-xs',
-              isConnected
-                ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
-                : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
-            )}
-            title="Calibrar pads y probar conexión USB de la batería Donner"
-          >
-            <span
+          {/* Botón Calibrador MIDI Donner (Solo Administrador) */}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCalibratorOpen(true)}
               className={cn(
-                'w-2 h-2 rounded-full',
-                isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                'gap-1.5 text-xs font-bold transition-all shadow-xs',
+                isConnected
+                  ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+                  : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
               )}
-            />
-            <Usb className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">
-              {isConnected ? `Donner (${deviceName?.slice(0, 8) || 'OK'})` : 'Calibrar Donner'}
-            </span>
-            <span className="sm:hidden">Donner</span>
-          </Button>
+              title="Calibrar pads y probar conexión USB de la batería Donner"
+            >
+              <span
+                className={cn(
+                  'w-2 h-2 rounded-full',
+                  isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                )}
+              />
+              <Usb className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {isConnected ? `Donner (${deviceName?.slice(0, 8) || 'OK'})` : 'Calibrar Donner'}
+              </span>
+              <span className="sm:hidden">Donner</span>
+            </Button>
+          )}
 
           {/* Enlace cruzado a la vista de Acordes */}
           <Link href={`/dashboard/songs/chords/${song.id}`}>
@@ -428,16 +430,18 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
                   </span>
                 </div>
 
-                {/* Botón para Editar o Grabar Groove con Donner */}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setRecorderSectionId(section.id)}
-                  className="gap-1.5 text-xs font-bold border-purple-300 dark:border-purple-800/80 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40"
-                >
-                  <CircleDot className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Editar / Grabar con Donner</span>
-                </Button>
+                {/* Botón para Editar o Grabar Groove con Donner (Solo Administrador) */}
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRecorderSectionId(section.id)}
+                    className="gap-1.5 text-xs font-bold border-purple-300 dark:border-purple-800/80 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                  >
+                    <CircleDot className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Editar / Grabar con Donner</span>
+                  </Button>
+                )}
               </div>
 
               {/* Cuadrícula de Compases con Pentagrama SVG */}
@@ -470,14 +474,16 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
         })}
       </div>
 
-      {/* Modal Calibrador y Monitor Donner USB */}
-      <MidiCalibratorModal
-        isOpen={isCalibratorOpen}
-        onClose={() => setIsCalibratorOpen(false)}
-      />
+      {/* Modal Calibrador y Monitor Donner USB (Solo Administrador) */}
+      {isAdmin && isCalibratorOpen && (
+        <MidiCalibratorModal
+          isOpen={isCalibratorOpen}
+          onClose={() => setIsCalibratorOpen(false)}
+        />
+      )}
 
-      {/* Modal Grabador de Groove Cuantizado por Sección */}
-      {activeRecorderSection && (
+      {/* Modal Grabador de Groove Cuantizado por Sección (Solo Administrador) */}
+      {isAdmin && activeRecorderSection && (
         <DrumGrooveRecorderModal
           isOpen={Boolean(recorderSectionId)}
           onClose={() => setRecorderSectionId(null)}
