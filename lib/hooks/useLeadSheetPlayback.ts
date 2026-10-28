@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { SectionMeasures, Measure } from '@/types/measure'
 import { getBeatsPerMeasure } from '@/lib/measure-utils'
+import { getAudioContext, playTickSound } from '@/lib/hooks/useMetronomeAudio'
 
 export interface FlattenedMeasure {
   measure: Measure
@@ -26,12 +27,17 @@ export interface UseLeadSheetPlaybackOptions {
   sections: SectionMeasures[]
   tempo: number // BPM
   defaultTimeSignature?: string
+  initialHasCountIn?: boolean
   onMeasureChange?: (flatIndex: number, measure: Measure, sectionId: string) => void
   onSongEnd?: () => void
 }
 
 export interface UseLeadSheetPlaybackReturn {
   isPlaying: boolean
+  hasCountIn: boolean
+  countInBeat: number | null
+  setHasCountIn: (value: boolean | ((prev: boolean) => boolean)) => void
+  toggleCountIn: () => void
   currentFlatMeasureIndex: number
   currentMeasure: FlattenedMeasure | null
   currentBeat: number
@@ -57,19 +63,24 @@ export function useLeadSheetPlayback({
   sections,
   tempo,
   defaultTimeSignature = '4/4',
+  initialHasCountIn = true,
   onMeasureChange,
   onSongEnd,
 }: UseLeadSheetPlaybackOptions): UseLeadSheetPlaybackReturn {
   const [isPlaying, setIsPlaying] = useState(false)
+  const [hasCountIn, setHasCountInState] = useState(initialHasCountIn)
+  const [countInBeat, setCountInBeat] = useState<number | null>(null)
   const [currentFlatMeasureIndex, setCurrentFlatMeasureIndex] = useState(0)
   const [currentBeat, setCurrentBeat] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
 
-  // Web Audio Context para metrónomo sintetizado
-  const audioCtxRef = useRef<AudioContext | null>(null)
-
-  // Referencias para el bucle de alta precisión sin desfases de React
+  // Referencias para bucle de alta precisión sin desfases de React
   const isPlayingRef = useRef(false)
+  const hasCountInRef = useRef(initialHasCountIn)
+  const countInBeatRef = useRef<number | null>(null)
+  const isCountingInRef = useRef(false)
+  const countInStartTimeRef = useRef(0)
+
   const currentIndexRef = useRef(0)
   const currentBeatRef = useRef(1)
   const isMutedRef = useRef(false)
@@ -78,6 +89,18 @@ export function useLeadSheetPlayback({
   const rafIdRef = useRef<number | null>(null)
   const onMeasureChangeRef = useRef(onMeasureChange)
   const onSongEndRef = useRef(onSongEnd)
+
+  const setHasCountIn = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    setHasCountInState((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value
+      hasCountInRef.current = next
+      return next
+    })
+  }, [])
+
+  const toggleCountIn = useCallback(() => {
+    setHasCountIn((prev) => !prev)
+  }, [setHasCountIn])
 
   // Mantener actualizadas las referencias de callbacks
   useEffect(() => {
@@ -162,51 +185,6 @@ export function useLeadSheetPlayback({
     }
   }, [flatMeasures])
 
-  // Inicializar o reanudar AudioContext con manejo seguro de políticas de navegador
-  const getAudioContext = useCallback(() => {
-    if (typeof window === 'undefined') return null
-    if (!audioCtxRef.current) {
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext
-      if (AudioCtxClass) {
-        audioCtxRef.current = new AudioCtxClass()
-      }
-    }
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume().catch(() => {})
-    }
-    return audioCtxRef.current
-  }, [])
-
-  // Reproducir clic sutil de metrónomo sintético con Web Audio API
-  // Pulso 1: beep agudo (1200 Hz). Pulsos 2, 3, 4: beep más grave (600 Hz)
-  const playMetronomeClick = useCallback((isFirstBeat: boolean) => {
-    const ctx = getAudioContext()
-    if (!ctx) return
-
-    try {
-      const now = ctx.currentTime
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-
-      osc.type = 'sine'
-      // Frecuencias musicales calibradas para que no sean molestas pero sí claras al tocar
-      osc.frequency.setValueAtTime(isFirstBeat ? 1200 : 600, now)
-
-      // Envolvente percusiva rápida para evitar clics o pops armónicos
-      gain.gain.setValueAtTime(0.0001, now)
-      gain.gain.linearRampToValueAtTime(isFirstBeat ? 0.35 : 0.22, now + 0.003)
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + (isFirstBeat ? 0.06 : 0.045))
-
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-
-      osc.start(now)
-      osc.stop(now + 0.07)
-    } catch {
-      // Silencioso si el audio falla
-    }
-  }, [getAudioContext])
-
   // Detener la reproducción
   const stop = useCallback(() => {
     if (rafIdRef.current !== null) {
@@ -215,6 +193,9 @@ export function useLeadSheetPlayback({
     }
     isPlayingRef.current = false
     setIsPlaying(false)
+    isCountingInRef.current = false
+    countInBeatRef.current = null
+    setCountInBeat(null)
     currentIndexRef.current = 0
     setCurrentFlatMeasureIndex(0)
     currentBeatRef.current = 1
@@ -237,8 +218,13 @@ export function useLeadSheetPlayback({
     isPlayingRef.current = false
     setIsPlaying(false)
 
-    // Guardar el tiempo transcurrido en el compás actual
-    if (measureStartTimeRef.current > 0) {
+    // Si pausó durante la cuenta previa, cancelar la cuenta previa para arrancar limpio
+    if (isCountingInRef.current) {
+      isCountingInRef.current = false
+      countInBeatRef.current = null
+      setCountInBeat(null)
+      pausedElapsedRef.current = 0
+    } else if (measureStartTimeRef.current > 0) {
       pausedElapsedRef.current = Math.max(0, performance.now() - measureStartTimeRef.current)
     }
   }, [])
@@ -263,6 +249,62 @@ export function useLeadSheetPlayback({
         return
       }
 
+      const curBpm = curMeasure.bpm || Math.max(30, Math.min(300, Number(tempo) || 72))
+      const pulseDurationMs = (60 / curBpm) * 1000
+
+      // ==========================================
+      // FASE 1: CUENTA PREVIA (COUNT-IN DE 4 BEATS)
+      // ==========================================
+      if (isCountingInRef.current) {
+        const elapsedCountIn = now - countInStartTimeRef.current
+        const beatIndex = Math.min(
+          4,
+          Math.max(1, Math.floor(elapsedCountIn / pulseDurationMs) + 1)
+        )
+
+        // Si cambió el pulso dentro de la cuenta previa (1, 2, 3, 4)
+        if (beatIndex !== countInBeatRef.current && beatIndex <= 4) {
+          countInBeatRef.current = beatIndex
+          setCountInBeat(beatIndex)
+          if (!isMutedRef.current) {
+            const ctx = getAudioContext()
+            if (ctx) {
+              // Pulsos 1 y 4 acentuados (1600 Hz), 2 y 3 normales (1000 Hz)
+              const isAccent = beatIndex === 1 || beatIndex === 4
+              playTickSound(ctx, ctx.currentTime, isAccent)
+            }
+          }
+        }
+
+        // Al cumplirse el 4to pulso (duración de 4 pulsos exacta)
+        if (elapsedCountIn >= pulseDurationMs * 4) {
+          // Pasa inmediatamente y sin desfasaje al Compás 1 (Tiempo 1)
+          isCountingInRef.current = false
+          countInBeatRef.current = null
+          setCountInBeat(null)
+
+          // Cero desfase acumulado: sincronizar exactamente al término del 4to pulso
+          measureStartTimeRef.current = countInStartTimeRef.current + (pulseDurationMs * 4)
+          currentBeatRef.current = 1
+          setCurrentBeat(1)
+
+          if (!isMutedRef.current) {
+            const ctx = getAudioContext()
+            if (ctx) {
+              playTickSound(ctx, ctx.currentTime, true) // Acento compás 1 tiempo 1
+            }
+          }
+
+          onMeasureChangeRef.current?.(curIdx, curMeasure.measure, curMeasure.sectionId)
+        }
+
+        rafIdRef.current = requestAnimationFrame(loop)
+        return
+      }
+
+      // ==========================================
+      // FASE 2: REPRODUCCIÓN NORMAL DE COMPASES
+      // ==========================================
       const elapsedInMeasure = now - measureStartTimeRef.current
       const pulseDuration = curMeasure.durationMs / curMeasure.beatsCount
       const beatIndex = Math.min(
@@ -275,7 +317,10 @@ export function useLeadSheetPlayback({
         currentBeatRef.current = beatIndex
         setCurrentBeat(beatIndex)
         if (!isMutedRef.current) {
-          playMetronomeClick(beatIndex === 1)
+          const ctx = getAudioContext()
+          if (ctx) {
+            playTickSound(ctx, ctx.currentTime, beatIndex === 1)
+          }
         }
       }
 
@@ -284,8 +329,8 @@ export function useLeadSheetPlayback({
         const nextIdx = curIdx + 1
 
         if (nextIdx < measures.length) {
-          // Traspasar inmediatamente al compás 1 de la sección siguiente
-          // Mantener la fase de tiempo para evitar desfase acumulado
+          // Traspasar inmediatamente al compás de la sección siguiente
+          // Mantener la fase de tiempo exacta para evitar desfase acumulado
           measureStartTimeRef.current += curMeasure.durationMs
           currentIndexRef.current = nextIdx
           setCurrentFlatMeasureIndex(nextIdx)
@@ -293,7 +338,10 @@ export function useLeadSheetPlayback({
           setCurrentBeat(1)
 
           if (!isMutedRef.current) {
-            playMetronomeClick(true)
+            const ctx = getAudioContext()
+            if (ctx) {
+              playTickSound(ctx, ctx.currentTime, true)
+            }
           }
 
           const nextMeasure = measures[nextIdx]
@@ -310,23 +358,46 @@ export function useLeadSheetPlayback({
     }
 
     rafIdRef.current = requestAnimationFrame(loop)
-  }, [playMetronomeClick, stop])
+  }, [tempo, stop])
 
-  // Iniciar la reproducción
+  // Iniciar la reproducción con cero latencia y soporte de cuenta previa
   const play = useCallback(() => {
     if (flatMeasuresRef.current.length === 0) return
 
-    getAudioContext() // Desbloquear audio context
+    const ctx = getAudioContext()
     isPlayingRef.current = true
     setIsPlaying(true)
 
     const now = performance.now()
-    // Reanudar desde el punto pausado o empezar compás de cero
+    const measures = flatMeasuresRef.current
+    const curIdx = currentIndexRef.current
+    const curMeasure = measures[curIdx] || measures[0]
+    const curBpm = curMeasure ? curMeasure.bpm : Math.max(30, Math.min(300, Number(tempo) || 72))
+
+    // Si cuenta previa está activada y arrancamos compás desde cero (no reanudación a mitad de pulso)
+    if (hasCountInRef.current && pausedElapsedRef.current === 0) {
+      isCountingInRef.current = true
+      countInStartTimeRef.current = now
+      countInBeatRef.current = 1
+      setCountInBeat(1)
+
+      // Cero latencia: el pulso 1 de la cuenta previa suena inmediatamente al tocar la pantalla
+      if (!isMutedRef.current && ctx) {
+        playTickSound(ctx, ctx.currentTime, true) // Acento pulso 1 (1600 Hz)
+      }
+
+      startLoop()
+      return
+    }
+
+    // Si cuenta previa está desactivada o estamos reanudando desde una pausa:
+    isCountingInRef.current = false
+    countInBeatRef.current = null
+    setCountInBeat(null)
+
     measureStartTimeRef.current = now - pausedElapsedRef.current
     pausedElapsedRef.current = 0
 
-    // Si estábamos al inicio del compás o reiniciando, sonar pulso 1
-    const curMeasure = flatMeasuresRef.current[currentIndexRef.current]
     if (curMeasure) {
       const elapsed = now - measureStartTimeRef.current
       const pulseDuration = curMeasure.durationMs / curMeasure.beatsCount
@@ -336,14 +407,14 @@ export function useLeadSheetPlayback({
       )
       currentBeatRef.current = beatIndex
       setCurrentBeat(beatIndex)
-      if (!isMutedRef.current) {
-        playMetronomeClick(beatIndex === 1)
+      if (!isMutedRef.current && ctx) {
+        playTickSound(ctx, ctx.currentTime, beatIndex === 1)
       }
       onMeasureChangeRef.current?.(currentIndexRef.current, curMeasure.measure, curMeasure.sectionId)
     }
 
     startLoop()
-  }, [getAudioContext, playMetronomeClick, startLoop])
+  }, [tempo, startLoop])
 
   // Toggle Play / Pause
   const togglePlay = useCallback(() => {
@@ -365,6 +436,12 @@ export function useLeadSheetPlayback({
       const measures = flatMeasuresRef.current
       if (index < 0 || index >= measures.length) return
 
+      if (isCountingInRef.current) {
+        isCountingInRef.current = false
+        countInBeatRef.current = null
+        setCountInBeat(null)
+      }
+
       currentIndexRef.current = index
       setCurrentFlatMeasureIndex(index)
       currentBeatRef.current = 1
@@ -379,12 +456,15 @@ export function useLeadSheetPlayback({
 
       if (isPlayingRef.current) {
         if (!isMutedRef.current) {
-          playMetronomeClick(true)
+          const ctx = getAudioContext()
+          if (ctx) {
+            playTickSound(ctx, ctx.currentTime, true)
+          }
         }
         startLoop()
       }
     },
-    [playMetronomeClick, startLoop]
+    [startLoop]
   )
 
   // Saltar a un compás específico por su measure.id respetando sección actual
@@ -413,9 +493,6 @@ export function useLeadSheetPlayback({
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current)
       }
-      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-        audioCtxRef.current.close().catch(() => {})
-      }
     }
   }, [])
 
@@ -436,6 +513,10 @@ export function useLeadSheetPlayback({
 
   return {
     isPlaying,
+    hasCountIn,
+    countInBeat,
+    setHasCountIn,
+    toggleCountIn,
     currentFlatMeasureIndex,
     currentMeasure,
     currentBeat,

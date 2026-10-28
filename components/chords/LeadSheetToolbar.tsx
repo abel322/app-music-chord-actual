@@ -32,6 +32,12 @@ export interface LeadSheetToolbarProps {
   beatsCount?: number
   nextSectionName?: string | null
   totalMeasuresCount?: number
+
+  // Control y visualización de Cuenta Previa (Count-In de 4 pulsos)
+  hasCountIn?: boolean
+  onToggleCountIn?: () => void
+  setHasCountIn?: (value: boolean | ((prev: boolean) => boolean)) => void
+  countInBeat?: number | null
 }
 
 export type StickyPlaybackTransportProps = LeadSheetToolbarProps
@@ -61,6 +67,10 @@ export function LeadSheetToolbar({
   tempo = 120,
   onUpdateTempo,
   className,
+  hasCountIn = true,
+  onToggleCountIn,
+  setHasCountIn,
+  countInBeat,
 }: LeadSheetToolbarProps) {
   const effTempo = effectiveTempo ?? tempo
   const [isEditingTempo, setIsEditingTempo] = useState(false)
@@ -81,6 +91,14 @@ export function LeadSheetToolbar({
   const handlePlayPause = togglePlayPause || onTogglePlay || (() => {})
   const handleRestartAction = handleRestart || onStop || (() => {})
   const handleMetronome = toggleMetronome || onToggleMute || (() => {})
+
+  const handleToggleCountIn = () => {
+    if (onToggleCountIn) {
+      onToggleCountIn()
+    } else if (setHasCountIn) {
+      setHasCountIn(!hasCountIn)
+    }
+  }
 
   const handleCommitLocalTempo = () => {
     setIsEditingTempo(false)
@@ -138,9 +156,14 @@ export function LeadSheetToolbar({
           </button>
         </div>
 
-        {/* Monitor Central: Compás Actual y Sección */}
+        {/* Monitor Central: Compás Actual y Sección O Conteo Regresivo de Cuenta Previa */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-center px-1">
-          {isPlaying && effIsLastRepeat ? (
+          {countInBeat !== null && countInBeat !== undefined ? (
+            <div className="bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-3.5 py-1 rounded-lg shadow-md flex items-center gap-1.5 animate-pulse ring-2 ring-amber-300">
+              <span className="shrink-0">⏳</span>
+              <span className="tracking-wide">ENTRANDO EN: {countInBeat} / 4</span>
+            </div>
+          ) : isPlaying && effIsLastRepeat ? (
             <div className="bg-amber-400 text-slate-950 font-black text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1.5 animate-pulse truncate ring-1 ring-amber-300">
               <span className="shrink-0">C.{effActiveMeasure}</span>
               <span className="shrink-0">•</span>
@@ -165,8 +188,23 @@ export function LeadSheetToolbar({
           )}
         </div>
 
-        {/* Extremo Derecho: Metrónomo y Tempo */}
+        {/* Extremo Derecho: Botón Cuenta Previa 1-2-3-4, Metrónomo y Tempo */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {(onToggleCountIn || setHasCountIn || hasCountIn !== undefined) && (
+            <button
+              type="button"
+              onClick={handleToggleCountIn}
+              className={`h-9 px-2.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${
+                hasCountIn
+                  ? 'bg-purple-600/30 border-purple-500 text-purple-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-500'
+              }`}
+              title="Cuenta previa de 4 pulsos antes de iniciar"
+            >
+              1-2-3-4
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleMetronome}

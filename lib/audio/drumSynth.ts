@@ -4,22 +4,11 @@
  */
 
 import { DrumPadType } from '@/types/drum'
+import { getAudioContext } from '@/lib/hooks/useMetronomeAudio'
 
 class DrumSynthService {
-  private ctx: AudioContext | null = null
-
   private getContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null
-    if (!this.ctx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
-      if (AudioContextClass) {
-        this.ctx = new AudioContextClass()
-      }
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {})
-    }
-    return this.ctx
+    return getAudioContext()
   }
 
   // Reproducir un golpe de percusión por tipo de pad

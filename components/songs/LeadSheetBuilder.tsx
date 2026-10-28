@@ -213,6 +213,10 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
   // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
   const {
     isPlaying,
+    hasCountIn,
+    countInBeat,
+    setHasCountIn,
+    toggleCountIn,
     currentFlatMeasureIndex,
     currentMeasure,
     currentBeat,
@@ -761,6 +765,10 @@ export function LeadSheetBuilder({ initialData, isEditing = false }: LeadSheetBu
       {/* Barra de Transporte Sticky Permanente (Single-Row / Siempre Accesible) */}
       <LeadSheetToolbar
         isPlaying={isPlaying}
+        hasCountIn={hasCountIn}
+        countInBeat={countInBeat}
+        onToggleCountIn={toggleCountIn}
+        setHasCountIn={setHasCountIn}
         togglePlayPause={togglePlay}
         handleRestart={stop}
         activeMeasureNumber={currentMeasure?.measure.measureNumber || 1}

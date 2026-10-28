@@ -143,6 +143,10 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
 
   const {
     isPlaying,
+    hasCountIn,
+    countInBeat,
+    setHasCountIn,
+    toggleCountIn,
     currentMeasure,
     currentBeat,
     isMuted,
@@ -170,9 +174,9 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
     },
   })
 
-  // Reproducir golpes de batería sintetizados sincronizados con el pulso activo
+  // Reproducir golpes de batería sintetizados sincronizados con el pulso activo (ignorar durante cuenta previa)
   useEffect(() => {
-    if (!isPlaying || !playDrumAudio || isMuted || !currentMeasure) return
+    if (!isPlaying || countInBeat !== null || !playDrumAudio || isMuted || !currentMeasure) return
 
     // Encontrar la sección a la que pertenece el compás actual
     const currentSection = sections.find((s) => s.id === currentMeasure.sectionId)
@@ -190,7 +194,7 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
     stepHits.forEach((hit) => {
       drumSynth.playHit(hit.pad, hit.velocity)
     })
-  }, [isPlaying, currentBeat, currentMeasure, playDrumAudio, isMuted, sections])
+  }, [isPlaying, countInBeat, currentBeat, currentMeasure, playDrumAudio, isMuted, sections])
 
   // Detección de intervención manual del usuario para no forzar scroll
   useEffect(() => {
@@ -388,6 +392,10 @@ export function DrumLeadSheet({ song }: DrumLeadSheetProps) {
       {/* Barra de Transporte Sticky Permanente (Top-0 Z-50 / Siempre Accesible) */}
       <LeadSheetToolbar
         isPlaying={isPlaying}
+        hasCountIn={hasCountIn}
+        countInBeat={countInBeat}
+        onToggleCountIn={toggleCountIn}
+        setHasCountIn={setHasCountIn}
         togglePlayPause={togglePlay}
         handleRestart={stop}
         activeMeasureNumber={currentMeasure?.measure.measureNumber || 1}
