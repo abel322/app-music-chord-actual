@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { 
@@ -32,10 +32,11 @@ import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionQuickNav } from '@/components/chords/SectionQuickNav'
 import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
-import { LeadSheetToolbar, StickyPlaybackTransport } from '@/components/chords/LeadSheetToolbar'
+import { LeadSheetToolbar, StickyPlaybackTransport, PlaybackMode } from '@/components/chords/LeadSheetToolbar'
 import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
+import { useLiveBandFollower, SongSectionAnchor } from '@/hooks/useLiveBandFollower'
 import { SectionMeasures, Measure } from '@/types/measure'
 
 import { 
@@ -43,6 +44,7 @@ import {
   transposeSectionMeasures, 
   transposeSingleSectionMeasures,
   generateMeasures,
+  getBeatsPerMeasure,
   applyProgressionToMeasures,
   applyCadenceToSectionMeasures,
   getSectionBadge,
@@ -206,6 +208,16 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     if (collapsedSections[sectionId]) {
       setCollapsedSections((prev) => ({ ...prev, [sectionId]: false }))
     }
+    if (playbackMode === 'band') {
+      const targetIdx = flatMeasures.findIndex((fm) => fm.sectionId === sectionId)
+      if (targetIdx !== -1) {
+        setBandMeasureIndex(targetIdx)
+        setBandBeat(1)
+        if (isFollowing) {
+          syncToMeasure(targetIdx)
+        }
+      }
+    }
     setTimeout(() => {
       const el = document.getElementById(`section-${sectionId}`)
       if (el) {
@@ -268,6 +280,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     stop,
     toggleMute,
     jumpToMeasureId,
+    flatMeasures,
   } = useLeadSheetPlayback({
     sections,
     tempo,
@@ -294,6 +307,215 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       })
     },
   })
+
+  // Estado para Modo "Seguir a la Banda (Tempo Adaptativo + Anclaje por Voz)"
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('fixed')
+  const [sensitivity, setSensitivity] = useState(0.65)
+  const [bandMeasureIndex, setBandMeasureIndex] = useState(0)
+  const [bandBeat, setBandBeat] = useState(1)
+
+  // Anchors de sección para saltos por reconocimiento de voz ("intro", "coro", etc.)
+  const sectionAnchors = useMemo<SongSectionAnchor[]>(() => {
+    const anchors: SongSectionAnchor[] = []
+    sections.forEach((sec) => {
+      const idx = flatMeasures.findIndex((fm) => fm.sectionId === sec.id)
+      if (idx !== -1) {
+        anchors.push({
+          id: sec.id,
+          name: sec.label,
+          startMeasureIndex: idx,
+        })
+      }
+    })
+    return anchors
+  }, [sections, flatMeasures])
+
+  // Hook de Seguimiento Rítmico Adaptativo en Vivo por Micrófono + Anclaje por Voz
+  const {
+    isFollowing,
+    liveBpm,
+    bandStatus,
+    inputLevel,
+    lastVoiceAction,
+    errorMsg: bandErrorMsg,
+    startFollowing,
+    stopFollowing,
+    syncToMeasure,
+    tapDownbeat,
+  } = useLiveBandFollower({
+    initialBpm: tempo,
+    beatsPerMeasure: getBeatsPerMeasure(timeSignature),
+    totalMeasures: flatMeasures.length,
+    sections: sectionAnchors,
+    sensitivity,
+    onMeasureChange: (measureIndex, beatInMeasure) => {
+      setBandMeasureIndex(measureIndex)
+      setBandBeat(beatInMeasure)
+
+      const targetFlat = flatMeasures[measureIndex]
+      if (targetFlat) {
+        // Descolapsar automáticamente si la sección estaba colapsada
+        setCollapsedSections((prev) => {
+          if (prev[targetFlat.sectionId]) {
+            return { ...prev, [targetFlat.sectionId]: false }
+          }
+          return prev
+        })
+
+        // Auto-desplazamiento suave centrado con anticipación visual
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (Date.now() < userScrollPausedUntilRef.current) return
+            scrollToActiveMeasure(targetFlat.measure.id, 64)
+          }, 50)
+        })
+      }
+    },
+    onSectionJump: (measureIndex, _sectionName) => {
+      setBandMeasureIndex(measureIndex)
+      setBandBeat(1)
+      const targetFlat = flatMeasures[measureIndex]
+      if (targetFlat) {
+        setCollapsedSections((prev) => {
+          if (prev[targetFlat.sectionId]) {
+            return { ...prev, [targetFlat.sectionId]: false }
+          }
+          return prev
+        })
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            scrollToActiveMeasure(targetFlat.measure.id, 64)
+          }, 60)
+        })
+      }
+    },
+  })
+
+  // WakeLock: Mantener la pantalla encendida en el teléfono móvil durante el seguimiento
+  const wakeLockRef = useRef<any>(null)
+
+  const requestWakeLock = useCallback(async () => {
+    if (typeof window !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        if (!wakeLockRef.current) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
+          wakeLockRef.current.addEventListener('release', () => {
+            wakeLockRef.current = null
+          })
+        }
+      } catch (err) {
+        console.warn('Wake Lock request error:', err)
+      }
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release()
+      } catch {}
+      wakeLockRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isFollowing) {
+      requestWakeLock()
+    } else {
+      releaseWakeLock()
+    }
+  }, [isFollowing, requestWakeLock, releaseWakeLock])
+
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isFollowing) {
+        await requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      releaseWakeLock()
+    }
+  }, [isFollowing, requestWakeLock, releaseWakeLock])
+
+  // Estado Unificado de Reproducción y Compás Activo
+  const effectiveIsPlaying = playbackMode === 'band' ? isFollowing : isPlaying
+  const effectiveCurrentMeasure =
+    playbackMode === 'band'
+      ? (flatMeasures[bandMeasureIndex] || flatMeasures[0] || null)
+      : currentMeasure
+  const effectiveActiveMeasureId = effectiveCurrentMeasure?.measure.id || null
+  const effectiveActiveMeasureNumber = effectiveCurrentMeasure?.measure.measureNumber || 1
+  const effectiveActiveSectionName = effectiveCurrentMeasure?.sectionLabel || 'Intro'
+  const effectiveCurrentRepeat = effectiveCurrentMeasure?.iteration || 1
+  const effectiveTotalRepeats = effectiveCurrentMeasure?.repeatCount || 1
+  const effectiveMeasureDurationMs =
+    playbackMode === 'band'
+      ? (60000 / (liveBpm || tempo || 75)) * (effectiveCurrentMeasure?.beatsCount || 4)
+      : currentMeasure?.durationMs
+
+  const handleTogglePlay = useCallback(() => {
+    if (playbackMode === 'band') {
+      if (isFollowing) {
+        stopFollowing()
+      } else {
+        if (isPlaying) stop()
+        startFollowing(bandMeasureIndex)
+      }
+    } else {
+      if (isFollowing) stopFollowing()
+      togglePlay()
+    }
+  }, [playbackMode, isFollowing, isPlaying, bandMeasureIndex, stopFollowing, stop, startFollowing, togglePlay])
+
+  const handleRestart = useCallback(() => {
+    if (playbackMode === 'band') {
+      setBandMeasureIndex(0)
+      setBandBeat(1)
+      if (isFollowing) {
+        syncToMeasure(0)
+      }
+      if (flatMeasures[0]) {
+        scrollToActiveMeasure(flatMeasures[0].measure.id, 64)
+      }
+    } else {
+      stop()
+    }
+  }, [playbackMode, isFollowing, syncToMeasure, flatMeasures, stop])
+
+  const handleModeChange = useCallback(
+    (newMode: PlaybackMode) => {
+      if (newMode === 'band') {
+        if (isPlaying) stop()
+        if (currentFlatMeasureIndex >= 0) {
+          setBandMeasureIndex(currentFlatMeasureIndex)
+        }
+      } else {
+        if (isFollowing) stopFollowing()
+      }
+      setPlaybackMode(newMode)
+    },
+    [isPlaying, isFollowing, currentFlatMeasureIndex, stop, stopFollowing]
+  )
+
+  const handleMeasureClick = useCallback(
+    (clickedMeasure: Measure) => {
+      if (playbackMode === 'band') {
+        const targetIdx = flatMeasures.findIndex((fm) => fm.measure.id === clickedMeasure.id)
+        if (targetIdx !== -1) {
+          setBandMeasureIndex(targetIdx)
+          setBandBeat(1)
+          if (isFollowing) {
+            syncToMeasure(targetIdx)
+          }
+        }
+      } else {
+        jumpToMeasureId(clickedMeasure.id)
+      }
+    },
+    [playbackMode, flatMeasures, isFollowing, syncToMeasure, jumpToMeasureId]
+  )
 
   // Detección de intervención manual del usuario para no forzar scroll
   useEffect(() => {
@@ -344,13 +566,13 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault()
-        togglePlay()
+        handleTogglePlay()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [togglePlay])
+  }, [handleTogglePlay])
 
   // Acordes diatónicos de la tonalidad actual para sugerencias
   const diatonicChords = useMemo(() => {
@@ -855,24 +1077,34 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
       {/* Barra de Transporte Sticky Permanente (Single-Row / Siempre Accesible) */}
       <LeadSheetToolbar
-        isPlaying={isPlaying}
+        isPlaying={effectiveIsPlaying}
         hasCountIn={hasCountIn}
         countInBeat={countInBeat}
         onToggleCountIn={toggleCountIn}
         setHasCountIn={setHasCountIn}
-        togglePlayPause={togglePlay}
-        handleRestart={stop}
-        activeMeasureNumber={currentMeasure?.measure.measureNumber || 1}
-        activeSectionName={currentMeasure?.sectionLabel || 'Intro'}
-        totalRepeats={currentMeasure?.repeatCount || 1}
-        currentRepeat={currentMeasure?.iteration || 1}
+        togglePlayPause={handleTogglePlay}
+        handleRestart={handleRestart}
+        activeMeasureNumber={effectiveActiveMeasureNumber}
+        activeSectionName={effectiveActiveSectionName}
+        totalRepeats={effectiveTotalRepeats}
+        currentRepeat={effectiveCurrentRepeat}
         isMetronomeOn={!isMuted}
         toggleMetronome={toggleMute}
-        effectiveTempo={tempo}
+        effectiveTempo={playbackMode === 'band' ? liveBpm : tempo}
         onUpdateTempo={(newTempo) => {
           setTempoInput(newTempo.toString())
           if (onUpdateTempo) onUpdateTempo(newTempo)
         }}
+        playbackMode={playbackMode}
+        onModeChange={handleModeChange}
+        bandStatus={bandStatus}
+        inputLevel={inputLevel}
+        lastVoiceAction={lastVoiceAction}
+        sensitivity={sensitivity}
+        onSensitivityChange={setSensitivity}
+        onTapDownbeat={tapDownbeat}
+        liveBpm={liveBpm}
+        bandErrorMsg={bandErrorMsg}
       />
 
       {/* Barra de Navegación Rápida de Secciones */}
@@ -881,15 +1113,15 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        activeSectionId={currentMeasure?.sectionId}
+        activeSectionId={effectiveCurrentMeasure?.sectionId}
       />
 
       {/* Lista de Secciones con sus Compases */}
       <div className="space-y-4 pt-1 pb-80 md:pb-96">
         {sections.map((section, sIdx) => {
           const isSectionActive =
-            currentMeasure?.sectionId === section.id ||
-            section.measures.some((m) => m.id === currentMeasure?.measure.id)
+            effectiveCurrentMeasure?.sectionId === section.id ||
+            section.measures.some((m) => m.id === effectiveCurrentMeasure?.measure.id)
           const nextSec = sections[sIdx + 1]
           const nextSecName = nextSec ? nextSec.label : null
 
@@ -905,10 +1137,10 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               globalKey={currentKey}
               globalTimeSignature={timeSignature}
               globalTempo={tempo}
-              isPlaying={isPlaying}
-              activeMeasureId={currentMeasure?.measure.id || null}
-              measureDurationMs={currentMeasure?.durationMs}
-              currentRepeat={isSectionActive ? currentMeasure?.iteration || 1 : 1}
+              isPlaying={effectiveIsPlaying}
+              activeMeasureId={effectiveActiveMeasureId}
+              measureDurationMs={effectiveMeasureDurationMs}
+              currentRepeat={isSectionActive ? effectiveCurrentRepeat : 1}
               totalRepeats={section.repeatCount || 1}
               nextSectionName={nextSecName}
               isSectionActive={isSectionActive}
@@ -937,9 +1169,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
                 prev.map((s) => (s.id === secId ? { ...s, lyrics: newLyrics } : s))
               )
             }}
-            onMeasureClick={(clickedMeasure) => {
-              jumpToMeasureId(clickedMeasure.id)
-            }}
+            onMeasureClick={handleMeasureClick}
             onUpdateMeasures={handleUpdateSectionMeasures}
             onAddMeasures={handleAddMeasuresToSection}
             onRemoveMeasure={handleRemoveMeasure}
