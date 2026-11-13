@@ -36,7 +36,7 @@ import { LeadSheetToolbar, StickyPlaybackTransport, PlaybackMode } from '@/compo
 import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
 import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
-import { useLiveBandFollower, SongSectionAnchor } from '@/hooks/useLiveBandFollower'
+import { useLiveBandFollower, SongSectionAnchor, FollowStepMode, RoomEnvironment } from '@/hooks/useLiveBandFollower'
 import { SectionMeasures, Measure } from '@/types/measure'
 
 import { 
@@ -308,9 +308,10 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     },
   })
 
-  // Estado para Modo "Seguir a la Banda (Tempo Adaptativo + Anclaje por Voz)"
+  // Estado para Modo "Seguir a la Banda (Tempo Adaptativo Multi-Instrumento + Anclaje por Voz)"
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('fixed')
-  const [sensitivity, setSensitivity] = useState(0.65)
+  const [stepMode, setStepMode] = useState<FollowStepMode>('beats')
+  const [environment, setEnvironment] = useState<RoomEnvironment>('full_band')
   const [bandMeasureIndex, setBandMeasureIndex] = useState(0)
   const [bandBeat, setBandBeat] = useState(1)
 
@@ -336,6 +337,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     liveBpm,
     bandStatus,
     inputLevel,
+    heardTranscript,
     lastVoiceAction,
     errorMsg: bandErrorMsg,
     startFollowing,
@@ -347,7 +349,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     beatsPerMeasure: getBeatsPerMeasure(timeSignature),
     totalMeasures: flatMeasures.length,
     sections: sectionAnchors,
-    sensitivity,
+    stepMode,
+    environment,
     onMeasureChange: (measureIndex, beatInMeasure) => {
       setBandMeasureIndex(measureIndex)
       setBandBeat(beatInMeasure)
@@ -1099,9 +1102,12 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         onModeChange={handleModeChange}
         bandStatus={bandStatus}
         inputLevel={inputLevel}
+        heardTranscript={heardTranscript}
         lastVoiceAction={lastVoiceAction}
-        sensitivity={sensitivity}
-        onSensitivityChange={setSensitivity}
+        stepMode={stepMode}
+        onStepModeChange={setStepMode}
+        environment={environment}
+        onEnvironmentChange={setEnvironment}
         onTapDownbeat={tapDownbeat}
         liveBpm={liveBpm}
         bandErrorMsg={bandErrorMsg}

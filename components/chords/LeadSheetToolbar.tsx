@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Mic, Target, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FollowStepMode, RoomEnvironment } from '@/hooks/useLiveBandFollower'
 
 export type PlaybackMode = 'fixed' | 'band'
 
@@ -41,14 +42,17 @@ export interface LeadSheetToolbarProps {
   setHasCountIn?: (value: boolean | ((prev: boolean) => boolean)) => void
   countInBeat?: number | null
 
-  // Modo "Seguir a la Banda" (Tempo Adaptativo + Anclaje por Voz)
+  // Modo "Seguir a la Banda" (Multi-Instrumento DSP Dual-Band + Anclaje por Voz)
   playbackMode?: PlaybackMode
   onModeChange?: (mode: PlaybackMode) => void
   bandStatus?: 'idle' | 'listening' | 'tracking' | 'holding'
   inputLevel?: number
+  heardTranscript?: string
   lastVoiceAction?: string
-  sensitivity?: number
-  onSensitivityChange?: (sens: number) => void
+  stepMode?: FollowStepMode
+  onStepModeChange?: (mode: FollowStepMode) => void
+  environment?: RoomEnvironment
+  onEnvironmentChange?: (env: RoomEnvironment) => void
   onTapDownbeat?: () => void
   liveBpm?: number
   bandErrorMsg?: string | null
@@ -91,9 +95,12 @@ export function LeadSheetToolbar({
   onModeChange,
   bandStatus = 'idle',
   inputLevel = 0,
+  heardTranscript,
   lastVoiceAction,
-  sensitivity = 0.65,
-  onSensitivityChange,
+  stepMode = 'beats',
+  onStepModeChange,
+  environment = 'full_band',
+  onEnvironmentChange,
   onTapDownbeat,
   liveBpm,
   bandErrorMsg,
@@ -182,7 +189,7 @@ export function LeadSheetToolbar({
 
             {playbackMode === 'band' && (
               <div className="flex items-center gap-2 flex-wrap">
-                {/* VU Meter Mic */}
+                {/* Vúmetro de Micrófono en Vivo */}
                 <div
                   className="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/80 px-2 py-1 rounded-lg text-slate-300"
                   title={`Nivel del micrófono en tiempo real: ${inputLevel}%`}
@@ -208,51 +215,97 @@ export function LeadSheetToolbar({
                   </div>
                 </div>
 
-                {/* Control de Sensibilidad (Baja / Media / Alta) */}
-                <div className="flex items-center bg-slate-800/80 border border-slate-700/80 p-0.5 rounded-lg text-[11px] font-bold">
-                  <span className="text-slate-400 px-1.5 hidden sm:inline">Sens:</span>
-                  <button
-                    type="button"
-                    onClick={() => onSensitivityChange?.(0.35)}
-                    className={cn(
-                      'px-2 py-0.5 rounded transition-all cursor-pointer',
-                      sensitivity <= 0.45
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
-                    )}
-                    title="Baja: para salas con mucho ruido o batería acústica fuerte"
+                {/* Transcripción de Voz Escuchada en Tiempo Real */}
+                {heardTranscript && (
+                  <div
+                    className="flex items-center gap-1 text-[11px] font-medium text-slate-300 bg-slate-800/80 border border-purple-500/40 px-2 py-0.5 rounded-lg max-w-[170px] truncate"
+                    title={`Texto escuchado: "${heardTranscript}"`}
                   >
-                    Baja
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSensitivityChange?.(0.65)}
-                    className={cn(
-                      'px-2 py-0.5 rounded transition-all cursor-pointer',
-                      sensitivity > 0.45 && sensitivity < 0.85
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
-                    )}
-                    title="Media: recomendada para la mayoría de ensayos"
-                  >
-                    Media
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSensitivityChange?.(0.95)}
-                    className={cn(
-                      'px-2 py-0.5 rounded transition-all cursor-pointer',
-                      sensitivity >= 0.85
-                        ? 'bg-purple-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
-                    )}
-                    title="Alta: para ensayos acústicos suaves o voces bajas"
-                  >
-                    Alta
-                  </button>
-                </div>
+                    <span className="text-purple-400 shrink-0">🎤</span>
+                    <span className="truncate italic">&ldquo;{heardTranscript}&rdquo;</span>
+                  </div>
+                )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Barra de Ajustes de Ensayo de Banda (Pulso y Sala) */}
+        {playbackMode === 'band' && (
+          <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-950/60 border border-slate-800/80 rounded-xl px-2.5 py-1.5 text-xs">
+            {/* 1. Selector de Modo de Avance / Pulso */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                Pulso:
+              </span>
+              <div className="flex items-center bg-slate-800/90 p-0.5 rounded-lg border border-slate-700/70 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => onStepModeChange?.('beats')}
+                  className={cn(
+                    'px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1',
+                    stepMode === 'beats'
+                      ? 'bg-purple-600 text-white shadow-xs font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  title="Seguimiento de compases tiempo a tiempo al ritmo de la banda"
+                >
+                  <span>🥁</span>
+                  <span>Groove Banda (4 tiempos)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onStepModeChange?.('single_pulse_per_measure')}
+                  className={cn(
+                    'px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1',
+                    stepMode === 'single_pulse_per_measure'
+                      ? 'bg-purple-600 text-white shadow-xs font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  title="1 marca por compás: ideal para intros lentas donde solo entra un piano, guitarra o platillo"
+                >
+                  <span>🎹</span>
+                  <span>Entrada Suave (1 marca/compás)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Selector de Entorno de Sala */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                Sala:
+              </span>
+              <div className="flex items-center bg-slate-800/90 p-0.5 rounded-lg border border-slate-700/70 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => onEnvironmentChange?.('solo_acoustic')}
+                  className={cn(
+                    'px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1',
+                    environment === 'solo_acoustic'
+                      ? 'bg-purple-600 text-white shadow-xs font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  title="Alta sensibilidad: para pruebas individuales a bajo volumen o instrumentos acústicos"
+                >
+                  <span>🎸</span>
+                  <span>Solo / Acústico</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEnvironmentChange?.('full_band')}
+                  className={cn(
+                    'px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1',
+                    environment === 'full_band'
+                      ? 'bg-purple-600 text-white shadow-xs font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  )}
+                  title="Banda completa: filtrado anti-wash de platillos y calibración para batería acústica"
+                >
+                  <span>⚡</span>
+                  <span>Banda Completa</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -333,7 +386,11 @@ export function LeadSheetToolbar({
                   ) : bandStatus === 'tracking' ? (
                     <div className="bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 font-black text-xs px-2.5 py-1 rounded-lg shadow-md flex items-center gap-1.5 truncate ring-1 ring-emerald-400/40">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                      <span className="font-extrabold tracking-wide">🟢 Siguiendo ritmo (~{liveBpm || effTempo} BPM)</span>
+                      <span className="font-extrabold tracking-wide">
+                        {stepMode === 'single_pulse_per_measure'
+                          ? `🟢 1 marca/compás`
+                          : `🟢 Siguiendo ritmo (~${liveBpm || effTempo} BPM)`}
+                      </span>
                       <span className="text-emerald-400/60 shrink-0">•</span>
                       <span className="shrink-0 font-mono text-white">C.{effActiveMeasure}</span>
                       <span className="text-emerald-400/60 shrink-0">•</span>

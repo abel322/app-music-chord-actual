@@ -8,12 +8,16 @@ export interface SongSectionAnchor {
   startMeasureIndex: number;
 }
 
+export type FollowStepMode = 'beats' | 'single_pulse_per_measure';
+export type RoomEnvironment = 'solo_acoustic' | 'full_band';
+
 export interface UseLiveBandFollowerOptions {
   initialBpm: number;
   beatsPerMeasure?: number;
   totalMeasures: number;
   sections: SongSectionAnchor[];
-  sensitivity?: number; // 0.3 (baja/sala muy ruidosa) a 1.0 (alta/acústico)
+  environment?: RoomEnvironment;
+  stepMode?: FollowStepMode;
   onMeasureChange: (measureIndex: number, beatInMeasure: number) => void;
   onSectionJump?: (measureIndex: number, sectionName: string) => void;
 }
@@ -30,7 +34,8 @@ export function useLiveBandFollower({
   beatsPerMeasure = 4,
   totalMeasures,
   sections,
-  sensitivity = 0.65,
+  environment = 'full_band',
+  stepMode = 'beats',
   onMeasureChange,
   onSectionJump,
 }: UseLiveBandFollowerOptions) {
@@ -38,6 +43,7 @@ export function useLiveBandFollower({
   const [liveBpm, setLiveBpm] = useState(initialBpm || 75);
   const [bandStatus, setBandStatus] = useState<'idle' | 'listening' | 'tracking' | 'holding'>('idle');
   const [inputLevel, setInputLevel] = useState(0);
+  const [heardTranscript, setHeardTranscript] = useState('');
   const [lastVoiceAction, setLastVoiceAction] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -46,18 +52,21 @@ export function useLiveBandFollower({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const recognitionRef = useRef<any>(null);
+  const voiceTimerRef = useRef<number | null>(null);
 
-  // Estado interno del motor rítmico elástico (PLL)
   const trackerRef = useRef({
     measureIndex: 0,
-    beatPhase: 0, // 0.0 a beatsPerMeasure (ej. 0.0 -> 4.0)
+    beatPhase: 0,
     adaptiveBpm: initialBpm || 75,
     lastFrameTime: 0,
     lastOnsetTime: 0,
     lastSoundTime: 0,
-    energyHistory: [] as number[],
+    noiseFloorRms: 0.003,
+    calibrationSamples: [] as number[],
+    fluxHistory: [] as number[],
     prevSpectrum: null as Float32Array | null,
     lastVoiceTriggerTime: 0,
+    hasStartedFirstAttack: false,
   });
 
   const callbacksRef = useRef({
@@ -66,7 +75,8 @@ export function useLiveBandFollower({
     sections,
     totalMeasures,
     beatsPerMeasure,
-    sensitivity,
+    environment,
+    stepMode,
     initialBpm,
   });
 
@@ -77,33 +87,33 @@ export function useLiveBandFollower({
       sections,
       totalMeasures,
       beatsPerMeasure,
-      sensitivity,
+      environment,
+      stepMode,
       initialBpm,
     };
-  }, [onMeasureChange, onSectionJump, sections, totalMeasures, beatsPerMeasure, sensitivity, initialBpm]);
+  }, [onMeasureChange, onSectionJump, sections, totalMeasures, beatsPerMeasure, environment, stepMode, initialBpm]);
 
-  // Permite sincronizar manualmente si el usuario hace clic en un compás mientras sigue activo
   const syncToMeasure = useCallback((measureIndex: number) => {
     const maxMeasure = Math.max(0, (callbacksRef.current.totalMeasures || 1) - 1);
-    trackerRef.current.measureIndex = Math.max(0, Math.min(measureIndex, maxMeasure));
+    const clamped = Math.max(0, Math.min(measureIndex, maxMeasure));
+    trackerRef.current.measureIndex = clamped;
     trackerRef.current.beatPhase = 0;
     trackerRef.current.lastSoundTime = performance.now();
-    callbacksRef.current.onMeasureChange(trackerRef.current.measureIndex, 1);
+    trackerRef.current.hasStartedFirstAttack = true;
+    callbacksRef.current.onMeasureChange(clamped, 1);
   }, []);
 
-  // Calibración manual rápida con 1 toque en el Tiempo 1
   const tapDownbeat = useCallback(() => {
     const now = performance.now();
     const tr = trackerRef.current;
     const elapsedMs = now - tr.lastOnsetTime;
-
-    // Si tocó dentro de un rango razonable de 1 compás o 1 tiempo, ajustar BPM
     const expectedBeatMs = 60000 / tr.adaptiveBpm;
-    if (elapsedMs > expectedBeatMs * 0.6 && elapsedMs < expectedBeatMs * 1.5) {
+
+    if (elapsedMs > expectedBeatMs * 0.55 && elapsedMs < expectedBeatMs * 1.6) {
       const measuredBpm = 60000 / elapsedMs;
       const baseBpm = callbacksRef.current.initialBpm || 75;
-      const minBpm = Math.max(40, baseBpm * 0.65);
-      const maxBpm = Math.min(210, baseBpm * 1.45);
+      const minBpm = Math.max(40, baseBpm * 0.6);
+      const maxBpm = Math.min(210, baseBpm * 1.5);
       const clampedBpm = Math.max(minBpm, Math.min(maxBpm, measuredBpm));
       tr.adaptiveBpm = tr.adaptiveBpm * 0.65 + clampedBpm * 0.35;
       setLiveBpm(Math.round(tr.adaptiveBpm));
@@ -112,6 +122,7 @@ export function useLiveBandFollower({
     tr.beatPhase = 0;
     tr.lastOnsetTime = now;
     tr.lastSoundTime = now;
+    tr.hasStartedFirstAttack = true;
     setBandStatus('tracking');
     callbacksRef.current.onMeasureChange(tr.measureIndex, 1);
   }, []);
@@ -122,6 +133,11 @@ export function useLiveBandFollower({
     setBandStatus('idle');
     setInputLevel(0);
 
+    if (voiceTimerRef.current) {
+      clearTimeout(voiceTimerRef.current);
+      voiceTimerRef.current = null;
+    }
+
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
@@ -130,14 +146,13 @@ export function useLiveBandFollower({
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onend = null;
-        recognitionRef.current.onerror = null;
         recognitionRef.current.stop();
       } catch {}
       recognitionRef.current = null;
     }
 
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
 
@@ -149,256 +164,318 @@ export function useLiveBandFollower({
     }
   }, []);
 
-  const startFollowing = useCallback(async (startFromMeasure = 0) => {
-    stopFollowing();
-    setErrorMsg(null);
+  const startVoiceRecognition = useCallback(() => {
+    if (typeof window === 'undefined' || !isFollowingRef.current) return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
 
-    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setErrorMsg('El navegador no permite acceso al micrófono.');
-      return;
-    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
-    try {
-      // Solicitar micrófono sin filtros de voz para capturar ataques limpios de instrumentos
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const raw = event.results[i][0]?.transcript || '';
+        if (!raw.trim()) continue;
+        setHeardTranscript(raw.trim());
 
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      if (ctx.state === 'suspended') await ctx.resume();
+        const triggerNow = Date.now();
+        if (triggerNow - trackerRef.current.lastVoiceTriggerTime < 1200) continue;
 
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.25;
-      source.connect(analyser);
+        const clean = normalizeText(raw).split(/\s+/).slice(-3).join(' ');
+        const { sections: secs, onSectionJump: jumpCb } = callbacksRef.current;
+        const currM = trackerRef.current.measureIndex;
 
-      const baseBpm = callbacksRef.current.initialBpm || 75;
-      const now = performance.now();
+        if (/\b(repetir|repite|otra vez|de nuevo)\b/.test(clean)) {
+          const currentSec = [...secs].reverse().find((s) => s.startMeasureIndex <= currM) || secs[0];
+          if (currentSec) {
+            trackerRef.current.lastVoiceTriggerTime = triggerNow;
+            trackerRef.current.measureIndex = currentSec.startMeasureIndex;
+            trackerRef.current.beatPhase = 0;
+            trackerRef.current.hasStartedFirstAttack = true;
+            setLastVoiceAction(`↻ ${currentSec.name}`);
+            jumpCb?.(currentSec.startMeasureIndex, currentSec.name);
+            return;
+          }
+        }
 
-      trackerRef.current = {
-        measureIndex: startFromMeasure,
-        beatPhase: 0,
-        adaptiveBpm: baseBpm,
-        lastFrameTime: now,
-        lastOnsetTime: now,
-        lastSoundTime: now,
-        energyHistory: [],
-        prevSpectrum: new Float32Array(analyser.frequencyBinCount),
-        lastVoiceTriggerTime: 0,
-      };
+        let queryText = clean;
+        if (clean.includes('verso')) queryText += ' estrofa';
+        if (clean.includes('estribillo')) queryText += ' coro';
+        if (clean.includes('pre coro') || clean.includes('precoro')) queryText += ' precoro';
 
-      streamRef.current = stream;
-      audioCtxRef.current = ctx;
-      isFollowingRef.current = true;
-      setIsFollowing(true);
-      setLiveBpm(Math.round(baseBpm));
-      setBandStatus('listening');
-      callbacksRef.current.onMeasureChange(startFromMeasure, 1);
+        const matched = secs.filter((s) => {
+          const sNorm = normalizeText(s.name);
+          return queryText.includes(sNorm) || (sNorm.length >= 4 && queryText.includes(sNorm)) || (clean.length >= 4 && sNorm.includes(clean));
+        });
 
-      // 1. Iniciar Anclaje por Voz Paralelo (opcional si el navegador lo soporta)
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (SpeechRecognition) {
-        try {
-          const recognition = new SpeechRecognition();
-          recognition.lang = 'es-ES';
-          recognition.continuous = true;
-          recognition.interimResults = true;
-
-          recognition.onresult = (event: any) => {
-            const triggerNow = Date.now();
-            if (triggerNow - trackerRef.current.lastVoiceTriggerTime < 1400) return;
-
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const raw = event.results[i][0]?.transcript || '';
-              const clean = normalizeText(raw).split(/\s+/).slice(-3).join(' ');
-              if (!clean) continue;
-
-              const { sections: secs, onSectionJump: jumpCb } = callbacksRef.current;
-              const currM = trackerRef.current.measureIndex;
-
-              // Comando de repetición ("repetir", "otra vez", "de nuevo", "repite")
-              if (/\b(repetir|repite|otra vez|de nuevo)\b/.test(clean)) {
-                const currentSec = [...secs].reverse().find((s) => s.startMeasureIndex <= currM) || secs[0];
-                if (currentSec) {
-                  trackerRef.current.lastVoiceTriggerTime = triggerNow;
-                  trackerRef.current.measureIndex = currentSec.startMeasureIndex;
-                  trackerRef.current.beatPhase = 0;
-                  setLastVoiceAction(`↻ ${currentSec.name}`);
-                  jumpCb?.(currentSec.startMeasureIndex, currentSec.name);
-                  return;
-                }
-              }
-
-              // Mapeo flexible de sinónimos comunes en español
-              let queryText = clean;
-              if (clean.includes('verso')) queryText += ' estrofa';
-              if (clean.includes('estribillo')) queryText += ' coro';
-              if (clean.includes('pre coro') || clean.includes('precoro')) queryText += ' precoro';
-
-              const matched = secs.filter((s) => {
-                const sNorm = normalizeText(s.name);
-                return queryText.includes(sNorm) || (sNorm.length >= 4 && queryText.includes(sNorm)) || (clean.length >= 4 && sNorm.includes(clean));
-              });
-
-              if (matched.length > 0) {
-                const target = matched.find((s) => s.startMeasureIndex > currM) || matched[0];
-                trackerRef.current.lastVoiceTriggerTime = triggerNow;
-                trackerRef.current.measureIndex = target.startMeasureIndex;
-                trackerRef.current.beatPhase = 0;
-                setLastVoiceAction(`🎙️ ${target.name}`);
-                jumpCb?.(target.startMeasureIndex, target.name);
-                return;
-              }
-            }
-          };
-
-          recognition.onerror = () => {
-            // Ignorar errores transitorios de micrófono o silencios
-          };
-
-          recognition.onend = () => {
-            if (isFollowingRef.current) {
-              try {
-                recognition.start();
-              } catch {}
-            }
-          };
-
-          recognitionRef.current = recognition;
-          recognition.start();
-        } catch (e) {
-          console.warn('SpeechRecognition no disponible o bloqueado:', e);
+        if (matched.length > 0) {
+          const target = matched.find((s) => s.startMeasureIndex > currM) || matched[0];
+          trackerRef.current.lastVoiceTriggerTime = triggerNow;
+          trackerRef.current.measureIndex = target.startMeasureIndex;
+          trackerRef.current.beatPhase = 0;
+          trackerRef.current.hasStartedFirstAttack = true;
+          setLastVoiceAction(`🎙️ ${target.name}`);
+          jumpCb?.(target.startMeasureIndex, target.name);
+          return;
         }
       }
+    };
 
-      // 2. Bucle DSP en Tiempo Real (Detección de Ataques + Reloj Elástico PLL + Freno en Silencios)
-      const freqData = new Float32Array(analyser.frequencyBinCount);
-      const timeData = new Uint8Array(analyser.fftSize);
-      const minBpm = Math.max(40, baseBpm * 0.65);
-      const maxBpm = Math.min(210, baseBpm * 1.45);
+    recognition.onend = () => {
+      if (isFollowingRef.current) {
+        voiceTimerRef.current = window.setTimeout(() => {
+          try {
+            recognition.start();
+          } catch {}
+        }, 250);
+      }
+    };
 
-      const processAudioFrame = () => {
-        if (!isFollowingRef.current) return;
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {}
+  }, []);
 
-        const frameNow = performance.now();
-        const tr = trackerRef.current;
-        const dtSec = Math.min(0.1, (frameNow - tr.lastFrameTime) / 1000);
-        tr.lastFrameTime = frameNow;
+  const startFollowing = useCallback(
+    async (startFromMeasure = 0) => {
+      stopFollowing();
+      setErrorMsg(null);
+      setHeardTranscript('');
+      setLastVoiceAction('');
 
-        analyser.getFloatFrequencyData(freqData);
-        analyser.getByteTimeDomainData(timeData);
+      if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        setErrorMsg('El navegador no permite acceso al micrófono.');
+        return;
+      }
 
-        // Calcular energía RMS instantánea para detectar si la banda está tocando o en silencio
-        let sumSq = 0;
-        for (let i = 0; i < timeData.length; i++) {
-          const norm = (timeData[i] - 128) / 128;
-          sumSq += norm * norm;
-        }
-        const rms = Math.sqrt(sumSq / timeData.length);
-        setInputLevel(Math.min(100, Math.round(rms * 420)));
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: true,
+          },
+        });
 
-        // Calcular flujo espectral positivo (Spectral Flux) en frecuencias musicales (60Hz - 4.5kHz)
-        let flux = 0;
-        const prev = tr.prevSpectrum;
-        if (prev) {
-          const startBin = 2; // ~86 Hz
-          const endBin = Math.min(110, freqData.length); // ~4.7 kHz
-          for (let b = startBin; b < endBin; b++) {
-            const rawDb = Number.isFinite(freqData[b]) ? freqData[b] : -100;
-            const mag = Math.max(0, rawDb + 95);
-            const diff = mag - prev[b];
-            if (diff > 0) flux += diff;
-            prev[b] = mag;
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') await ctx.resume();
+
+        const source = ctx.createMediaStreamSource(stream);
+        const micBoost = ctx.createGain();
+        micBoost.gain.setValueAtTime(3.2, ctx.currentTime);
+
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.2;
+
+        source.connect(micBoost);
+        micBoost.connect(analyser);
+
+        const baseBpm = callbacksRef.current.initialBpm || 75;
+        const now = performance.now();
+        const binHz = ctx.sampleRate / analyser.fftSize; // ~43Hz por bin a 44.1kHz
+
+        trackerRef.current = {
+          measureIndex: startFromMeasure,
+          beatPhase: 0,
+          adaptiveBpm: baseBpm,
+          lastFrameTime: now,
+          lastOnsetTime: now - 1000,
+          lastSoundTime: now,
+          noiseFloorRms: 0.003,
+          calibrationSamples: [],
+          fluxHistory: [],
+          prevSpectrum: new Float32Array(analyser.frequencyBinCount),
+          lastVoiceTriggerTime: 0,
+          hasStartedFirstAttack: false,
+        };
+
+        streamRef.current = stream;
+        audioCtxRef.current = ctx;
+        isFollowingRef.current = true;
+        setIsFollowing(true);
+        setLiveBpm(Math.round(baseBpm));
+        setBandStatus('listening');
+        callbacksRef.current.onMeasureChange(startFromMeasure, 1);
+
+        voiceTimerRef.current = window.setTimeout(() => {
+          startVoiceRecognition();
+        }, 350);
+
+        const freqData = new Float32Array(analyser.frequencyBinCount);
+        const timeData = new Uint8Array(analyser.fftSize);
+        const minBpm = Math.max(40, baseBpm * 0.6);
+        const maxBpm = Math.min(210, baseBpm * 1.5);
+
+        // Índices de bandas musicales:
+        // Banda Grave (Bombo / Bajo): ~50Hz a 250Hz
+        const lowStart = Math.max(1, Math.floor(50 / binHz));
+        const lowEnd = Math.min(freqData.length, Math.ceil(250 / binHz));
+        // Banda Media-Aguda (Redoblante / Piano / Guitarras / Voces): ~900Hz a 4500Hz
+        const midStart = Math.max(lowEnd + 1, Math.floor(900 / binHz));
+        const midEnd = Math.min(freqData.length, Math.ceil(4500 / binHz));
+
+        const processAudioFrame = () => {
+          if (!isFollowingRef.current) return;
+
+          const frameNow = performance.now();
+          const tr = trackerRef.current;
+          const dtSec = Math.min(0.1, (frameNow - tr.lastFrameTime) / 1000);
+          tr.lastFrameTime = frameNow;
+
+          analyser.getFloatFrequencyData(freqData);
+          analyser.getByteTimeDomainData(timeData);
+
+          let sumSq = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            const norm = (timeData[i] - 128) / 128;
+            sumSq += norm * norm;
           }
-        }
+          const rms = Math.sqrt(sumSq / timeData.length);
+          setInputLevel(Math.min(100, Math.round(rms * 600)));
 
-        tr.energyHistory.push(flux);
-        if (tr.energyHistory.length > 35) tr.energyHistory.shift();
-
-        const avgFlux =
-          tr.energyHistory.reduce((acc, v) => acc + v, 0) / Math.max(1, tr.energyHistory.length);
-
-        const sens = callbacksRef.current.sensitivity || 0.65;
-        const rmsThreshold = 0.012 * (1.35 - sens); // Umbral de silencio adaptable
-        const onsetThreshold = avgFlux * (1.85 - sens * 0.55) + 18;
-
-        const isSoundPresent = rms > rmsThreshold || flux > onsetThreshold * 0.75;
-        if (isSoundPresent) {
-          tr.lastSoundTime = frameNow;
-        }
-
-        const expectedBeatMs = 60000 / tr.adaptiveBpm;
-        const timeSinceLastOnset = frameNow - tr.lastOnsetTime;
-
-        // Detectar ataque rítmico válido (con período refractario del 58% de un tiempo para ignorar subdivisión rápida)
-        if (flux > onsetThreshold && rms > rmsThreshold && timeSinceLastOnset > expectedBeatMs * 0.58) {
-          tr.lastOnsetTime = frameNow;
-
-          // Si el ataque cae cerca de un pulso entero (0.72x a 1.38x del beat esperado), actualizar BPM elástico
-          if (timeSinceLastOnset >= expectedBeatMs * 0.72 && timeSinceLastOnset <= expectedBeatMs * 1.38) {
-            const instantBpm = 60000 / timeSinceLastOnset;
-            const clampedBpm = Math.max(minBpm, Math.min(maxBpm, instantBpm));
-            tr.adaptiveBpm = tr.adaptiveBpm * 0.78 + clampedBpm * 0.22;
-            setLiveBpm(Math.round(tr.adaptiveBpm));
+          // Auto-calibrar piso de ruido de la sala en los primeros ~400ms
+          if (tr.calibrationSamples.length < 25) {
+            tr.calibrationSamples.push(rms);
+            const sorted = [...tr.calibrationSamples].sort((a, b) => a - b);
+            tr.noiseFloorRms = Math.max(0.002, sorted[Math.floor(sorted.length * 0.4)] || 0.003);
           }
 
-          // Corrección suave de fase hacia el pulso entero más cercano para que no se desplace del beat
-          const nearestBeat = Math.round(tr.beatPhase);
-          const phaseError = nearestBeat - tr.beatPhase;
-          if (Math.abs(phaseError) < 0.38) {
-            tr.beatPhase += phaseError * 0.45;
-          }
-        }
+          // Cálculo de Flujo Espectral Dual-Band (Grave + Medio/Agudo)
+          const prev = tr.prevSpectrum;
+          let lowFlux = 0;
+          let midFlux = 0;
 
-        // ANTI-ADELANTO: Si hay silencio por más de 1.8 tiempos (calderón o pausa entre partes), congelar el compás actual
-        const silenceDurationMs = frameNow - tr.lastSoundTime;
-        const isHoldingOnSilence = silenceDurationMs > expectedBeatMs * 1.8;
-
-        if (isHoldingOnSilence) {
-          setBandStatus('holding');
-        } else {
-          setBandStatus('tracking');
-          const prevBeatInt = Math.floor(tr.beatPhase);
-          const beatsPerSecond = tr.adaptiveBpm / 60;
-          tr.beatPhase += beatsPerSecond * dtSec;
-
-          const spm = callbacksRef.current.beatsPerMeasure || 4;
-          if (tr.beatPhase >= spm) {
-            tr.beatPhase -= spm;
-            const nextMeasure = tr.measureIndex + 1;
-            const total = callbacksRef.current.totalMeasures || 0;
-            if (total > 0 && nextMeasure >= total) {
-              // Al finalizar el último compás, detener seguimiento cleanly
-              stopFollowing();
-              return;
+          if (prev) {
+            for (let b = lowStart; b <= lowEnd; b++) {
+              const rawDb = Number.isFinite(freqData[b]) ? freqData[b] : -100;
+              const mag = Math.max(0, rawDb + 95);
+              const diff = mag - prev[b];
+              if (diff > 0) lowFlux += diff;
+              prev[b] = mag;
             }
-            tr.measureIndex = nextMeasure;
-            callbacksRef.current.onMeasureChange(tr.measureIndex, 1);
-          } else {
-            const currentBeatInt = Math.floor(tr.beatPhase);
-            if (currentBeatInt !== prevBeatInt) {
-              callbacksRef.current.onMeasureChange(tr.measureIndex, currentBeatInt + 1);
+
+            for (let b = midStart; b <= midEnd; b++) {
+              const rawDb = Number.isFinite(freqData[b]) ? freqData[b] : -100;
+              const mag = Math.max(0, rawDb + 95);
+              const diff = mag - prev[b];
+              if (diff > 0) midFlux += diff;
+              prev[b] = mag;
             }
           }
-        }
+
+          // Ponderar graves (bombo/bajo) + ataques medios (caja/piano/guitarra/voz)
+          const combinedFlux = lowFlux * 1.45 + midFlux * 0.85;
+
+          tr.fluxHistory.push(combinedFlux);
+          if (tr.fluxHistory.length > 32) tr.fluxHistory.shift();
+          const avgFlux =
+            tr.fluxHistory.reduce((acc, v) => acc + v, 0) / Math.max(1, tr.fluxHistory.length);
+
+          const isSoloMode = callbacksRef.current.environment === 'solo_acoustic';
+          const ratioThreshold = isSoloMode ? 1.42 : 1.72;
+          const minFluxFloor = isSoloMode ? 5 : 12;
+          const rmsFloor = Math.max(0.003, tr.noiseFloorRms * (isSoloMode ? 1.25 : 1.65));
+
+          const isAttackDetected =
+            combinedFlux > avgFlux * ratioThreshold + minFluxFloor && rms > rmsFloor;
+
+          if (rms > rmsFloor || combinedFlux > avgFlux * 1.15) {
+            tr.lastSoundTime = frameNow;
+          }
+
+          const expectedBeatMs = 60000 / tr.adaptiveBpm;
+          const timeSinceLastOnset = frameNow - tr.lastOnsetTime;
+          const currentStepMode = callbacksRef.current.stepMode;
+
+          const minRefractoryMs =
+            currentStepMode === 'single_pulse_per_measure'
+              ? Math.max(550, expectedBeatMs * 1.6)
+              : expectedBeatMs * 0.52;
+
+          if (isAttackDetected && timeSinceLastOnset > minRefractoryMs) {
+            tr.lastOnsetTime = frameNow;
+
+            if (currentStepMode === 'single_pulse_per_measure') {
+              if (!tr.hasStartedFirstAttack) {
+                tr.hasStartedFirstAttack = true;
+                setBandStatus('tracking');
+                callbacksRef.current.onMeasureChange(tr.measureIndex, 1);
+              } else {
+                const nextMeasure = tr.measureIndex + 1;
+                const total = callbacksRef.current.totalMeasures || 0;
+                if (total > 0 && nextMeasure >= total) {
+                  stopFollowing();
+                  return;
+                }
+                tr.measureIndex = nextMeasure;
+                tr.beatPhase = 0;
+                setBandStatus('tracking');
+                callbacksRef.current.onMeasureChange(tr.measureIndex, 1);
+              }
+            } else {
+              tr.hasStartedFirstAttack = true;
+              if (timeSinceLastOnset >= expectedBeatMs * 0.7 && timeSinceLastOnset <= expectedBeatMs * 1.4) {
+                const instantBpm = 60000 / timeSinceLastOnset;
+                const clampedBpm = Math.max(minBpm, Math.min(maxBpm, instantBpm));
+                tr.adaptiveBpm = tr.adaptiveBpm * 0.76 + clampedBpm * 0.24;
+                setLiveBpm(Math.round(tr.adaptiveBpm));
+              }
+
+              const nearestBeat = Math.round(tr.beatPhase);
+              const phaseError = nearestBeat - tr.beatPhase;
+              if (Math.abs(phaseError) < 0.42) {
+                tr.beatPhase += phaseError * 0.5;
+              }
+            }
+          }
+
+          if (currentStepMode === 'beats' && tr.hasStartedFirstAttack) {
+            const silenceDurationMs = frameNow - tr.lastSoundTime;
+            if (silenceDurationMs > expectedBeatMs * 1.9) {
+              setBandStatus('holding');
+            } else {
+              setBandStatus('tracking');
+              const prevBeatInt = Math.floor(tr.beatPhase);
+              tr.beatPhase += (tr.adaptiveBpm / 60) * dtSec;
+
+              const spm = callbacksRef.current.beatsPerMeasure || 4;
+              if (tr.beatPhase >= spm) {
+                tr.beatPhase -= spm;
+                const nextMeasure = tr.measureIndex + 1;
+                const total = callbacksRef.current.totalMeasures || 0;
+                if (total > 0 && nextMeasure >= total) {
+                  stopFollowing();
+                  return;
+                }
+                tr.measureIndex = nextMeasure;
+                callbacksRef.current.onMeasureChange(tr.measureIndex, 1);
+              } else {
+                const currentBeatInt = Math.floor(tr.beatPhase);
+                if (currentBeatInt !== prevBeatInt) {
+                  callbacksRef.current.onMeasureChange(tr.measureIndex, currentBeatInt + 1);
+                }
+              }
+            }
+          }
+
+          rafIdRef.current = requestAnimationFrame(processAudioFrame);
+        };
 
         rafIdRef.current = requestAnimationFrame(processAudioFrame);
-      };
-
-      rafIdRef.current = requestAnimationFrame(processAudioFrame);
-    } catch (err) {
-      setErrorMsg('No se pudo acceder al micrófono. Verifica los permisos del navegador.');
-      stopFollowing();
-    }
-  }, [stopFollowing]);
+      } catch {
+        setErrorMsg('No se pudo acceder al micrófono. Revisa permisos en el navegador.');
+        stopFollowing();
+      }
+    },
+    [stopFollowing, startVoiceRecognition]
+  );
 
   useEffect(() => {
     return () => stopFollowing();
@@ -409,6 +486,7 @@ export function useLiveBandFollower({
     liveBpm,
     bandStatus,
     inputLevel,
+    heardTranscript,
     lastVoiceAction,
     errorMsg,
     startFollowing,
@@ -417,4 +495,3 @@ export function useLiveBandFollower({
     tapDownbeat,
   };
 }
-
