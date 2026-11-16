@@ -3,7 +3,7 @@
 import React from 'react'
 import { SectionMeasures } from '@/types/measure'
 import { getSectionBadge } from '@/lib/measure-utils'
-import { Layers, ChevronsUpDown } from 'lucide-react'
+import { Layers, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface SectionQuickNavProps {
@@ -16,6 +16,8 @@ export interface SectionQuickNavProps {
   toggleCollapseAll?: () => void
   onSelectSection?: (sectionId: string) => void
   scrollToSection?: (sectionId: string) => void
+  onPrevSection?: () => void
+  onNextSection?: () => void
   className?: string
 }
 
@@ -29,6 +31,8 @@ export function SectionQuickNav({
   toggleCollapseAll,
   onSelectSection,
   scrollToSection,
+  onPrevSection,
+  onNextSection,
   className,
 }: SectionQuickNavProps) {
   const sectionsList = sections || song?.sections || []
@@ -43,17 +47,49 @@ export function SectionQuickNav({
       ? isAllCollapsed
       : sectionsList.length > 0 && sectionsList.every((s) => collapsedSections[s.id])
 
+  const activeIdx = sectionsList.findIndex((s) => s.id === activeSectionId)
+  const canGoPrev = activeIdx > 0
+  const canGoNext = activeIdx !== -1 && activeIdx < sectionsList.length - 1
+
+  const handlePrev = () => {
+    if (onPrevSection) {
+      onPrevSection()
+    } else if (canGoPrev) {
+      handleSelect(sectionsList[activeIdx - 1].id)
+    }
+  }
+
+  const handleNext = () => {
+    if (onNextSection) {
+      onNextSection()
+    } else if (canGoNext) {
+      handleSelect(sectionsList[activeIdx + 1].id)
+    }
+  }
+
   return (
-    <div className={cn('relative w-full my-3 px-1 sm:px-0 select-none', className)}>
-      <div className="flex items-center justify-between gap-2 bg-slate-100/80 dark:bg-slate-900/60 backdrop-blur-sm p-1.5 sm:p-2 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-        {/* Título o Ícono sutil a la izquierda */}
-        <div className="hidden sm:flex items-center gap-1.5 text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-wider pl-2 shrink-0">
-          <Layers className="w-3.5 h-3.5 text-purple-500" />
-          <span>Secciones:</span>
-        </div>
+    <div
+      className={cn(
+        'fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-2 py-1.5 sm:py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl select-none',
+        className
+      )}
+    >
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
+        {/* Botón Navegar Sección Anterior ◀ */}
+        <button
+          type="button"
+          onClick={handlePrev}
+          disabled={!canGoPrev && !onPrevSection}
+          className="shrink-0 p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-cyan-400 border border-slate-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+          title="Sección anterior (← o PageUp)"
+          aria-label="Sección anterior"
+        >
+          <ChevronLeft className="w-4 h-4 sm:hidden" />
+          <span className="hidden sm:inline">◀ Ant</span>
+        </button>
 
         {/* Carrusel Deslizable de Secciones (Scroll Horizontal Táctil en Móvil) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 px-1 flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 px-0.5 flex-1 min-w-0">
           {sectionsList.map((section) => {
             const isActive = activeSectionId === section.id
             const sectionDisplayName = (section as any).name || section.label
@@ -70,8 +106,8 @@ export function SectionQuickNav({
                 className={cn(
                   'shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer',
                   isActive
-                    ? 'bg-purple-600 text-white shadow-md ring-2 ring-purple-400/50'
-                    : 'bg-white dark:bg-slate-800/90 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/70 shadow-sm'
+                    ? 'bg-cyan-500 text-slate-950 font-black shadow-md ring-2 ring-cyan-300'
+                    : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-800 shadow-sm'
                 )}
                 title={`Ir a ${sectionDisplayName}`}
               >
@@ -80,19 +116,19 @@ export function SectionQuickNav({
                   className={cn(
                     'text-[10px] font-mono px-1 py-0.2 rounded font-bold uppercase',
                     isActive
-                      ? 'bg-purple-800 text-purple-200'
-                      : 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300'
+                      ? 'bg-slate-950 text-cyan-300'
+                      : 'bg-slate-800 text-cyan-400'
                   )}
                 >
                   {typePrefix.toUpperCase()}
                 </span>
 
                 {/* Nombre de la sección */}
-                <span className="truncate max-w-[90px] sm:max-w-none">{sectionDisplayName}</span>
+                <span className="truncate max-w-[85px] sm:max-w-none">{sectionDisplayName}</span>
 
                 {/* Multiplicador si tiene repetición */}
                 {section.repeatCount && section.repeatCount > 1 ? (
-                  <span className={cn('text-[10px] font-bold', isActive ? 'text-purple-200' : 'text-purple-500')}>
+                  <span className={cn('text-[10px] font-bold', isActive ? 'text-slate-900' : 'text-cyan-400')}>
                     {section.repeatCount}x
                   </span>
                 ) : null}
@@ -100,7 +136,10 @@ export function SectionQuickNav({
                 {/* Indicador de modulación si tiene tonalidad propia */}
                 {section.keySignature && (
                   <span
-                    className="w-1.5 h-1.5 rounded-full bg-purple-500 dark:bg-purple-400 shrink-0"
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full shrink-0',
+                      isActive ? 'bg-slate-950' : 'bg-cyan-400'
+                    )}
                     title={`Modulada: ${section.keySignature}`}
                   />
                 )}
@@ -109,15 +148,28 @@ export function SectionQuickNav({
           })}
         </div>
 
+        {/* Botón Navegar Sección Siguiente ▶ */}
+        <button
+          type="button"
+          onClick={handleNext}
+          disabled={!canGoNext && !onNextSection}
+          className="shrink-0 p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-cyan-400 border border-slate-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+          title="Sección siguiente (→ o PageDown)"
+          aria-label="Sección siguiente"
+        >
+          <span className="hidden sm:inline">Sig ▶</span>
+          <ChevronRight className="w-4 h-4 sm:hidden" />
+        </button>
+
         {/* Botón Colapsar / Expandir todo a la derecha */}
         <button
           type="button"
           onClick={handleToggleCollapse}
-          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer"
+          className="shrink-0 inline-flex items-center gap-1 p-1.5 sm:px-2 sm:py-1 text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-800 rounded-lg transition-colors border border-slate-800 cursor-pointer"
           title={allCollapsed ? 'Expandir todas las secciones' : 'Colapsar todas las secciones'}
         >
           <ChevronsUpDown className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">{allCollapsed ? 'Expandir' : 'Colapsar'}</span>
+          <span className="hidden lg:inline">{allCollapsed ? 'Expandir' : 'Colapsar'}</span>
         </button>
       </div>
     </div>

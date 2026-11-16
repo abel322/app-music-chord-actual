@@ -82,6 +82,7 @@ interface MeasureGridProps {
   timeSignature?: string
   currentKey?: string
   diatonicChords?: string[]
+  viewMode?: 'stage' | 'wide'
   isEditing?: boolean
   activeMeasureId?: string | null
   isPlaying?: boolean
@@ -102,6 +103,7 @@ export function MeasureGrid({
   timeSignature = '4/4',
   currentKey = 'C',
   diatonicChords = [],
+  viewMode = 'stage',
   isEditing = false,
   activeMeasureId = null,
   isPlaying = false,
@@ -209,19 +211,22 @@ export function MeasureGrid({
     onUpdateMeasures(duplicatedList)
   }
 
-  // Agrupar compases en bloques de 4 compases (sistemas musicales)
+  // Agrupar compases en bloques (sistemas musicales: 8 en modo stage, 4 en modo wide)
+  const isStage = viewMode !== 'wide'
+  const rowChunk = isStage ? 8 : 4
+
   const rows = useMemo(() => {
     const result: Measure[][] = []
-    for (let i = 0; i < measures.length; i += 4) {
-      result.push(measures.slice(i, i + 4))
+    for (let i = 0; i < measures.length; i += rowChunk) {
+      result.push(measures.slice(i, i + rowChunk))
     }
     return result
-  }, [measures])
+  }, [measures, rowChunk])
 
   // Duplicar los compases de una fila específica (insertándolos inmediatamente a continuación)
   const handleDuplicateRow = (rowIdx: number) => {
-    const startIdx = rowIdx * 4
-    const rowMeasures = measures.slice(startIdx, startIdx + 4)
+    const startIdx = rowIdx * rowChunk
+    const rowMeasures = measures.slice(startIdx, startIdx + rowChunk)
     if (rowMeasures.length === 0) return
     const insertAt = startIdx + rowMeasures.length
     const updated = duplicateMultipleMeasures(measures, rowMeasures, insertAt)
@@ -394,6 +399,8 @@ export function MeasureGrid({
   // Calcular corchetes flotantes superiores de cadencias MANUALES con geometría y wrap precisos
   const cadenceBrackets = useMemo(() => {
     const map: Record<string, CadenceBracketInfo> = {}
+    const desktopCols = viewMode === 'wide' ? 4 : 8
+    const mobileCols = viewMode === 'wide' ? 2 : 4
 
     for (let i = 0; i < measures.length; i++) {
       const m = measures[i]
@@ -402,15 +409,15 @@ export function MeasureGrid({
       const rawLabel = m.cadenceLabel || m.cadence
       const { full: label, short: shortLabel } = getCadenceDisplayLabels(m.cadence, rawLabel)
 
-      const isLastInRowDesktop = (i + 1) % 4 === 0 || i === measures.length - 1
-      const isLastInRowMobile = (i + 1) % 2 === 0 || i === measures.length - 1
+      const isLastInRowDesktop = (i + 1) % desktopCols === 0 || i === measures.length - 1
+      const isLastInRowMobile = (i + 1) % mobileCols === 0 || i === measures.length - 1
 
       // Si este compás está marcado expresamente como 'end' (receptor)
       if (m.cadenceRole === 'end') {
         const prevIdx = i - 1
         const prevM = prevIdx >= 0 ? measures[prevIdx] : null
-        const wrapsOnDesktop = prevIdx >= 0 && prevIdx % 4 === 3
-        const wrapsOnMobile = prevIdx >= 0 && prevIdx % 2 === 1
+        const wrapsOnDesktop = prevIdx >= 0 && prevIdx % desktopCols === desktopCols - 1
+        const wrapsOnMobile = prevIdx >= 0 && prevIdx % mobileCols === mobileCols - 1
         const wrapType: CadenceWrapType = wrapsOnDesktop
           ? 'both'
           : wrapsOnMobile
@@ -444,8 +451,8 @@ export function MeasureGrid({
 
       // Inter-compás: Este compás es el emisor (tensión) y enlaza con el compás siguiente (i + 1)
       const nextM = measures[i + 1]
-      const wrapsOnDesktop = i % 4 === 3
-      const wrapsOnMobile = i % 2 === 1
+      const wrapsOnDesktop = i % desktopCols === desktopCols - 1
+      const wrapsOnMobile = i % mobileCols === mobileCols - 1
       const wrapType: CadenceWrapType = wrapsOnDesktop
         ? 'both'
         : wrapsOnMobile
@@ -470,8 +477,8 @@ export function MeasureGrid({
 
       // Registrar compás receptor (resolución)
       if (nextM && !map[nextM.id]) {
-        const nextIsLastDesktop = (i + 2) % 4 === 0 || i + 1 === measures.length - 1
-        const nextIsLastMobile = (i + 2) % 2 === 0 || i + 1 === measures.length - 1
+        const nextIsLastDesktop = (i + 2) % desktopCols === 0 || i + 1 === measures.length - 1
+        const nextIsLastMobile = (i + 2) % mobileCols === 0 || i + 1 === measures.length - 1
         map[nextM.id] = {
           role: 'end',
           endPercent,
@@ -484,7 +491,7 @@ export function MeasureGrid({
     }
 
     return map
-  }, [measures, timeSignature])
+  }, [measures, timeSignature, viewMode])
 
   return (
     <div className="space-y-4">
@@ -499,10 +506,11 @@ export function MeasureGrid({
         <SortableContext items={measures.map((m) => m.id)} strategy={rectSortingStrategy}>
           <div className="space-y-6 w-full max-w-full">
             {rows.map((rowMeasures, rowIdx) => {
-              const startIdx = rowIdx * 4
+              const startIdx = rowIdx * rowChunk
+              const hasBracket = rowMeasures.some((m) => cadenceBrackets[m.id])
               return (
                 <div key={rowIdx} className="space-y-1 relative group/row">
-                  {/* Encabezado sutil de línea / sistema musical de 4 compases */}
+                  {/* Encabezado sutil de línea / sistema musical */}
                   <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-slate-500 dark:text-slate-400 text-[10px] tracking-wider uppercase">
@@ -527,7 +535,11 @@ export function MeasureGrid({
                   </div>
 
                   {/* Grid de compases de esta línea */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5 gap-y-9 sm:gap-y-10 pt-7 sm:pt-8 pb-1 w-full max-w-full">
+                  <div className={cn(
+                    'grid w-full max-w-full pb-1',
+                    isStage ? 'grid-cols-4 md:grid-cols-8 gap-1.5 sm:gap-2' : 'grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5',
+                    hasBracket ? 'pt-7 sm:pt-8 gap-y-8 sm:gap-y-9' : isStage ? 'pt-1 gap-y-1.5 sm:gap-y-2' : 'pt-5 gap-y-7'
+                  )}>
                     {rowMeasures.map((measure, mIdx) => {
                       const globalIndex = startIdx + mIdx
                       const isSelected = selectedMeasureId === measure.id
@@ -546,6 +558,7 @@ export function MeasureGrid({
                           id={measure.id}
                           measure={measure}
                           timeSignature={timeSignature}
+                          viewMode={viewMode}
                           beatsPerMeasure={beatsPerMeasure}
                           currentKey={currentKey}
                           isSelected={isSelected}

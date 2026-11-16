@@ -32,6 +32,7 @@ export interface MeasureCellProps {
   timeSignature?: string
   beatsPerMeasure?: number
   currentKey?: string
+  viewMode?: 'stage' | 'wide'
   isSelected?: boolean
   isSelectedForBatch?: boolean
   isEditing?: boolean
@@ -59,6 +60,7 @@ export function MeasureCell({
   timeSignature,
   beatsPerMeasure = 4,
   currentKey = 'C',
+  viewMode = 'stage',
   isSelected = false,
   isSelectedForBatch = false,
   isEditing = false,
@@ -139,16 +141,19 @@ export function MeasureCell({
       data-measure-number={measure.measureNumber}
       onClick={handleClick}
       className={cn(
-        'group relative flex flex-col justify-between rounded-xl border select-none min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 overflow-visible scroll-mt-32 transition-all duration-300',
+        'group relative flex flex-col justify-between select-none overflow-visible transition-all duration-200',
+        viewMode === 'wide'
+          ? 'rounded-xl border min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 scroll-mt-32'
+          : 'rounded-lg border min-h-[58px] p-1.5 scroll-mt-20',
         isActive
-          ? 'ring-4 ring-purple-500 border-purple-500 shadow-xl shadow-purple-500/20 scale-[1.03] z-10 bg-purple-50 dark:bg-purple-950/40'
+          ? 'ring-2 sm:ring-4 ring-cyan-500 border-cyan-500 shadow-xl shadow-cyan-500/25 scale-[1.02] z-10 bg-cyan-50/80 dark:bg-cyan-950/50'
           : isSelectedForBatch
             ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
             : isSelected && isEditing
               ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
-              : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-sm',
-        (measure.repeatStart || sectionRepeatStart) && 'border-l-[5px] border-l-purple-600 dark:border-l-purple-500',
-        (measure.repeatEnd || !!sectionRepeatEnd) && 'border-r-[5px] border-r-purple-600 dark:border-r-purple-500',
+              : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-xs',
+        (measure.repeatStart || sectionRepeatStart) && (viewMode === 'wide' ? 'border-l-[5px] border-l-purple-600 dark:border-l-purple-500' : 'border-l-[4px] border-l-purple-600 dark:border-l-purple-500'),
+        (measure.repeatEnd || !!sectionRepeatEnd) && (viewMode === 'wide' ? 'border-r-[5px] border-r-purple-600 dark:border-r-purple-500' : 'border-r-[4px] border-r-purple-600 dark:border-r-purple-500'),
         (isEditing || isPlaying) && 'cursor-pointer hover:shadow-md',
         isDragging && 'opacity-40 border-dashed border-purple-400 dark:border-purple-500'
       )}
@@ -338,7 +343,10 @@ export function MeasureCell({
       )}
 
       {/* 1. Cabecera del Compás: Número, Barra de Repetición, Bracket y Casillas */}
-      <div className="flex items-center justify-between text-[11px] leading-none mb-1 gap-1 shrink-0">
+      <div className={cn(
+        "flex items-center justify-between leading-none shrink-0",
+        viewMode === 'wide' ? "text-[11px] mb-1 gap-1" : "text-[10px] mb-0.5 gap-0.5"
+      )}>
         <div className="flex items-center gap-1.5 font-mono shrink-0">
           {/* Checkbox de selección rápida multi-compás (Modo Edición) */}
           {isEditing && onToggleSelect && (
@@ -459,9 +467,77 @@ export function MeasureCell({
         </div>
       </div>
 
-      {/* 2. Cuerpo Armónico y Rítmico (Sin truncamiento con puntos suspensivos) */}
-      <div className="flex-1 flex flex-col justify-center my-1 min-w-0">
-        {division === 'whole' ? (
+      {/* 2. Cuerpo Armónico y Rítmico */}
+      {viewMode !== 'wide' ? (
+        /* VISTA ESCENARIO (COMPACTA 58px) */
+        <div className="flex-1 flex flex-col justify-center min-w-0 py-0.5">
+          {division === 'half' || (slots.length === 2 && slots[0]?.chord && slots[1]?.chord) ? (
+            /* Compás Dividido (2 Acordes lado a lado con división y barras /) */
+            <div className="grid grid-cols-2 divide-x divide-slate-300 dark:divide-slate-700/80 items-center text-center py-0.5 w-full">
+              <div className="flex flex-col items-center justify-center px-0.5 min-w-0">
+                <span
+                  className="font-mono font-extrabold text-[11px] text-slate-900 dark:text-white truncate max-w-full leading-tight"
+                  title={slots[0]?.chord || '/'}
+                >
+                  {slots[0]?.chord || '/'}
+                </span>
+                <span className="text-[10px] font-mono tracking-wider text-slate-400 dark:text-slate-500 leading-none mt-0.5">
+                  {firstHalfBeats.map(() => '/').join(' ')}
+                </span>
+              </div>
+              <div className="flex flex-col items-center justify-center px-0.5 min-w-0">
+                <span
+                  className="font-mono font-extrabold text-[11px] text-slate-900 dark:text-white truncate max-w-full leading-tight"
+                  title={slots[1]?.chord || '/'}
+                >
+                  {slots[1]?.chord || '/'}
+                </span>
+                <span className="text-[10px] font-mono tracking-wider text-slate-400 dark:text-slate-500 leading-none mt-0.5">
+                  {secondHalfBeats.map(() => '/').join(' ')}
+                </span>
+              </div>
+            </div>
+          ) : slots.length >= 3 && slots.some((s) => s.chord) ? (
+            /* Compás con 3 o más acordes */
+            <div className={cn("grid gap-0.5 w-full items-center text-center py-0.5", slots.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
+              {slots.slice(0, 4).map((s, idx) => (
+                <div key={idx} className="flex flex-col items-center justify-center px-0.5 min-w-0">
+                  <span className="font-mono font-extrabold text-[10px] text-slate-900 dark:text-white truncate max-w-full leading-tight">
+                    {s.chord || '/'}
+                  </span>
+                  <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 leading-none mt-0.5">
+                    /
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* 1 Acorde o Compás Vacío: Centrado con barras de pulso completas */
+            <div className="flex flex-col items-center justify-center min-w-0">
+              {primaryChord ? (
+                <>
+                  <span
+                    className="font-mono font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate max-w-full leading-tight"
+                    title={primaryChord}
+                  >
+                    {primaryChord}
+                  </span>
+                  <div className="text-[11px] font-mono tracking-[0.18em] text-slate-400 dark:text-slate-500 font-bold leading-none mt-1">
+                    {Array.from({ length: actualBeats }).map(() => '/').join(' ')}
+                  </div>
+                </>
+              ) : (
+                <div className="text-[11px] font-mono tracking-[0.18em] text-slate-400 dark:text-slate-500 font-bold leading-none py-1">
+                  {Array.from({ length: actualBeats }).map(() => '/').join(' ')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* VISTA AMPLIA COMPLETA */
+        <div className="flex-1 flex flex-col justify-center my-1 min-w-0">
+          {division === 'whole' ? (
           /* Caso Redonda / Métrica Completa: Acorde Centrado y Marcas de Pulso Agrupadas */
           <div className="flex flex-col items-center justify-center min-w-0">
             {primaryChord ? (
@@ -808,9 +884,10 @@ export function MeasureCell({
           </div>
         )}
       </div>
+      )}
 
       {/* 3. Letra Guía Rítmica Inferior */}
-      {measure.guideLyric && (
+      {measure.guideLyric && viewMode === 'wide' && (
         <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800/60 shrink-0">
           <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate font-serif">
             &quot;{measure.guideLyric}&quot;
@@ -820,10 +897,10 @@ export function MeasureCell({
 
       {/* 4. Barra de Progreso de Pulso/Compás Sutil en Reproducción */}
       {isActive && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-200/50 dark:bg-purple-900/50 overflow-hidden rounded-b-xl z-20 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-200/50 dark:bg-cyan-900/50 overflow-hidden rounded-b-lg z-20 pointer-events-none">
           <div
             key={`progress-${measure.id}-${isActive}`}
-            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 origin-left"
+            className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 origin-left"
             style={{
               animation: `measureProgressBar ${measureDurationMs || 3333}ms linear forwards`,
               animationPlayState: isPlaying ? 'running' : 'paused',

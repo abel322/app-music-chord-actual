@@ -176,6 +176,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const [isEditing, setIsEditing] = useState(false)
   const effectiveIsEditing = isAdmin && isEditing
   const [isSaving, setIsSaving] = useState(false)
+  const [viewMode, setViewMode] = useState<'stage' | 'wide'>('stage')
+  const [isControlsDrawerOpen, setIsControlsDrawerOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [transposeSemitones, setTransposeSemitones] = useState(0)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -201,29 +203,6 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       })
       setCollapsedSections(all)
     }
-  }
-
-  // Salto rápido a sección con descolapso automático y desplazamiento suave
-  const handleSelectSectionJump = (sectionId: string) => {
-    if (collapsedSections[sectionId]) {
-      setCollapsedSections((prev) => ({ ...prev, [sectionId]: false }))
-    }
-    if (playbackMode === 'band') {
-      const targetIdx = flatMeasures.findIndex((fm) => fm.sectionId === sectionId)
-      if (targetIdx !== -1) {
-        setBandMeasureIndex(targetIdx)
-        setBandBeat(1)
-        if (isFollowing) {
-          syncToMeasure(targetIdx)
-        }
-      }
-    }
-    setTimeout(() => {
-      const el = document.getElementById(`section-${sectionId}`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
-    }, 60)
   }
 
   // Normalizar las secciones a compases estructurados
@@ -257,6 +236,15 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     )
     return syncSectionsWithLyrics(normalized, song.lyrics || song.content)
   })
+
+  // Sección activa enfocada para lectura estática y seguimiento en vivo
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(() => sections[0]?.id || '')
+
+  useEffect(() => {
+    if (sections.length > 0 && !selectedSectionId) {
+      setSelectedSectionId(sections[0].id)
+    }
+  }, [sections, selectedSectionId])
 
   // Pausar temporalmente el auto-scroll si el usuario interviene manualmente (wheel/touch)
   const userScrollPausedUntilRef = useRef<number>(0)
@@ -394,6 +382,36 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     },
   })
 
+  // Salto rápido a sección con descolapso automático y desplazamiento suave
+  const handleSelectSectionJump = useCallback(
+    (sectionId: string) => {
+      setSelectedSectionId(sectionId)
+      setCollapsedSections((prev) => {
+        if (prev[sectionId]) {
+          return { ...prev, [sectionId]: false }
+        }
+        return prev
+      })
+      if (playbackMode === 'band') {
+        const targetIdx = flatMeasures.findIndex((fm) => fm.sectionId === sectionId)
+        if (targetIdx !== -1) {
+          setBandMeasureIndex(targetIdx)
+          setBandBeat(1)
+          if (isFollowing) {
+            syncToMeasure(targetIdx)
+          }
+        }
+      }
+      setTimeout(() => {
+        const el = document.getElementById(`section-${sectionId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 60)
+    },
+    [playbackMode, flatMeasures, isFollowing, syncToMeasure]
+  )
+
   // WakeLock: Mantener la pantalla encendida en el teléfono móvil durante el seguimiento
   const wakeLockRef = useRef<any>(null)
 
@@ -504,6 +522,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   const handleMeasureClick = useCallback(
     (clickedMeasure: Measure) => {
+      const foundSection = sections.find((s) => s.measures.some((m) => m.id === clickedMeasure.id))
+      if (foundSection) {
+        setSelectedSectionId(foundSection.id)
+      }
+
       if (playbackMode === 'band') {
         const targetIdx = flatMeasures.findIndex((fm) => fm.measure.id === clickedMeasure.id)
         if (targetIdx !== -1) {
@@ -514,10 +537,12 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           }
         }
       } else {
-        jumpToMeasureId(clickedMeasure.id)
+        if (isPlaying) {
+          jumpToMeasureId(clickedMeasure.id)
+        }
       }
     },
-    [playbackMode, flatMeasures, isFollowing, syncToMeasure, jumpToMeasureId]
+    [sections, playbackMode, flatMeasures, isFollowing, syncToMeasure, isPlaying, jumpToMeasureId]
   )
 
   // Detección de intervención manual del usuario para no forzar scroll
@@ -576,6 +601,57 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleTogglePlay])
+
+  // Navegación secuencial de secciones (Pulgar y Pedal Bluetooth)
+  const handlePrevSection = useCallback(() => {
+    if (sections.length === 0) return
+    const currentActiveId = effectiveIsPlaying ? effectiveCurrentMeasure?.sectionId : selectedSectionId
+    const currentIdx = sections.findIndex((s) => s.id === currentActiveId)
+    const prevIdx = currentIdx > 0 ? currentIdx - 1 : 0
+    const prevSec = sections[prevIdx]
+    if (prevSec) {
+      setSelectedSectionId(prevSec.id)
+      handleSelectSectionJump(prevSec.id)
+    }
+  }, [sections, effectiveIsPlaying, effectiveCurrentMeasure?.sectionId, selectedSectionId, handleSelectSectionJump])
+
+  const handleNextSection = useCallback(() => {
+    if (sections.length === 0) return
+    const currentActiveId = effectiveIsPlaying ? effectiveCurrentMeasure?.sectionId : selectedSectionId
+    const currentIdx = sections.findIndex((s) => s.id === currentActiveId)
+    const nextIdx = currentIdx < sections.length - 1 ? currentIdx + 1 : sections.length - 1
+    const nextSec = sections[nextIdx]
+    if (nextSec) {
+      setSelectedSectionId(nextSec.id)
+      handleSelectSectionJump(nextSec.id)
+    }
+  }, [sections, effectiveIsPlaying, effectiveCurrentMeasure?.sectionId, selectedSectionId, handleSelectSectionJump])
+
+  // Atajos de Teclado y Pedal Bluetooth (Flechas Izq/Der y PageUp/PageDown)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"], [role="dialog"]')
+      ) {
+        return
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault()
+        handlePrevSection()
+      } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault()
+        handleNextSection()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handlePrevSection, handleNextSection])
 
   // Acordes diatónicos de la tonalidad actual para sugerencias
   const diatonicChords = useMemo(() => {
@@ -831,303 +907,319 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   }
 
   return (
-    <div className="w-full max-w-full min-h-screen space-y-6 max-w-7xl mx-auto pb-80 md:pb-96">
-      {/* Barra Superior de Control y Navegación */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/songs/chords">
-            <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-300">
-              <ArrowLeft className="w-4 h-4 mr-1.5" />
-              <span>Volver a Acordes</span>
-            </Button>
-          </Link>
-          <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              <span>{song.title}</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
-                Lead Sheet (Compases)
-              </span>
-            </h1>
-            <p className="text-xs text-slate-500">{song.artist || 'Artista no especificado'}</p>
-          </div>
-        </div>
-
-        {/* Grupo de Acciones Principales */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Enlace directo a la vista de Letras */}
-          <Link href={`/dashboard/songs/lyrics/${song.id}`}>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800/60">
-              <FileText className="w-3.5 h-3.5" />
-              <span>Ver Letras</span>
-            </Button>
+    <div className="w-full max-w-full min-h-screen max-w-7xl mx-auto pb-28 sm:pb-36">
+      {/* 1. Cabecera Superior Ultra-Compacta de 1 Sola Línea (44px máx) */}
+      <header className="sticky top-0 z-50 h-11 px-2.5 sm:px-4 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 flex items-center justify-between gap-2 text-white shadow-sm">
+        {/* Izquierda: Botón ← + Título truncado + Badge compacto Tono/BPM */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+          <Link
+            href="/dashboard/songs/chords"
+            className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            title="Volver a lista de canciones"
+          >
+            <ArrowLeft className="w-4 h-4" />
           </Link>
 
-          {/* Enlace directo a la vista de Batería */}
-          <Link href={`/dashboard/songs/drums/${song.id}`}>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/30">
-              <span>🥁</span>
-              <span>Ver Batería</span>
-            </Button>
-          </Link>
-
-          {/* Botón Enlace de YouTube */}
-          {isAdmin ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsYouTubeModalOpen(true)}
-              className={cn(
-                'gap-1.5 text-xs font-bold transition-all shadow-xs',
-                youtubeUrl
-                  ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50'
-                  : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:text-red-600 dark:hover:text-red-400'
-              )}
-              title={youtubeUrl ? 'Ver o editar enlace de YouTube vinculado' : 'Vincular enlace de video de YouTube'}
-            >
-              <Youtube className={cn('w-3.5 h-3.5 text-red-600 dark:text-red-500', youtubeUrl && 'fill-current')} />
-              <span>{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
-            </Button>
-          ) : youtubeUrl ? (
-            <a
-              href={youtubeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors shadow-xs"
-              title="Abrir video de referencia en YouTube"
-            >
-              <Youtube className="w-3.5 h-3.5 fill-current" />
-              <span>Ver en YouTube</span>
-            </a>
-          ) : null}
-
-          {/* Toggle Modo Edición (Solo Administrador) */}
-          {isAdmin && (
-            <Button
-              variant={isEditing ? 'default' : 'secondary'}
-              size="sm"
-              onClick={() => setIsEditing(!isEditing)}
-              className="text-xs font-bold gap-1.5"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>{isEditing ? 'Terminar Edición' : 'Editar Compases'}</span>
-            </Button>
-          )}
-
-          {/* Guardar Cambios (Solo Administrador) */}
-          {isAdmin && (
-            <Button
-              variant="gradient"
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="text-xs font-bold gap-1.5 shadow-md shadow-primary-900/20"
-            >
-              {saveSuccess ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>¡Guardado!</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{isSaving ? 'Guardando...' : 'Guardar Lead Sheet'}</span>
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Cabecera Estática de Configuración Musical (Hace scroll normal, no fija) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 text-slate-800 dark:text-slate-200">
-        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-          {/* Tonalidad con Badge Destacado */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Tono:
-            </span>
-            <div className="px-3 py-1 rounded-xl bg-primary-600 font-mono text-base font-extrabold text-white shadow-md shadow-primary-900/40">
-              {currentKey}
-            </div>
-          </div>
-
-          {/* Botones de Transposición Rápida */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80">
-            <button
-              type="button"
-              onClick={() => handleTranspose(-1)}
-              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-2xs"
-              title="Bajar 1 semitono (♭)"
-            >
-              ♭ -1
-            </button>
-            <button
-              type="button"
-              onClick={() => handleTranspose(1)}
-              className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shadow-2xs"
-              title="Subir 1 semitono (#)"
-            >
-              ♯ +1
-            </button>
-            {transposeSemitones !== 0 && (
-              <button
-                type="button"
-                onClick={handleResetTranspose}
-                className="px-2 py-1 text-xs text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                title="Restablecer tono original"
-              >
-                Reset ({transposeSemitones > 0 ? `+${transposeSemitones}` : transposeSemitones})
-              </button>
-            )}
-          </div>
-
-          <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
-
-          {/* Compás (Métrica) */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Compás:
-            </span>
-            {effectiveIsEditing ? (
-              <select
-                value={timeSignature}
-                onChange={(e) => handleTimeSignatureChange(e.target.value)}
-                className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none"
-              >
-                <option value="4/4">4/4</option>
-                <option value="3/4">3/4</option>
-                <option value="2/4">2/4</option>
-                <option value="6/8">6/8</option>
-                <option value="12/8">12/8</option>
-              </select>
-            ) : (
-              <span className="font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                {timeSignature}
-              </span>
-            )}
-          </div>
-
-          <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
-
-          {/* Tempo BPM Inicial + Tap */}
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700/60">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tempo:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const current = parseInt(tempoInput, 10) || 120
-                  const next = Math.max(30, current - 1)
-                  setTempoInput(next.toString())
-                  if (onUpdateTempo) onUpdateTempo(next)
-                }}
-                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
-                title="Reducir 1 BPM"
-              >
-                -
-              </button>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={tempoInput}
-                onChange={handleTempoInputChange}
-                onBlur={handleCommitTempo}
-                onKeyDown={handleKeyDown}
-                className="w-12 text-center text-sm font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded py-0.5 border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                title="Ajustar tempo en BPM (30 - 300)"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const current = parseInt(tempoInput, 10) || 120
-                  const next = Math.min(300, current + 1)
-                  setTempoInput(next.toString())
-                  if (onUpdateTempo) onUpdateTempo(next)
-                }}
-                className="w-6 h-6 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
-                title="Aumentar 1 BPM"
-              >
-                +
-              </button>
-            </div>
-            <TapTempoButton
-              onTempoChange={(bpm) => {
-                setTempoInput(bpm.toString())
-                if (onUpdateTempo) onUpdateTempo(bpm)
-              }}
-              currentTempo={tempo}
-              timeSignature={timeSignature}
-              className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-            />
-          </div>
-        </div>
-
-        {/* Metadatos de Vista y Duración */}
-        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
-          <span className="hidden lg:inline">Formato:</span>
-          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] uppercase font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-            4 Compases / Línea
+          <span
+            className="text-xs sm:text-sm font-bold text-white truncate max-w-[140px] sm:max-w-[300px]"
+            title={song.title}
+          >
+            {song.title}
           </span>
-          {totalDurationFormatted && (
-            <span className="px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/80 text-[10px] font-mono font-bold text-purple-700 dark:text-purple-300">
-              ⏱ {totalDurationFormatted} ({totalMeasuresCount} compases)
-            </span>
-          )}
+
+          <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+            {currentKey} • {playbackMode === 'band' && isFollowing ? liveBpm : tempo} BPM
+          </span>
         </div>
-      </div>
 
-      {/* Barra de Transporte Sticky Permanente (Single-Row / Siempre Accesible) */}
-      <LeadSheetToolbar
-        isPlaying={effectiveIsPlaying}
-        hasCountIn={hasCountIn}
-        countInBeat={countInBeat}
-        onToggleCountIn={toggleCountIn}
-        setHasCountIn={setHasCountIn}
-        togglePlayPause={handleTogglePlay}
-        handleRestart={handleRestart}
-        activeMeasureNumber={effectiveActiveMeasureNumber}
-        activeSectionName={effectiveActiveSectionName}
-        totalRepeats={effectiveTotalRepeats}
-        currentRepeat={effectiveCurrentRepeat}
-        isMetronomeOn={!isMuted}
-        toggleMetronome={toggleMute}
-        effectiveTempo={playbackMode === 'band' ? liveBpm : tempo}
-        onUpdateTempo={(newTempo) => {
-          setTempoInput(newTempo.toString())
-          if (onUpdateTempo) onUpdateTempo(newTempo)
-        }}
-        playbackMode={playbackMode}
-        onModeChange={handleModeChange}
-        bandStatus={bandStatus}
-        inputLevel={inputLevel}
-        heardTranscript={heardTranscript}
-        lastVoiceAction={lastVoiceAction}
-        stepMode={stepMode}
-        onStepModeChange={setStepMode}
-        environment={environment}
-        onEnvironmentChange={setEnvironment}
-        onTapDownbeat={tapDownbeat}
-        liveBpm={liveBpm}
-        bandErrorMsg={bandErrorMsg}
-      />
+        {/* Derecha: Toggle Escenario / Amplio + Toggle Controles */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewMode((prev) => (prev === 'stage' ? 'wide' : 'stage'))}
+            className={cn(
+              'px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
+              viewMode === 'stage'
+                ? 'bg-slate-900 text-cyan-400 border-cyan-500/50 shadow-xs'
+                : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
+            )}
+            title={
+              viewMode === 'stage'
+                ? 'Vista Escenario (4 compases/fila en móvil). Clic para cambiar a Vista Amplia'
+                : 'Vista Amplia. Clic para cambiar a Vista Escenario'
+            }
+          >
+            <span>{viewMode === 'stage' ? '📱 Escenario' : '🔍 Amplio'}</span>
+          </button>
 
-      {/* Barra de Navegación Rápida de Secciones */}
-      <SectionQuickNav
-        sections={sections}
-        collapsedSections={collapsedSections}
-        onToggleCollapseAll={handleToggleCollapseAll}
-        onSelectSection={handleSelectSectionJump}
-        activeSectionId={effectiveCurrentMeasure?.sectionId}
-      />
+          <button
+            type="button"
+            onClick={() => setIsControlsDrawerOpen((prev) => !prev)}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
+              isControlsDrawerOpen
+                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md ring-1 ring-cyan-300'
+                : 'bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800 hover:text-white'
+            )}
+            title="Mostrar / ocultar panel de controles de transporte, tempo, transposición y ensayo"
+          >
+            <span>⚙️</span>
+            <span className="hidden sm:inline">Controles</span>
+            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isControlsDrawerOpen && 'rotate-180')} />
+          </button>
+        </div>
+      </header>
+
+      {/* Panel Desplegable de Controles y Transporte (Colapsado por defecto para 85%+ área de acordes) */}
+      {isControlsDrawerOpen && (
+        <div className="sticky top-11 z-40 bg-slate-900/98 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shadow-2xl space-y-3.5 animate-in slide-in-from-top-2 duration-200">
+          {/* Fila 1: Botones de Acción (Letras, Batería, YouTube, Edición, Guardar) */}
+          <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link href={`/dashboard/songs/lyrics/${song.id}`}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800/60">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Ver Letras</span>
+                </Button>
+              </Link>
+              <Link href={`/dashboard/songs/drums/${song.id}`}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                  <span>🥁</span>
+                  <span>Ver Batería</span>
+                </Button>
+              </Link>
+              {isAdmin ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsYouTubeModalOpen(true)}
+                  className={cn(
+                    'gap-1.5 text-xs font-bold transition-all shadow-xs',
+                    youtubeUrl
+                      ? 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30'
+                      : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                  )}
+                >
+                  <Youtube className={cn('w-3.5 h-3.5 text-red-600 dark:text-red-500', youtubeUrl && 'fill-current')} />
+                  <span>{youtubeUrl ? 'YouTube' : 'Enlace YouTube'}</span>
+                </Button>
+              ) : youtubeUrl ? (
+                <a
+                  href={youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30"
+                >
+                  <Youtube className="w-3.5 h-3.5 fill-current" />
+                  <span>Ver en YouTube</span>
+                </a>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button
+                  variant={isEditing ? 'default' : 'secondary'}
+                  size="sm"
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="text-xs font-bold gap-1.5"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>{isEditing ? 'Terminar Edición' : 'Editar Compases'}</span>
+                </Button>
+              )}
+
+              {isAdmin && (
+                <Button
+                  variant="gradient"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="text-xs font-bold gap-1.5 shadow-md shadow-primary-900/20"
+                >
+                  {saveSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>¡Guardado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSaving ? 'Guardando...' : 'Guardar Lead Sheet'}</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Fila 2: Configuración Musical (Tono, Transposición, Métrica, Tempo BPM) */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-slate-800 dark:text-slate-200 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+              {/* Tonalidad */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Tono:
+                </span>
+                <div className="px-2.5 py-0.5 rounded-lg bg-primary-600 font-mono text-sm font-extrabold text-white shadow-xs">
+                  {currentKey}
+                </div>
+              </div>
+
+              {/* Botones de Transposición */}
+              <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => handleTranspose(-1)}
+                  className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                  title="Bajar 1 semitono (♭)"
+                >
+                  ♭ -1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTranspose(1)}
+                  className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                  title="Subir 1 semitono (#)"
+                >
+                  ♯ +1
+                </button>
+                {transposeSemitones !== 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetTranspose}
+                    className="px-2 py-0.5 text-xs text-cyan-400 hover:underline font-medium"
+                    title="Restablecer tono original"
+                  >
+                    Reset ({transposeSemitones > 0 ? `+${transposeSemitones}` : transposeSemitones})
+                  </button>
+                )}
+              </div>
+
+              <div className="h-5 w-px bg-slate-800 hidden sm:block" />
+
+              {/* Métrica */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Compás:
+                </span>
+                {effectiveIsEditing ? (
+                  <select
+                    value={timeSignature}
+                    onChange={(e) => handleTimeSignatureChange(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-white focus:outline-none"
+                  >
+                    <option value="4/4">4/4</option>
+                    <option value="3/4">3/4</option>
+                    <option value="2/4">2/4</option>
+                    <option value="6/8">6/8</option>
+                    <option value="12/8">12/8</option>
+                  </select>
+                ) : (
+                  <span className="font-mono font-bold text-xs bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700 text-white">
+                    {timeSignature}
+                  </span>
+                )}
+              </div>
+
+              <div className="h-5 w-px bg-slate-800 hidden sm:block" />
+
+              {/* Tempo BPM */}
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded-xl border border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tempo:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = parseInt(tempoInput, 10) || 120
+                      const next = Math.max(30, current - 1)
+                      setTempoInput(next.toString())
+                      if (onUpdateTempo) onUpdateTempo(next)
+                    }}
+                    className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-300 hover:bg-slate-800 rounded transition-colors"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={tempoInput}
+                    onChange={handleTempoInputChange}
+                    onBlur={handleCommitTempo}
+                    onKeyDown={handleKeyDown}
+                    className="w-10 text-center text-xs font-bold bg-slate-950 text-white rounded py-0.5 border border-slate-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = parseInt(tempoInput, 10) || 120
+                      const next = Math.min(300, current + 1)
+                      setTempoInput(next.toString())
+                      if (onUpdateTempo) onUpdateTempo(next)
+                    }}
+                    className="w-5 h-5 flex items-center justify-center text-xs font-bold text-slate-300 hover:bg-slate-800 rounded transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                <TapTempoButton
+                  onTempoChange={(bpm) => {
+                    setTempoInput(bpm.toString())
+                    if (onUpdateTempo) onUpdateTempo(bpm)
+                  }}
+                  currentTempo={tempo}
+                  timeSignature={timeSignature}
+                  className="px-2 py-0.5 text-xs bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Fila 3: Barra de Transporte y Seguidor de Banda */}
+          <LeadSheetToolbar
+            isPlaying={effectiveIsPlaying}
+            hasCountIn={hasCountIn}
+            countInBeat={countInBeat}
+            onToggleCountIn={toggleCountIn}
+            setHasCountIn={setHasCountIn}
+            togglePlayPause={handleTogglePlay}
+            handleRestart={handleRestart}
+            activeMeasureNumber={effectiveActiveMeasureNumber}
+            activeSectionName={effectiveActiveSectionName}
+            totalRepeats={effectiveTotalRepeats}
+            currentRepeat={effectiveCurrentRepeat}
+            isMetronomeOn={!isMuted}
+            toggleMetronome={toggleMute}
+            effectiveTempo={playbackMode === 'band' ? liveBpm : tempo}
+            onUpdateTempo={(newTempo) => {
+              setTempoInput(newTempo.toString())
+              if (onUpdateTempo) onUpdateTempo(newTempo)
+            }}
+            playbackMode={playbackMode}
+            onModeChange={handleModeChange}
+            bandStatus={bandStatus}
+            inputLevel={inputLevel}
+            heardTranscript={heardTranscript}
+            lastVoiceAction={lastVoiceAction}
+            stepMode={stepMode}
+            onStepModeChange={setStepMode}
+            environment={environment}
+            onEnvironmentChange={setEnvironment}
+            onTapDownbeat={tapDownbeat}
+            liveBpm={liveBpm}
+            bandErrorMsg={bandErrorMsg}
+          />
+        </div>
+      )}
 
       {/* Lista de Secciones con sus Compases */}
-      <div className="space-y-4 pt-1 pb-80 md:pb-96">
+      <div className="space-y-4 pt-2">
         {sections.map((section, sIdx) => {
-          const isSectionActive =
-            effectiveCurrentMeasure?.sectionId === section.id ||
-            section.measures.some((m) => m.id === effectiveCurrentMeasure?.measure.id)
+          const isSectionActive = effectiveIsPlaying
+            ? (effectiveCurrentMeasure?.sectionId === section.id ||
+               section.measures.some((m) => m.id === effectiveCurrentMeasure?.measure.id))
+            : (selectedSectionId === section.id)
           const nextSec = sections[sIdx + 1]
           const nextSecName = nextSec ? nextSec.label : null
 
@@ -1143,45 +1235,47 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               globalKey={currentKey}
               globalTimeSignature={timeSignature}
               globalTempo={tempo}
+              viewMode={viewMode}
               isPlaying={effectiveIsPlaying}
-              activeMeasureId={effectiveActiveMeasureId}
+              activeMeasureId={effectiveIsPlaying ? effectiveActiveMeasureId : null}
               measureDurationMs={effectiveMeasureDurationMs}
               currentRepeat={isSectionActive ? effectiveCurrentRepeat : 1}
               totalRepeats={section.repeatCount || 1}
               nextSectionName={nextSecName}
               isSectionActive={isSectionActive}
+              onSectionFocus={(secId) => setSelectedSectionId(secId)}
               onToggleCollapse={handleToggleCollapse}
-            onUpdateLabel={(secId, newLabel) => {
-              setSections((prev) =>
-                prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
-              )
-            }}
-            onUpdateSectionKey={handleUpdateSectionKey}
-            onUpdateSectionTempo={handleUpdateSectionTempo}
-            onUpdateRepeatCount={handleUpdateSectionRepeatCount}
-            onApplyProgression={handleApplyProgression}
-            onApplySectionCadence={handleApplySectionCadence}
-            onMoveUp={handleMoveSectionUp}
-            onMoveDown={handleMoveSectionDown}
-            onDuplicate={handleDuplicateSection}
-            onRemove={handleRemoveSection}
-            onUpdateGuideLyrics={(secId, newLyrics) => {
-              setSections((prev) =>
-                prev.map((s) => (s.id === secId ? { ...s, guideLyrics: newLyrics } : s))
-              )
-            }}
-            onUpdateLyrics={(secId, newLyrics) => {
-              setSections((prev) =>
-                prev.map((s) => (s.id === secId ? { ...s, lyrics: newLyrics } : s))
-              )
-            }}
-            onMeasureClick={handleMeasureClick}
-            onUpdateMeasures={handleUpdateSectionMeasures}
-            onAddMeasures={handleAddMeasuresToSection}
-            onRemoveMeasure={handleRemoveMeasure}
-          />
-        )
-      })}
+              onUpdateLabel={(secId, newLabel) => {
+                setSections((prev) =>
+                  prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
+                )
+              }}
+              onUpdateSectionKey={handleUpdateSectionKey}
+              onUpdateSectionTempo={handleUpdateSectionTempo}
+              onUpdateRepeatCount={handleUpdateSectionRepeatCount}
+              onApplyProgression={handleApplyProgression}
+              onApplySectionCadence={handleApplySectionCadence}
+              onMoveUp={handleMoveSectionUp}
+              onMoveDown={handleMoveSectionDown}
+              onDuplicate={handleDuplicateSection}
+              onRemove={handleRemoveSection}
+              onUpdateGuideLyrics={(secId, newLyrics) => {
+                setSections((prev) =>
+                  prev.map((s) => (s.id === secId ? { ...s, guideLyrics: newLyrics } : s))
+                )
+              }}
+              onUpdateLyrics={(secId, newLyrics) => {
+                setSections((prev) =>
+                  prev.map((s) => (s.id === secId ? { ...s, lyrics: newLyrics } : s))
+                )
+              }}
+              onMeasureClick={handleMeasureClick}
+              onUpdateMeasures={handleUpdateSectionMeasures}
+              onAddMeasures={handleAddMeasuresToSection}
+              onRemoveMeasure={handleRemoveMeasure}
+            />
+          )
+        })}
       </div>
 
       {/* Agregar Nueva Sección en Modo Edición */}
@@ -1206,6 +1300,17 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </div>
         </div>
       )}
+
+      {/* Barra Fija Inferior de Navegación Rápida de Secciones y Pedal */}
+      <SectionQuickNav
+        sections={sections}
+        collapsedSections={collapsedSections}
+        onToggleCollapseAll={handleToggleCollapseAll}
+        onSelectSection={handleSelectSectionJump}
+        activeSectionId={effectiveIsPlaying ? effectiveCurrentMeasure?.sectionId : selectedSectionId}
+        onPrevSection={handlePrevSection}
+        onNextSection={handleNextSection}
+      />
 
       {/* Modal Asistente de Enlace de YouTube */}
       <YouTubeLinkModal

@@ -30,6 +30,7 @@ export interface SectionCardProps {
   globalKey: string
   globalTimeSignature: string
   globalTempo?: number
+  viewMode?: 'stage' | 'wide'
   isPlaying?: boolean
   activeMeasureId?: string | null
   measureDurationMs?: number
@@ -38,6 +39,7 @@ export interface SectionCardProps {
   nextSectionName?: string | null
   isSectionActive?: boolean
   onToggleCollapse: (sectionId: string) => void
+  onSectionFocus?: (sectionId: string) => void
   onUpdateLabel?: (sectionId: string, label: string) => void
   onUpdateSectionKey?: (sectionId: string, newKey: string | null, transposeChords: boolean) => void
   onUpdateSectionTempo?: (sectionId: string, tempo: number | null) => void
@@ -67,6 +69,7 @@ export function SectionCard({
   globalKey,
   globalTimeSignature,
   globalTempo = 120,
+  viewMode = 'stage',
   isPlaying = false,
   activeMeasureId = null,
   measureDurationMs,
@@ -75,6 +78,7 @@ export function SectionCard({
   nextSectionName,
   isSectionActive,
   onToggleCollapse,
+  onSectionFocus,
   onUpdateLabel,
   onUpdateSectionKey,
   onUpdateSectionTempo,
@@ -117,10 +121,19 @@ export function SectionCard({
   return (
     <div
       id={`section-${section.id}`}
-      className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all scroll-mt-28 relative"
+      onClick={() => onSectionFocus?.(section.id)}
+      className={cn(
+        'rounded-2xl transition-all scroll-mt-16 relative',
+        isThisSectionActive
+          ? 'border-2 border-cyan-500/80 bg-slate-900/95 shadow-xl shadow-cyan-950/25 ring-1 ring-cyan-500/30'
+          : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm'
+      )}
     >
       {/* 2. Cabecera de Sección Adhesiva (Sticky Section Header Contextual) */}
-      <div className="sticky top-12 z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md py-2 px-3 border-b border-slate-800/80 rounded-t-2xl flex items-center justify-between gap-2.5 text-white shadow-sm flex-wrap">
+      <div className={cn(
+        "sticky top-11 z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md py-1.5 px-3 border-b rounded-t-2xl flex items-center justify-between gap-2.5 text-white shadow-sm flex-wrap transition-colors",
+        isThisSectionActive ? "border-cyan-500/40" : "border-slate-800/80"
+      )}>
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           {/* Botón Acordeón Colapsar / Expandir */}
           <button
@@ -508,6 +521,7 @@ export function SectionCard({
                 timeSignature={section.timeSignature || globalTimeSignature}
                 currentKey={effectiveKey}
                 diatonicChords={sectionDiatonicChords}
+                viewMode={viewMode}
                 isEditing={isEditing}
                 activeMeasureId={activeMeasureId}
                 isPlaying={isPlaying}
