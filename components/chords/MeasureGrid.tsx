@@ -544,7 +544,7 @@ export function MeasureGrid({
                       const globalIndex = startIdx + mIdx
                       const isSelected = selectedMeasureId === measure.id
                       const isSelectedForBatch = selectedBatchIds.includes(measure.id)
-                      const isActive = activeMeasureId === measure.id
+                      const isActive = false
                       const prevMeasure = globalIndex > 0 ? measures[globalIndex - 1] : null
                       const bracket = cadenceBrackets[measure.id]
                       const isFirst = globalIndex === 0

@@ -123,9 +123,9 @@ export function SectionCard({
       id={`section-${section.id}`}
       onClick={() => onSectionFocus?.(section.id)}
       className={cn(
-        'rounded-2xl transition-all scroll-mt-16 relative',
+        'rounded-2xl transition-all scroll-mt-14 relative',
         isThisSectionActive
-          ? 'border-2 border-cyan-500/80 bg-slate-900/95 shadow-xl shadow-cyan-950/25 ring-1 ring-cyan-500/30'
+          ? 'ring-2 ring-cyan-400 border-2 border-cyan-400/80 bg-slate-900/95 shadow-[0_0_25px_rgba(34,211,238,0.15)]'
           : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm'
       )}
     >
@@ -164,9 +164,16 @@ export function SectionCard({
                   className="font-black text-base sm:text-lg text-white bg-slate-800/80 border border-slate-700/80 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1.5 -ml-1 leading-tight max-w-[130px] sm:max-w-[200px]"
                 />
               ) : (
-                <h2 className="font-black text-base sm:text-lg text-white leading-tight truncate">
-                  {section.label}
-                </h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-black text-base sm:text-lg text-white leading-tight truncate">
+                    {section.label}
+                  </h2>
+                  {isThisSectionActive && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shadow-sm animate-pulse shrink-0">
+                      ● EN CURSO
+                    </span>
+                  )}
+                </div>
               )}
 
               {/* Badge de modulación en modo lectura */}
@@ -523,7 +530,7 @@ export function SectionCard({
                 diatonicChords={sectionDiatonicChords}
                 viewMode={viewMode}
                 isEditing={isEditing}
-                activeMeasureId={activeMeasureId}
+                activeMeasureId={null}
                 isPlaying={isPlaying}
                 measureDurationMs={measureDurationMs}
                 sectionName={section.label}

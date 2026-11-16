@@ -75,18 +75,29 @@ export function SectionQuickNav({
       )}
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
-        {/* Botón Navegar Sección Anterior ◀ */}
-        <button
-          type="button"
-          onClick={handlePrev}
-          disabled={!canGoPrev && !onPrevSection}
-          className="shrink-0 p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-cyan-400 border border-slate-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
-          title="Sección anterior (← o PageUp)"
-          aria-label="Sección anterior"
-        >
-          <ChevronLeft className="w-4 h-4 sm:hidden" />
-          <span className="hidden sm:inline">◀ Ant</span>
-        </button>
+        {/* Lado Izquierdo: Botón Anterior ◀ + Colapsar */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={handlePrev}
+            disabled={!canGoPrev && !onPrevSection}
+            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-cyan-400 border border-slate-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+            title="Sección anterior (← o PageUp)"
+            aria-label="Sección anterior"
+          >
+            <ChevronLeft className="w-4 h-4 sm:hidden" />
+            <span className="hidden sm:inline">◀ Ant</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleCollapse}
+            className="inline-flex items-center gap-1 p-1.5 sm:px-2 sm:py-1.5 text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-800 rounded-lg transition-colors border border-slate-800 cursor-pointer"
+            title={allCollapsed ? 'Expandir todas las secciones' : 'Colapsar todas las secciones'}
+          >
+            <ChevronsUpDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         {/* Carrusel Deslizable de Secciones (Scroll Horizontal Táctil en Móvil) */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 px-0.5 flex-1 min-w-0">
@@ -148,28 +159,17 @@ export function SectionQuickNav({
           })}
         </div>
 
-        {/* Botón Navegar Sección Siguiente ▶ */}
+        {/* Botón Táctil Destacado: Siguiente ➔ */}
         <button
           type="button"
           onClick={handleNext}
           disabled={!canGoNext && !onNextSection}
-          className="shrink-0 p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-cyan-400 border border-slate-800 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
-          title="Sección siguiente (→ o PageDown)"
-          aria-label="Sección siguiente"
+          className="shrink-0 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-black bg-cyan-400 hover:bg-cyan-300 disabled:opacity-30 disabled:pointer-events-none text-slate-950 shadow-lg shadow-cyan-500/30 transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer ring-1 ring-cyan-200"
+          title="Avanzar a la siguiente sección (→, PageDown o Espacio)"
+          aria-label="Avanzar a la siguiente sección"
         >
-          <span className="hidden sm:inline">Sig ▶</span>
-          <ChevronRight className="w-4 h-4 sm:hidden" />
-        </button>
-
-        {/* Botón Colapsar / Expandir todo a la derecha */}
-        <button
-          type="button"
-          onClick={handleToggleCollapse}
-          className="shrink-0 inline-flex items-center gap-1 p-1.5 sm:px-2 sm:py-1 text-xs font-semibold text-slate-400 hover:text-white bg-slate-900/60 hover:bg-slate-800 rounded-lg transition-colors border border-slate-800 cursor-pointer"
-          title={allCollapsed ? 'Expandir todas las secciones' : 'Colapsar todas las secciones'}
-        >
-          <ChevronsUpDown className="w-3.5 h-3.5" />
-          <span className="hidden lg:inline">{allCollapsed ? 'Expandir' : 'Colapsar'}</span>
+          <span>Siguiente</span>
+          <span className="font-extrabold text-sm sm:text-base leading-none">➔</span>
         </button>
       </div>
     </div>

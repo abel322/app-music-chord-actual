@@ -145,16 +145,14 @@ export function MeasureCell({
         viewMode === 'wide'
           ? 'rounded-xl border min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 scroll-mt-32'
           : 'rounded-lg border min-h-[58px] p-1.5 scroll-mt-20',
-        isActive
-          ? 'ring-2 sm:ring-4 ring-cyan-500 border-cyan-500 shadow-xl shadow-cyan-500/25 scale-[1.02] z-10 bg-cyan-50/80 dark:bg-cyan-950/50'
-          : isSelectedForBatch
-            ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
-            : isSelected && isEditing
-              ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
-              : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-xs',
+        isSelectedForBatch
+          ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
+          : isSelected && isEditing
+            ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
+            : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-xs',
         (measure.repeatStart || sectionRepeatStart) && (viewMode === 'wide' ? 'border-l-[5px] border-l-purple-600 dark:border-l-purple-500' : 'border-l-[4px] border-l-purple-600 dark:border-l-purple-500'),
         (measure.repeatEnd || !!sectionRepeatEnd) && (viewMode === 'wide' ? 'border-r-[5px] border-r-purple-600 dark:border-r-purple-500' : 'border-r-[4px] border-r-purple-600 dark:border-r-purple-500'),
-        (isEditing || isPlaying) && 'cursor-pointer hover:shadow-md',
+        isEditing && 'cursor-pointer hover:shadow-md',
         isDragging && 'opacity-40 border-dashed border-purple-400 dark:border-purple-500'
       )}
     >
@@ -892,20 +890,6 @@ export function MeasureCell({
           <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate font-serif">
             &quot;{measure.guideLyric}&quot;
           </p>
-        </div>
-      )}
-
-      {/* 4. Barra de Progreso de Pulso/Compás Sutil en Reproducción */}
-      {isActive && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-cyan-200/50 dark:bg-cyan-900/50 overflow-hidden rounded-b-lg z-20 pointer-events-none">
-          <div
-            key={`progress-${measure.id}-${isActive}`}
-            className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 origin-left"
-            style={{
-              animation: `measureProgressBar ${measureDurationMs || 3333}ms linear forwards`,
-              animationPlayState: isPlaying ? 'running' : 'paused',
-            }}
-          />
         </div>
       )}
     </div>

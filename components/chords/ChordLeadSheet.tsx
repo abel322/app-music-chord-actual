@@ -31,12 +31,10 @@ import { CadencePicker } from '@/components/chords/CadencePicker'
 import { SectionKeyControl } from '@/components/chords/SectionKeyControl'
 import { SectionRepeatControl } from '@/components/chords/SectionRepeatControl'
 import { SectionQuickNav } from '@/components/chords/SectionQuickNav'
-import { LeadSheetPlaybackControls } from '@/components/chords/LeadSheetPlaybackControls'
-import { LeadSheetToolbar, StickyPlaybackTransport, PlaybackMode } from '@/components/chords/LeadSheetToolbar'
+import { LeadSheetToolbar } from '@/components/chords/LeadSheetToolbar'
 import { SectionCard } from '@/components/chords/SectionCard'
 import { YouTubeLinkModal } from '@/components/songs/YouTubeLinkModal'
-import { useLeadSheetPlayback } from '@/lib/hooks/useLeadSheetPlayback'
-import { useLiveBandFollower, SongSectionAnchor, FollowStepMode, RoomEnvironment } from '@/hooks/useLiveBandFollower'
+import { getAudioContext, playTickSound } from '@/lib/hooks/useMetronomeAudio'
 import { SectionMeasures, Measure } from '@/types/measure'
 
 import { 
@@ -52,8 +50,7 @@ import {
   cloneSectionMeasures,
   getSectionChordsPreview,
   buildFullLyricsText,
-  syncSectionsWithLyrics,
-  scrollToActiveMeasure
+  syncSectionsWithLyrics
 } from '@/lib/measure-utils'
 import { updateSectionsTimeSignature } from '@/lib/rhythm-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
@@ -237,182 +234,196 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     return syncSectionsWithLyrics(normalized, song.lyrics || song.content)
   })
 
-  // Sección activa enfocada para lectura estática y seguimiento en vivo
-  const [selectedSectionId, setSelectedSectionId] = useState<string>(() => sections[0]?.id || '')
+  // Sección activa para lectura y reproducción en vivo
+  const [activeSectionId, setActiveSectionId] = useState<string>(() => sections[0]?.id || '')
 
   useEffect(() => {
-    if (sections.length > 0 && !selectedSectionId) {
-      setSelectedSectionId(sections[0].id)
+    if (sections.length > 0 && (!activeSectionId || !sections.some((s) => s.id === activeSectionId))) {
+      setActiveSectionId(sections[0].id)
     }
-  }, [sections, selectedSectionId])
+  }, [sections, activeSectionId])
 
-  // Pausar temporalmente el auto-scroll si el usuario interviene manualmente (wheel/touch)
-  const userScrollPausedUntilRef = useRef<number>(0)
-  const touchStartYRef = useRef<number>(0)
-
-  // Hook de Reproducción y Seguimiento Temporal de Compases en Vivo
-  const {
-    isPlaying,
-    hasCountIn,
-    countInBeat,
-    setHasCountIn,
-    toggleCountIn,
-    currentFlatMeasureIndex,
-    currentMeasure,
-    currentBeat,
-    isMuted,
-    totalMeasuresCount,
-    totalDurationFormatted,
-    nextSectionName,
-    togglePlay,
-    stop,
-    toggleMute,
-    jumpToMeasureId,
-    flatMeasures,
-  } = useLeadSheetPlayback({
-    sections,
-    tempo,
-    defaultTimeSignature: timeSignature,
-    onMeasureChange: (_flatIndex, measure, sectionId) => {
-      // Si una sección está colapsada y la reproducción entra en ella, expandir automáticamente
-      setCollapsedSections((prev) => {
-        if (prev[sectionId]) {
-          return { ...prev, [sectionId]: false }
-        }
-        return prev
-      })
-
-      // Auto-desplazamiento inteligente centrado con margen de anticipación visual (look-ahead):
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          // Si el usuario scrolleó manualmente hacia arriba recientemente, respetar su vista por 3 segundos
-          if (Date.now() < userScrollPausedUntilRef.current) {
-            return
-          }
-
-          scrollToActiveMeasure(measure.id, 64)
-        }, 50)
-      })
-    },
-  })
-
-  // Estado para Modo "Seguir a la Banda (Tempo Adaptativo Multi-Instrumento + Anclaje por Voz)"
-  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('fixed')
-  const [stepMode, setStepMode] = useState<FollowStepMode>('beats')
-  const [environment, setEnvironment] = useState<RoomEnvironment>('full_band')
-  const [bandMeasureIndex, setBandMeasureIndex] = useState(0)
-  const [bandBeat, setBandBeat] = useState(1)
-
-  // Anchors de sección para saltos por reconocimiento de voz ("intro", "coro", etc.)
-  const sectionAnchors = useMemo<SongSectionAnchor[]>(() => {
-    const anchors: SongSectionAnchor[] = []
-    sections.forEach((sec) => {
-      const idx = flatMeasures.findIndex((fm) => fm.sectionId === sec.id)
-      if (idx !== -1) {
-        anchors.push({
-          id: sec.id,
-          name: sec.label,
-          startMeasureIndex: idx,
-        })
-      }
-    })
-    return anchors
-  }, [sections, flatMeasures])
-
-  // Hook de Seguimiento Rítmico Adaptativo en Vivo por Micrófono + Anclaje por Voz
-  const {
-    isFollowing,
-    liveBpm,
-    bandStatus,
-    inputLevel,
-    heardTranscript,
-    lastVoiceAction,
-    errorMsg: bandErrorMsg,
-    startFollowing,
-    stopFollowing,
-    syncToMeasure,
-    tapDownbeat,
-  } = useLiveBandFollower({
-    initialBpm: tempo,
-    beatsPerMeasure: getBeatsPerMeasure(timeSignature),
-    totalMeasures: flatMeasures.length,
-    sections: sectionAnchors,
-    stepMode,
-    environment,
-    onMeasureChange: (measureIndex, beatInMeasure) => {
-      setBandMeasureIndex(measureIndex)
-      setBandBeat(beatInMeasure)
-
-      const targetFlat = flatMeasures[measureIndex]
-      if (targetFlat) {
-        // Descolapsar automáticamente si la sección estaba colapsada
-        setCollapsedSections((prev) => {
-          if (prev[targetFlat.sectionId]) {
-            return { ...prev, [targetFlat.sectionId]: false }
-          }
-          return prev
-        })
-
-        // Auto-desplazamiento suave centrado con anticipación visual
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            if (Date.now() < userScrollPausedUntilRef.current) return
-            scrollToActiveMeasure(targetFlat.measure.id, 64)
-          }, 50)
-        })
-      }
-    },
-    onSectionJump: (measureIndex, _sectionName) => {
-      setBandMeasureIndex(measureIndex)
-      setBandBeat(1)
-      const targetFlat = flatMeasures[measureIndex]
-      if (targetFlat) {
-        setCollapsedSections((prev) => {
-          if (prev[targetFlat.sectionId]) {
-            return { ...prev, [targetFlat.sectionId]: false }
-          }
-          return prev
-        })
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            scrollToActiveMeasure(targetFlat.measure.id, 64)
-          }, 60)
-        })
-      }
-    },
-  })
-
-  // Salto rápido a sección con descolapso automático y desplazamiento suave
-  const handleSelectSectionJump = useCallback(
-    (sectionId: string) => {
-      setSelectedSectionId(sectionId)
-      setCollapsedSections((prev) => {
-        if (prev[sectionId]) {
-          return { ...prev, [sectionId]: false }
-        }
-        return prev
-      })
-      if (playbackMode === 'band') {
-        const targetIdx = flatMeasures.findIndex((fm) => fm.sectionId === sectionId)
-        if (targetIdx !== -1) {
-          setBandMeasureIndex(targetIdx)
-          setBandBeat(1)
-          if (isFollowing) {
-            syncToMeasure(targetIdx)
-          }
-        }
-      }
+  // Desplazamiento suave con scroll-mt-14 hacia la sección objetivo
+  const scrollToSection = useCallback((secId: string) => {
+    requestAnimationFrame(() => {
       setTimeout(() => {
-        const el = document.getElementById(`section-${sectionId}`)
+        const el = document.getElementById(`section-${secId}`)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
-      }, 60)
+      }, 50)
+    })
+  }, [])
+
+  // Estado de Reproducción de Escenario
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMetronomeOn, setIsMetronomeOn] = useState(false)
+  const sectionTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const metronomeIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Sección activa actual
+  const currentActiveSection = useMemo(() => {
+    return sections.find((s) => s.id === activeSectionId) || sections[0] || null
+  }, [sections, activeSectionId])
+
+  // Salto rápido a sección (desde tarjeta, píldora o pedal)
+  const handleSelectSectionJump = useCallback(
+    (sectionId: string) => {
+      setActiveSectionId(sectionId)
+      setCollapsedSections((prev) => {
+        if (prev[sectionId]) {
+          return { ...prev, [sectionId]: false }
+        }
+        return prev
+      })
+      scrollToSection(sectionId)
     },
-    [playbackMode, flatMeasures, isFollowing, syncToMeasure]
+    [scrollToSection]
   )
 
-  // WakeLock: Mantener la pantalla encendida en el teléfono móvil durante el seguimiento
+  // Navegación secuencial de secciones (Pulgar y Pedal Bluetooth)
+  const handlePrevSection = useCallback(() => {
+    if (sections.length === 0) return
+    const currentIdx = sections.findIndex((s) => s.id === activeSectionId)
+    const prevIdx = currentIdx > 0 ? currentIdx - 1 : 0
+    const prevSec = sections[prevIdx]
+    if (prevSec) {
+      handleSelectSectionJump(prevSec.id)
+    }
+  }, [sections, activeSectionId, handleSelectSectionJump])
+
+  const handleNextSection = useCallback(() => {
+    if (sections.length === 0) return
+    const currentIdx = sections.findIndex((s) => s.id === activeSectionId)
+    if (currentIdx < sections.length - 1) {
+      const nextSec = sections[currentIdx + 1]
+      if (nextSec) {
+        handleSelectSectionJump(nextSec.id)
+      }
+    } else {
+      // Última sección alcanzada: detener reproducción
+      if (isPlaying) {
+        setIsPlaying(false)
+      }
+    }
+  }, [sections, activeSectionId, handleSelectSectionJump, isPlaying])
+
+  // Iniciar / Pausar reproducción inmediatamente (sin conteo 1-2-3-4)
+  const handleTogglePlay = useCallback(() => {
+    setIsPlaying((prev) => {
+      const nextPlaying = !prev
+      if (nextPlaying) {
+        const secId = activeSectionId || sections[0]?.id
+        if (secId) {
+          setActiveSectionId(secId)
+          scrollToSection(secId)
+        }
+      }
+      return nextPlaying
+    })
+  }, [activeSectionId, sections, scrollToSection])
+
+  // Reiniciar a la primera sección
+  const handleRestart = useCallback(() => {
+    setIsPlaying(false)
+    if (sections.length > 0) {
+      const firstId = sections[0].id
+      setActiveSectionId(firstId)
+      scrollToSection(firstId)
+    }
+  }, [sections, scrollToSection])
+
+  // Cálculo de duración precisa de una sección en milisegundos
+  const getSectionDurationMs = useCallback(
+    (sec: SectionMeasures) => {
+      const secTempo = sec.tempoOverride || tempo || 120
+      const secTimeSig = sec.timeSignature || timeSignature || '4/4'
+      const beatsPerMeasure = getBeatsPerMeasure(secTimeSig)
+      const measureCount = sec.measures.length > 0 ? sec.measures.length : 4
+      const repeats = Math.max(1, sec.repeatCount || 1)
+      return (measureCount * repeats * beatsPerMeasure * 60 * 1000) / secTempo
+    },
+    [tempo, timeSignature]
+  )
+
+  // Temporizador de avance automático de sección cuando isPlaying está activo
+  useEffect(() => {
+    if (sectionTimerRef.current) {
+      clearTimeout(sectionTimerRef.current)
+      sectionTimerRef.current = null
+    }
+
+    if (!isPlaying) return
+
+    const currentSection = sections.find((s) => s.id === activeSectionId) || sections[0]
+    if (!currentSection) return
+
+    setCollapsedSections((prev) => {
+      if (prev[currentSection.id]) {
+        return { ...prev, [currentSection.id]: false }
+      }
+      return prev
+    })
+
+    const durationMs = getSectionDurationMs(currentSection)
+
+    sectionTimerRef.current = setTimeout(() => {
+      const currentIdx = sections.findIndex((s) => s.id === currentSection.id)
+      if (currentIdx !== -1 && currentIdx < sections.length - 1) {
+        const nextSec = sections[currentIdx + 1]
+        setActiveSectionId(nextSec.id)
+        scrollToSection(nextSec.id)
+      } else {
+        setIsPlaying(false)
+      }
+    }, durationMs)
+
+    return () => {
+      if (sectionTimerRef.current) {
+        clearTimeout(sectionTimerRef.current)
+        sectionTimerRef.current = null
+      }
+    }
+  }, [isPlaying, activeSectionId, sections, getSectionDurationMs, scrollToSection])
+
+  // Metrónomo auditivo opcional sincronizado con la sección activa
+  useEffect(() => {
+    if (metronomeIntervalRef.current) {
+      clearInterval(metronomeIntervalRef.current)
+      metronomeIntervalRef.current = null
+    }
+
+    if (!isPlaying || !isMetronomeOn) return
+
+    const currentSection = sections.find((s) => s.id === activeSectionId) || sections[0]
+    const secTempo = currentSection?.tempoOverride || tempo || 120
+    const secTimeSig = currentSection?.timeSignature || timeSignature || '4/4'
+    const beatsPerMeasure = getBeatsPerMeasure(secTimeSig)
+    const beatIntervalMs = (60 / secTempo) * 1000
+
+    const ctx = getAudioContext()
+    let beatInMeasure = 0
+
+    if (ctx) {
+      playTickSound(ctx, ctx.currentTime, beatInMeasure === 0)
+    }
+
+    metronomeIntervalRef.current = setInterval(() => {
+      beatInMeasure = (beatInMeasure + 1) % beatsPerMeasure
+      if (ctx) {
+        playTickSound(ctx, ctx.currentTime, beatInMeasure === 0)
+      }
+    }, beatIntervalMs)
+
+    return () => {
+      if (metronomeIntervalRef.current) {
+        clearInterval(metronomeIntervalRef.current)
+        metronomeIntervalRef.current = null
+      }
+    }
+  }, [isPlaying, isMetronomeOn, activeSectionId, sections, tempo, timeSignature])
+
+  // WakeLock: Mantener la pantalla encendida en el dispositivo móvil durante la interpretación
   const wakeLockRef = useRef<any>(null)
 
   const requestWakeLock = useCallback(async () => {
@@ -440,16 +451,16 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   }, [])
 
   useEffect(() => {
-    if (isFollowing) {
+    if (isPlaying) {
       requestWakeLock()
     } else {
       releaseWakeLock()
     }
-  }, [isFollowing, requestWakeLock, releaseWakeLock])
+  }, [isPlaying, requestWakeLock, releaseWakeLock])
 
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && isFollowing) {
+      if (document.visibilityState === 'visible' && isPlaying) {
         await requestWakeLock()
       }
     }
@@ -458,128 +469,22 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       releaseWakeLock()
     }
-  }, [isFollowing, requestWakeLock, releaseWakeLock])
+  }, [isPlaying, requestWakeLock, releaseWakeLock])
 
-  // Estado Unificado de Reproducción y Compás Activo
-  const effectiveIsPlaying = playbackMode === 'band' ? isFollowing : isPlaying
-  const effectiveCurrentMeasure =
-    playbackMode === 'band'
-      ? (flatMeasures[bandMeasureIndex] || flatMeasures[0] || null)
-      : currentMeasure
-  const effectiveActiveMeasureId = effectiveCurrentMeasure?.measure.id || null
-  const effectiveActiveMeasureNumber = effectiveCurrentMeasure?.measure.measureNumber || 1
-  const effectiveActiveSectionName = effectiveCurrentMeasure?.sectionLabel || 'Intro'
-  const effectiveCurrentRepeat = effectiveCurrentMeasure?.iteration || 1
-  const effectiveTotalRepeats = effectiveCurrentMeasure?.repeatCount || 1
-  const effectiveMeasureDurationMs =
-    playbackMode === 'band'
-      ? (60000 / (liveBpm || tempo || 75)) * (effectiveCurrentMeasure?.beatsCount || 4)
-      : currentMeasure?.durationMs
-
-  const handleTogglePlay = useCallback(() => {
-    if (playbackMode === 'band') {
-      if (isFollowing) {
-        stopFollowing()
-      } else {
-        if (isPlaying) stop()
-        startFollowing(bandMeasureIndex)
-      }
-    } else {
-      if (isFollowing) stopFollowing()
-      togglePlay()
-    }
-  }, [playbackMode, isFollowing, isPlaying, bandMeasureIndex, stopFollowing, stop, startFollowing, togglePlay])
-
-  const handleRestart = useCallback(() => {
-    if (playbackMode === 'band') {
-      setBandMeasureIndex(0)
-      setBandBeat(1)
-      if (isFollowing) {
-        syncToMeasure(0)
-      }
-      if (flatMeasures[0]) {
-        scrollToActiveMeasure(flatMeasures[0].measure.id, 64)
-      }
-    } else {
-      stop()
-    }
-  }, [playbackMode, isFollowing, syncToMeasure, flatMeasures, stop])
-
-  const handleModeChange = useCallback(
-    (newMode: PlaybackMode) => {
-      if (newMode === 'band') {
-        if (isPlaying) stop()
-        if (currentFlatMeasureIndex >= 0) {
-          setBandMeasureIndex(currentFlatMeasureIndex)
-        }
-      } else {
-        if (isFollowing) stopFollowing()
-      }
-      setPlaybackMode(newMode)
-    },
-    [isPlaying, isFollowing, currentFlatMeasureIndex, stop, stopFollowing]
-  )
-
+  // Clic sobre compás: enfocar la sección completa (sin resaltado individual de celdas)
   const handleMeasureClick = useCallback(
     (clickedMeasure: Measure) => {
       const foundSection = sections.find((s) => s.measures.some((m) => m.id === clickedMeasure.id))
       if (foundSection) {
-        setSelectedSectionId(foundSection.id)
-      }
-
-      if (playbackMode === 'band') {
-        const targetIdx = flatMeasures.findIndex((fm) => fm.measure.id === clickedMeasure.id)
-        if (targetIdx !== -1) {
-          setBandMeasureIndex(targetIdx)
-          setBandBeat(1)
-          if (isFollowing) {
-            syncToMeasure(targetIdx)
-          }
-        }
-      } else {
-        if (isPlaying) {
-          jumpToMeasureId(clickedMeasure.id)
-        }
+        handleSelectSectionJump(foundSection.id)
       }
     },
-    [sections, playbackMode, flatMeasures, isFollowing, syncToMeasure, isPlaying, jumpToMeasureId]
+    [sections, handleSelectSectionJump]
   )
 
-  // Detección de intervención manual del usuario para no forzar scroll
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0) {
-        userScrollPausedUntilRef.current = Date.now() + 3000
-      }
-    }
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        touchStartYRef.current = e.touches[0].clientY
-      }
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        const currentY = e.touches[0].clientY
-        if (currentY - touchStartYRef.current > 15) {
-          userScrollPausedUntilRef.current = Date.now() + 3000
-        }
-      }
-    }
-
-    window.addEventListener('wheel', handleWheel, { passive: true })
-    window.addEventListener('touchstart', handleTouchStart, { passive: true })
-    window.addEventListener('touchmove', handleTouchMove, { passive: true })
-
-    return () => {
-      window.removeEventListener('wheel', handleWheel)
-      window.removeEventListener('touchstart', handleTouchStart)
-      window.removeEventListener('touchmove', handleTouchMove)
-    }
-  }, [])
-
-  // Atajo de Teclado Global: Barra Espaciadora para Play / Pause
+  // Atajos de Teclado y Pedal Bluetooth:
+  // Flecha Derecha, PageDown y Barra Espaciadora -> Siguiente Sección
+  // Flecha Izquierda y PageUp -> Sección Anterior
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
@@ -592,66 +497,18 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         return
       }
 
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault()
-        handleTogglePlay()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleTogglePlay])
-
-  // Navegación secuencial de secciones (Pulgar y Pedal Bluetooth)
-  const handlePrevSection = useCallback(() => {
-    if (sections.length === 0) return
-    const currentActiveId = effectiveIsPlaying ? effectiveCurrentMeasure?.sectionId : selectedSectionId
-    const currentIdx = sections.findIndex((s) => s.id === currentActiveId)
-    const prevIdx = currentIdx > 0 ? currentIdx - 1 : 0
-    const prevSec = sections[prevIdx]
-    if (prevSec) {
-      setSelectedSectionId(prevSec.id)
-      handleSelectSectionJump(prevSec.id)
-    }
-  }, [sections, effectiveIsPlaying, effectiveCurrentMeasure?.sectionId, selectedSectionId, handleSelectSectionJump])
-
-  const handleNextSection = useCallback(() => {
-    if (sections.length === 0) return
-    const currentActiveId = effectiveIsPlaying ? effectiveCurrentMeasure?.sectionId : selectedSectionId
-    const currentIdx = sections.findIndex((s) => s.id === currentActiveId)
-    const nextIdx = currentIdx < sections.length - 1 ? currentIdx + 1 : sections.length - 1
-    const nextSec = sections[nextIdx]
-    if (nextSec) {
-      setSelectedSectionId(nextSec.id)
-      handleSelectSectionJump(nextSec.id)
-    }
-  }, [sections, effectiveIsPlaying, effectiveCurrentMeasure?.sectionId, selectedSectionId, handleSelectSectionJump])
-
-  // Atajos de Teclado y Pedal Bluetooth (Flechas Izq/Der y PageUp/PageDown)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        target.closest('input, textarea, [contenteditable="true"], [role="dialog"]')
-      ) {
-        return
-      }
-
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-        e.preventDefault()
-        handlePrevSection()
-      } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.code === 'Space' || e.key === ' ') {
         e.preventDefault()
         handleNextSection()
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault()
+        handlePrevSection()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handlePrevSection, handleNextSection])
+  }, [handleNextSection, handlePrevSection])
 
   // Acordes diatónicos de la tonalidad actual para sugerencias
   const diatonicChords = useMemo(() => {
@@ -928,7 +785,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </span>
 
           <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-            {currentKey} • {playbackMode === 'band' && isFollowing ? liveBpm : tempo} BPM
+            {currentKey} • {tempo} BPM
           </span>
         </div>
 
@@ -1176,39 +1033,21 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             </div>
           </div>
 
-          {/* Fila 3: Barra de Transporte y Seguidor de Banda */}
+          {/* Fila 3: Barra de Transporte de Escenario */}
           <LeadSheetToolbar
-            isPlaying={effectiveIsPlaying}
-            hasCountIn={hasCountIn}
-            countInBeat={countInBeat}
-            onToggleCountIn={toggleCountIn}
-            setHasCountIn={setHasCountIn}
+            isPlaying={isPlaying}
             togglePlayPause={handleTogglePlay}
             handleRestart={handleRestart}
-            activeMeasureNumber={effectiveActiveMeasureNumber}
-            activeSectionName={effectiveActiveSectionName}
-            totalRepeats={effectiveTotalRepeats}
-            currentRepeat={effectiveCurrentRepeat}
-            isMetronomeOn={!isMuted}
-            toggleMetronome={toggleMute}
-            effectiveTempo={playbackMode === 'band' ? liveBpm : tempo}
+            activeSectionName={currentActiveSection?.label || 'Intro'}
+            totalRepeats={currentActiveSection?.repeatCount || 1}
+            currentRepeat={1}
+            isMetronomeOn={isMetronomeOn}
+            toggleMetronome={() => setIsMetronomeOn((prev) => !prev)}
+            effectiveTempo={tempo}
             onUpdateTempo={(newTempo) => {
               setTempoInput(newTempo.toString())
               if (onUpdateTempo) onUpdateTempo(newTempo)
             }}
-            playbackMode={playbackMode}
-            onModeChange={handleModeChange}
-            bandStatus={bandStatus}
-            inputLevel={inputLevel}
-            heardTranscript={heardTranscript}
-            lastVoiceAction={lastVoiceAction}
-            stepMode={stepMode}
-            onStepModeChange={setStepMode}
-            environment={environment}
-            onEnvironmentChange={setEnvironment}
-            onTapDownbeat={tapDownbeat}
-            liveBpm={liveBpm}
-            bandErrorMsg={bandErrorMsg}
           />
         </div>
       )}
@@ -1216,10 +1055,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       {/* Lista de Secciones con sus Compases */}
       <div className="space-y-4 pt-2">
         {sections.map((section, sIdx) => {
-          const isSectionActive = effectiveIsPlaying
-            ? (effectiveCurrentMeasure?.sectionId === section.id ||
-               section.measures.some((m) => m.id === effectiveCurrentMeasure?.measure.id))
-            : (selectedSectionId === section.id)
+          const isSectionActive = section.id === activeSectionId
           const nextSec = sections[sIdx + 1]
           const nextSecName = nextSec ? nextSec.label : null
 
@@ -1236,14 +1072,14 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               globalTimeSignature={timeSignature}
               globalTempo={tempo}
               viewMode={viewMode}
-              isPlaying={effectiveIsPlaying}
-              activeMeasureId={effectiveIsPlaying ? effectiveActiveMeasureId : null}
-              measureDurationMs={effectiveMeasureDurationMs}
-              currentRepeat={isSectionActive ? effectiveCurrentRepeat : 1}
+              isPlaying={isPlaying}
+              activeMeasureId={null}
+              measureDurationMs={0}
+              currentRepeat={1}
               totalRepeats={section.repeatCount || 1}
               nextSectionName={nextSecName}
               isSectionActive={isSectionActive}
-              onSectionFocus={(secId) => setSelectedSectionId(secId)}
+              onSectionFocus={(secId) => handleSelectSectionJump(secId)}
               onToggleCollapse={handleToggleCollapse}
               onUpdateLabel={(secId, newLabel) => {
                 setSections((prev) =>
@@ -1307,7 +1143,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         collapsedSections={collapsedSections}
         onToggleCollapseAll={handleToggleCollapseAll}
         onSelectSection={handleSelectSectionJump}
-        activeSectionId={effectiveIsPlaying ? effectiveCurrentMeasure?.sectionId : selectedSectionId}
+        activeSectionId={activeSectionId}
         onPrevSection={handlePrevSection}
         onNextSection={handleNextSection}
       />
