@@ -38,6 +38,7 @@ export interface MeasureCellProps {
   isEditing?: boolean
   isActive?: boolean
   isPlaying?: boolean
+  currentBeatIndex?: number | null
   measureDurationMs?: number
   currentRepeat?: number
   totalRepeats?: number
@@ -76,6 +77,7 @@ export function MeasureCell({
   isEditing = false,
   isActive = false,
   isPlaying = false,
+  currentBeatIndex = null,
   measureDurationMs = 3333,
   currentRepeat = 1,
   totalRepeats = 1,
@@ -102,6 +104,9 @@ export function MeasureCell({
   const halfCount = Math.max(1, Math.ceil(actualBeats / 2))
   const firstHalfBeats = Array.from({ length: halfCount }, (_, i) => i + 1)
   const secondHalfBeats = Array.from({ length: Math.max(1, actualBeats - halfCount) }, (_, i) => halfCount + i + 1)
+
+  const isFirstHalfActive = isActive && isPlaying && currentBeatIndex !== null && currentBeatIndex !== undefined && currentBeatIndex < halfCount
+  const isSecondHalfActive = isActive && isPlaying && currentBeatIndex !== null && currentBeatIndex !== undefined && currentBeatIndex >= halfCount
 
   // Acorde principal del compás para la vista completa (división 'whole')
   const primaryChord =
@@ -151,15 +156,17 @@ export function MeasureCell({
       data-measure-number={measure.measureNumber}
       onClick={handleClick}
       className={cn(
-        'group relative flex flex-col justify-between select-none overflow-visible transition-all duration-200',
+        'group relative flex flex-col justify-between select-none overflow-visible transition-all duration-150',
         viewMode === 'wide'
           ? 'rounded-xl border min-h-[64px] py-1.5 px-2.5 scroll-mt-24'
           : 'rounded-lg border min-h-[58px] p-1.5 scroll-mt-20',
-        isSelectedForBatch
-          ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
-          : isSelected && isEditing
-            ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
-            : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-xs',
+        isActive && isPlaying
+          ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40 ring-2 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.35)] scale-[1.02] z-10'
+          : isSelectedForBatch
+            ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
+            : isSelected && isEditing
+              ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-950/40 ring-2 ring-primary-500/40 shadow-md'
+              : 'border-slate-300 dark:border-slate-700/80 bg-white dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-600 shadow-xs',
         (measure.repeatStart || sectionRepeatStart) && (viewMode === 'wide' ? 'border-l-[5px] border-l-purple-600 dark:border-l-purple-500' : 'border-l-[4px] border-l-purple-600 dark:border-l-purple-500'),
         (measure.repeatEnd || !!sectionRepeatEnd) && (viewMode === 'wide' ? 'border-r-[5px] border-r-purple-600 dark:border-r-purple-500' : 'border-r-[4px] border-r-purple-600 dark:border-r-purple-500'),
         isEditing && 'cursor-pointer hover:shadow-md',
@@ -482,32 +489,74 @@ export function MeasureCell({
           {division === 'half' || (slots.length === 2 && slots[0]?.chord && slots[1]?.chord) ? (
             /* Compás Dividido (2 Acordes lado a lado con división y barras /) - Sin truncate agresivo y con font dinámico */
             <div className="grid grid-cols-2 divide-x divide-slate-300 dark:divide-slate-700/80 items-center text-center py-0.5 w-full">
-              <div className="flex flex-col items-center justify-center px-0.5 min-w-0">
+              <div className={cn(
+                "flex flex-col items-center justify-center px-0.5 min-w-0 transition-colors rounded",
+                isFirstHalfActive && "bg-amber-200/50 dark:bg-amber-900/40"
+              )}>
                 <span
                   className={cn(
-                    "font-mono font-extrabold text-slate-900 dark:text-white whitespace-nowrap leading-tight",
+                    "font-mono font-extrabold whitespace-nowrap leading-tight transition-colors",
+                    isFirstHalfActive
+                      ? "text-amber-900 dark:text-amber-200"
+                      : "text-slate-900 dark:text-white",
                     getDividedChordFontClass(slots[0]?.chord || '/')
                   )}
                   title={slots[0]?.chord || '/'}
                 >
                   {slots[0]?.chord || '/'}
                 </span>
-                <span className="text-[10px] font-mono tracking-wider text-slate-400 dark:text-slate-500 leading-none mt-0.5">
-                  {firstHalfBeats.map(() => '/').join(' ')}
+                <span className="text-[10px] font-mono tracking-wider text-slate-400 dark:text-slate-500 leading-none mt-0.5 flex items-center justify-center gap-1">
+                  {firstHalfBeats.map((beatNum) => {
+                    const isBeatActive = isActive && isPlaying && currentBeatIndex === beatNum - 1
+                    return (
+                      <span
+                        key={beatNum}
+                        className={cn(
+                          "transition-transform",
+                          isBeatActive
+                            ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                            : "text-slate-400 dark:text-slate-500"
+                        )}
+                      >
+                        /
+                      </span>
+                    )
+                  })}
                 </span>
               </div>
-              <div className="flex flex-col items-center justify-center px-0.5 min-w-0">
+              <div className={cn(
+                "flex flex-col items-center justify-center px-0.5 min-w-0 transition-colors rounded",
+                isSecondHalfActive && "bg-amber-200/50 dark:bg-amber-900/40"
+              )}>
                 <span
                   className={cn(
-                    "font-mono font-extrabold text-slate-900 dark:text-white whitespace-nowrap leading-tight",
+                    "font-mono font-extrabold whitespace-nowrap leading-tight transition-colors",
+                    isSecondHalfActive
+                      ? "text-amber-900 dark:text-amber-200"
+                      : "text-slate-900 dark:text-white",
                     getDividedChordFontClass(slots[1]?.chord || '/')
                   )}
                   title={slots[1]?.chord || '/'}
                 >
                   {slots[1]?.chord || '/'}
                 </span>
-                <span className="text-[10px] font-mono tracking-wider text-slate-400 dark:text-slate-500 leading-none mt-0.5">
-                  {secondHalfBeats.map(() => '/').join(' ')}
+                <span className="text-[10px] font-mono tracking-wider text-slate-400 dark:text-slate-500 leading-none mt-0.5 flex items-center justify-center gap-1">
+                  {secondHalfBeats.map((beatNum) => {
+                    const isBeatActive = isActive && isPlaying && currentBeatIndex === beatNum - 1
+                    return (
+                      <span
+                        key={beatNum}
+                        className={cn(
+                          "transition-transform",
+                          isBeatActive
+                            ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                            : "text-slate-400 dark:text-slate-500"
+                        )}
+                      >
+                        /
+                      </span>
+                    )
+                  })}
                 </span>
               </div>
             </div>
@@ -516,11 +565,21 @@ export function MeasureCell({
             <div className={cn("grid gap-0.5 w-full items-center text-center py-0.5", slots.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
               {slots.slice(0, 4).map((s, idx) => {
                 const chordStr = s.chord || '/'
+                const isBeatActive = isActive && isPlaying && currentBeatIndex === idx
                 return (
-                  <div key={idx} className="flex flex-col items-center justify-center px-0.5 min-w-0">
+                  <div
+                    key={idx}
+                    className={cn(
+                      "flex flex-col items-center justify-center px-0.5 min-w-0 transition-colors rounded",
+                      isBeatActive && "bg-amber-200/50 dark:bg-amber-900/40"
+                    )}
+                  >
                     <span
                       className={cn(
-                        "font-mono font-extrabold text-slate-900 dark:text-white whitespace-nowrap leading-tight",
+                        "font-mono font-extrabold whitespace-nowrap leading-tight transition-colors",
+                        isBeatActive
+                          ? "text-amber-900 dark:text-amber-200"
+                          : "text-slate-900 dark:text-white",
                         chordStr.length >= 6
                           ? "text-[8.5px] sm:text-[9.5px] tracking-tighter"
                           : chordStr.length >= 4
@@ -531,7 +590,14 @@ export function MeasureCell({
                     >
                       {chordStr}
                     </span>
-                    <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 leading-none mt-0.5">
+                    <span
+                      className={cn(
+                        "text-[9px] font-mono leading-none mt-0.5 transition-transform",
+                        isBeatActive
+                          ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                          : "text-slate-400 dark:text-slate-500"
+                      )}
+                    >
                       /
                     </span>
                   </div>
@@ -545,7 +611,10 @@ export function MeasureCell({
                 <>
                   <span
                     className={cn(
-                      "font-mono font-extrabold text-slate-900 dark:text-white leading-tight",
+                      "font-mono font-extrabold leading-tight transition-colors",
+                      isActive && isPlaying
+                        ? "text-amber-900 dark:text-amber-200"
+                        : "text-slate-900 dark:text-white",
                       primaryChord.length >= 8
                         ? "text-[11px] sm:text-xs tracking-tight"
                         : "text-xs sm:text-sm"
@@ -554,13 +623,43 @@ export function MeasureCell({
                   >
                     {primaryChord}
                   </span>
-                  <div className="text-[11px] font-mono tracking-[0.18em] text-slate-400 dark:text-slate-500 font-bold leading-none mt-1">
-                    {Array.from({ length: actualBeats }).map(() => '/').join(' ')}
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono tracking-wider font-bold leading-none mt-1">
+                    {Array.from({ length: actualBeats }).map((_, bIdx) => {
+                      const isBeatActive = isActive && isPlaying && currentBeatIndex === bIdx
+                      return (
+                        <span
+                          key={bIdx}
+                          className={cn(
+                            "transition-transform",
+                            isBeatActive
+                              ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                              : "text-slate-400 dark:text-slate-500"
+                          )}
+                        >
+                          /
+                        </span>
+                      )
+                    })}
                   </div>
                 </>
               ) : (
-                <div className="text-[11px] font-mono tracking-[0.18em] text-slate-400 dark:text-slate-500 font-bold leading-none py-1">
-                  {Array.from({ length: actualBeats }).map(() => '/').join(' ')}
+                <div className="flex items-center justify-center gap-1.5 text-[11px] font-mono tracking-wider font-bold leading-none py-1">
+                  {Array.from({ length: actualBeats }).map((_, bIdx) => {
+                    const isBeatActive = isActive && isPlaying && currentBeatIndex === bIdx
+                    return (
+                      <span
+                        key={bIdx}
+                        className={cn(
+                          "transition-transform",
+                          isBeatActive
+                            ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                            : "text-slate-400 dark:text-slate-500"
+                        )}
+                      >
+                        /
+                      </span>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -594,25 +693,59 @@ export function MeasureCell({
                 </div>
                 {/* Marcas de pulso agrupadas debajo del acorde (ej. / / /   / / /) */}
                 <div className="flex items-center justify-center gap-3 text-slate-300 dark:text-slate-600 font-mono text-[11px] font-bold mt-1">
-                  {pulseGroups.map((group, gIdx) => (
-                    <div key={gIdx} className="flex items-center gap-1">
-                      {Array.from({ length: group.slashesCount }).map((_, sIdx) => (
-                        <span key={sIdx}>/</span>
-                      ))}
-                    </div>
-                  ))}
+                  {(() => {
+                    let beatCounter = 0
+                    return pulseGroups.map((group, gIdx) => (
+                      <div key={gIdx} className="flex items-center gap-1">
+                        {Array.from({ length: group.slashesCount }).map((_, sIdx) => {
+                          const bIdx = beatCounter++
+                          const isBeatActive = isActive && isPlaying && currentBeatIndex === bIdx
+                          return (
+                            <span
+                              key={sIdx}
+                              className={cn(
+                                "transition-transform",
+                                isBeatActive
+                                  ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                                  : "text-slate-300 dark:text-slate-600"
+                              )}
+                            >
+                              /
+                            </span>
+                          )
+                        })}
+                      </div>
+                    ))
+                  })()}
                 </div>
               </>
             ) : (
               /* Compás vacío: marcas de pulso agrupadas centradas y visibles */
               <div className="flex items-center justify-center gap-3 text-slate-300 dark:text-slate-600 font-mono text-sm sm:text-base font-black py-1">
-                {pulseGroups.map((group, gIdx) => (
-                  <div key={gIdx} className="flex items-center gap-1">
-                    {Array.from({ length: group.slashesCount }).map((_, sIdx) => (
-                      <span key={sIdx}>/</span>
-                    ))}
-                  </div>
-                ))}
+                {(() => {
+                  let beatCounter = 0
+                  return pulseGroups.map((group, gIdx) => (
+                    <div key={gIdx} className="flex items-center gap-1">
+                      {Array.from({ length: group.slashesCount }).map((_, sIdx) => {
+                        const bIdx = beatCounter++
+                        const isBeatActive = isActive && isPlaying && currentBeatIndex === bIdx
+                        return (
+                          <span
+                            key={sIdx}
+                            className={cn(
+                              "transition-transform",
+                              isBeatActive
+                                ? "text-amber-600 dark:text-amber-400 font-black scale-125"
+                                : "text-slate-300 dark:text-slate-600"
+                            )}
+                          >
+                            /
+                          </span>
+                        )
+                      })}
+                    </div>
+                  ))
+                })()}
               </div>
             )}
           </div>
@@ -620,12 +753,17 @@ export function MeasureCell({
           /* Caso Blancas: 2 Mitades con División Central y Notación Rítmica Profesional */
           <div className="grid grid-cols-2 divide-x divide-slate-200 dark:divide-slate-800 text-center items-center py-0.5">
             {/* Primera mitad (Acorde 1, tiempos 1 y 2) */}
-            <div className="flex flex-col items-center justify-center px-1 min-w-0">
+            <div className={cn(
+              "flex flex-col items-center justify-center px-1 min-w-0 transition-colors rounded",
+              isFirstHalfActive && "bg-amber-100/60 dark:bg-amber-900/30 py-0.5"
+            )}>
               <div className="flex items-center justify-center gap-0.5 max-w-full">
                 <span
                   className={cn(
-                    'font-mono leading-none whitespace-nowrap min-w-0 shrink-0',
-                    slots[0]?.isRest || slots[0]?.chord === '%'
+                    'font-mono leading-none whitespace-nowrap min-w-0 shrink-0 transition-colors',
+                    isFirstHalfActive
+                      ? 'text-amber-900 dark:text-amber-200 font-black'
+                      : slots[0]?.isRest || slots[0]?.chord === '%'
                       ? 'text-rose-500 dark:text-rose-400 font-black'
                       : 'text-slate-900 dark:text-white',
                     (slots[0]?.chord?.length || 0) > 7
@@ -644,26 +782,41 @@ export function MeasureCell({
               </div>
               {/* Notación rítmica estándar: barras / con números 1 y 2 alineados debajo */}
               <div className="flex items-center justify-center gap-3 sm:gap-3.5 font-mono leading-none mt-1">
-                {firstHalfBeats.map((beatNum) => (
-                  <div key={beatNum} className="flex flex-col items-center justify-center">
-                    <span className="text-slate-300 dark:text-slate-600 font-black text-xs sm:text-[13px] leading-none">
-                      /
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold mt-0.5 leading-none">
-                      {beatNum}
-                    </span>
-                  </div>
-                ))}
+                {firstHalfBeats.map((beatNum) => {
+                  const isBeatActive = isActive && isPlaying && currentBeatIndex === beatNum - 1
+                  return (
+                    <div key={beatNum} className="flex flex-col items-center justify-center">
+                      <span
+                        className={cn(
+                          "font-black text-xs sm:text-[13px] leading-none transition-transform",
+                          isBeatActive
+                            ? "text-amber-600 dark:text-amber-400 scale-125"
+                            : "text-slate-300 dark:text-slate-600"
+                        )}
+                      >
+                        /
+                      </span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold mt-0.5 leading-none">
+                        {beatNum}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
             {/* Segunda mitad (Acorde 2, tiempos 3 y 4) */}
-            <div className="flex flex-col items-center justify-center px-1 min-w-0">
+            <div className={cn(
+              "flex flex-col items-center justify-center px-1 min-w-0 transition-colors rounded",
+              isSecondHalfActive && "bg-amber-100/60 dark:bg-amber-900/30 py-0.5"
+            )}>
               <div className="flex items-center justify-center gap-0.5 max-w-full">
                 <span
                   className={cn(
-                    'font-mono leading-none whitespace-nowrap min-w-0 shrink-0',
-                    slots[1]?.isRest || slots[1]?.chord === '%'
+                    'font-mono leading-none whitespace-nowrap min-w-0 shrink-0 transition-colors',
+                    isSecondHalfActive
+                      ? 'text-amber-900 dark:text-amber-200 font-black'
+                      : slots[1]?.isRest || slots[1]?.chord === '%'
                       ? 'text-rose-500 dark:text-rose-400 font-black'
                       : 'text-slate-900 dark:text-white',
                     (slots[1]?.chord?.length || 0) > 7
@@ -682,16 +835,26 @@ export function MeasureCell({
               </div>
               {/* Notación rítmica estándar: barras / con números 3 y 4 alineados debajo */}
               <div className="flex items-center justify-center gap-3 sm:gap-3.5 font-mono leading-none mt-1">
-                {secondHalfBeats.map((beatNum) => (
-                  <div key={beatNum} className="flex flex-col items-center justify-center">
-                    <span className="text-slate-300 dark:text-slate-600 font-black text-xs sm:text-[13px] leading-none">
-                      /
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold mt-0.5 leading-none">
-                      {beatNum}
-                    </span>
-                  </div>
-                ))}
+                {secondHalfBeats.map((beatNum) => {
+                  const isBeatActive = isActive && isPlaying && currentBeatIndex === beatNum - 1
+                  return (
+                    <div key={beatNum} className="flex flex-col items-center justify-center">
+                      <span
+                        className={cn(
+                          "font-black text-xs sm:text-[13px] leading-none transition-transform",
+                          isBeatActive
+                            ? "text-amber-600 dark:text-amber-400 scale-125"
+                            : "text-slate-300 dark:text-slate-600"
+                        )}
+                      >
+                        /
+                      </span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold mt-0.5 leading-none">
+                        {beatNum}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>

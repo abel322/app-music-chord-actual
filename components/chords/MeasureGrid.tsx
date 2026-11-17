@@ -85,6 +85,7 @@ interface MeasureGridProps {
   viewMode?: 'stage' | 'wide'
   isEditing?: boolean
   activeMeasureId?: string | null
+  currentBeatIndex?: number | null
   isPlaying?: boolean
   measureDurationMs?: number
   sectionName?: string
@@ -107,6 +108,7 @@ export function MeasureGrid({
   viewMode = 'stage',
   isEditing = false,
   activeMeasureId = null,
+  currentBeatIndex = null,
   isPlaying = false,
   measureDurationMs,
   sectionName,
@@ -579,7 +581,7 @@ export function MeasureGrid({
                       const globalIndex = startIdx + mIdx
                       const isSelected = selectedMeasureId === measure.id
                       const isSelectedForBatch = selectedBatchIds.includes(measure.id)
-                      const isActive = false
+                      const isActive = isPlaying && activeMeasureId === measure.id
                       const prevMeasure = globalIndex > 0 ? measures[globalIndex - 1] : null
                       const bracket = cadenceBrackets[measure.id]
                       const isFirst = globalIndex === 0
@@ -601,6 +603,7 @@ export function MeasureGrid({
                           isEditing={isEditing}
                           isActive={isActive}
                           isPlaying={isPlaying}
+                          currentBeatIndex={isActive ? currentBeatIndex : null}
                           currentRepeat={currentRepeat}
                           totalRepeats={totalRepeats ?? sectionRepeatCount ?? 1}
                           nextSectionName={nextSectionName}

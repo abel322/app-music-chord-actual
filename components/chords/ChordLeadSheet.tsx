@@ -319,19 +319,47 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   // Estado de Reproducción de Escenario
   const [isPlaying, setIsPlaying] = useState(false)
-  const [isMetronomeOn, setIsMetronomeOn] = useState(false)
-  const sectionTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const metronomeIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const [isMetronomeOn, setIsMetronomeOn] = useState(true)
+  const [activeMeasureIndex, setActiveMeasureIndex] = useState<number | null>(null)
+  const [currentBeatIndex, setCurrentBeatIndex] = useState<number | null>(null)
 
   // Sección activa actual
   const currentActiveSection = useMemo(() => {
     return sections.find((s) => s.id === activeSectionId) || sections[0] || null
   }, [sections, activeSectionId])
 
+  // ID del compás activo para resaltado
+  const activeMeasureId = useMemo(() => {
+    if (!isPlaying || activeMeasureIndex === null) return null
+    const sec = sections.find((s) => s.id === activeSectionId) || sections[0]
+    if (!sec || !sec.measures) return null
+    return sec.measures[activeMeasureIndex]?.id || null
+  }, [isPlaying, activeMeasureIndex, sections, activeSectionId])
+
+  // Refs mutables para el reloj de pulsos y evitar closures obsoletos
+  const isPlayingRef = useRef(isPlaying)
+  isPlayingRef.current = isPlaying
+  const isMetronomeOnRef = useRef(isMetronomeOn)
+  isMetronomeOnRef.current = isMetronomeOn
+  const activeSectionIdRef = useRef(activeSectionId)
+  activeSectionIdRef.current = activeSectionId
+  const activeMeasureIndexRef = useRef(activeMeasureIndex)
+  activeMeasureIndexRef.current = activeMeasureIndex
+  const currentBeatIndexRef = useRef(currentBeatIndex)
+  currentBeatIndexRef.current = currentBeatIndex
+  const sectionsRef = useRef(sections)
+  sectionsRef.current = sections
+  const tempoRef = useRef(tempo)
+  tempoRef.current = tempo
+  const timeSignatureRef = useRef(timeSignature)
+  timeSignatureRef.current = timeSignature
+
   // Salto rápido a sección (desde tarjeta, píldora o pedal)
   const handleSelectSectionJump = useCallback(
     (sectionId: string) => {
       setActiveSectionId(sectionId)
+      setActiveMeasureIndex(0)
+      setCurrentBeatIndex(0)
       setCollapsedSections((prev) => {
         if (prev[sectionId]) {
           return { ...prev, [sectionId]: false }
@@ -366,22 +394,40 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       // Última sección alcanzada: detener reproducción
       if (isPlaying) {
         setIsPlaying(false)
+        setActiveMeasureIndex(null)
+        setCurrentBeatIndex(null)
       }
     }
   }, [sections, activeSectionId, handleSelectSectionJump, isPlaying])
 
-  // Iniciar / Pausar reproducción inmediatamente (sin conteo 1-2-3-4)
-  const handleTogglePlay = useCallback(() => {
+  // Iniciar / Pausar reproducción inmediatamente (desbloqueando AudioContext en el gesto del usuario)
+  const handleTogglePlay = useCallback(async () => {
+    try {
+      const ctx = getAudioContext()
+      if (ctx && ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+    } catch (err) {
+      console.warn('AudioContext resume error:', err)
+    }
+
     setIsPlaying((prev) => {
       const nextPlaying = !prev
       if (nextPlaying) {
         setIsControlsDrawerOpen(false)
         setCollapsedSections({}) // Mantener todas las secciones desplegadas durante la secuencia
+        setIsMetronomeOn(true) // Encender automáticamente el metrónomo al iniciar
+
         const secId = activeSectionId || sections[0]?.id
         if (secId) {
           setActiveSectionId(secId)
           scrollToSection(secId)
         }
+        setActiveMeasureIndex(0)
+        setCurrentBeatIndex(0)
+      } else {
+        setActiveMeasureIndex(null)
+        setCurrentBeatIndex(null)
       }
       return nextPlaying
     })
@@ -390,6 +436,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   // Reiniciar a la primera sección
   const handleRestart = useCallback(() => {
     setIsPlaying(false)
+    setActiveMeasureIndex(null)
+    setCurrentBeatIndex(null)
     setSectionPassMap({})
     if (sections.length > 0) {
       const firstId = sections[0].id
@@ -400,6 +448,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   // Estado de vuelta activa para cada sección (Vuelta 1, Vuelta 2... hasta totalPasses)
   const [sectionPassMap, setSectionPassMap] = useState<Record<string, number>>({})
+  const sectionPassMapRef = useRef(sectionPassMap)
+  sectionPassMapRef.current = sectionPassMap
 
   // Cálculo de total de vueltas de una sección (passes de letra × ciclos de repetición)
   const getSectionTotalPasses = useCallback((sec: SectionMeasures) => {
@@ -475,106 +525,147 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     []
   )
 
-  // Temporizador de avance automático de vuelta y sección cuando isPlaying está activo
+  // Reloj unificado de pulsos, compases, vueltas y metrónomo sonoro Web Audio
   useEffect(() => {
-    if (sectionTimerRef.current) {
-      clearTimeout(sectionTimerRef.current)
-      sectionTimerRef.current = null
+    if (!isPlaying) {
+      setActiveMeasureIndex(null)
+      setCurrentBeatIndex(null)
+      return
     }
 
-    if (!isPlaying) return
+    let isCancelled = false
+    let timerId: NodeJS.Timeout | null = null
 
-    const currentSection = sections.find((s) => s.id === activeSectionId) || sections[0]
-    if (!currentSection) return
-
-    setCollapsedSections((prev) => {
-      if (prev[currentSection.id]) {
-        return { ...prev, [currentSection.id]: false }
+    // Helper para obtener parámetros dinámicos de sección
+    const getSectionParams = (secId: string) => {
+      const sec = sectionsRef.current.find((s) => s.id === secId) || sectionsRef.current[0]
+      const secTempo = sec?.tempoOverride || tempoRef.current || 120
+      const secTimeSig = sec?.timeSignature || timeSignatureRef.current || '4/4'
+      const beatsPerMeasure = getBeatsPerMeasure(secTimeSig)
+      const beatIntervalMs = (60 / secTempo) * 1000
+      const measureCount = sec?.measures?.length ? sec.measures.length : 4
+      const passesCount = Math.max(1, sec?.lyricPasses?.length || 1)
+      const cyclesCount = Math.max(1, sec?.repeatCycles || sec?.repeatCount || 1)
+      const totalPasses = passesCount * cyclesCount
+      return {
+        sec,
+        secTempo,
+        secTimeSig,
+        beatsPerMeasure,
+        beatIntervalMs,
+        measureCount,
+        totalPasses,
       }
-      return prev
-    })
+    }
 
-    const totalPasses = getSectionTotalPasses(currentSection)
-    const currentPass = sectionPassMap[currentSection.id] || 0
-    const passDurationMs = getSinglePassDurationMs(currentSection)
+    // Asegurar que la sección actual esté desplegada
+    const currentSecId = activeSectionIdRef.current || sectionsRef.current[0]?.id
+    if (currentSecId) {
+      setCollapsedSections((prev) => {
+        if (prev[currentSecId]) {
+          return { ...prev, [currentSecId]: false }
+        }
+        return prev
+      })
+    }
 
-    sectionTimerRef.current = setTimeout(() => {
-      if (currentPass < totalPasses - 1) {
-        // Avanzar a la siguiente vuelta de esta misma sección (ej. Vuelta 1 -> Vuelta 2)
-        setSectionPassMap((prev) => ({
-          ...prev,
-          [currentSection.id]: currentPass + 1,
-        }))
-      } else {
-        // Se completaron todas las vueltas de la sección: avanzar a la siguiente sección
-        const currentIdx = sections.findIndex((s) => s.id === currentSection.id)
-        if (currentIdx !== -1 && currentIdx < sections.length - 1) {
-          const nextSec = sections[currentIdx + 1]
-          setSectionPassMap((prev) => ({
-            ...prev,
-            [nextSec.id]: 0,
-          }))
-          setActiveSectionId(nextSec.id)
-          scrollToSection(nextSec.id)
-        } else {
-          // Última sección finalizada
-          setIsPlaying(false)
+    let currentMIdx = activeMeasureIndexRef.current ?? 0
+    let currentBIdx = currentBeatIndexRef.current ?? 0
+
+    let { beatsPerMeasure, beatIntervalMs, measureCount, totalPasses } = getSectionParams(
+      activeSectionIdRef.current
+    )
+
+    // Reproducción sonora precisa de metrónomo Web Audio
+    const playTick = (beatIndex: number) => {
+      if (!isMetronomeOnRef.current) return
+      const ctx = getAudioContext()
+      if (ctx) {
+        // Beat 1 (beatIndex === 0): Tono agudo 1200 Hz, 35 ms, ganancia 0.45
+        // Beats 2, 3, 4... (beatIndex > 0): Tono medio 850 Hz, 30 ms, ganancia 0.25
+        playTickSound(ctx, ctx.currentTime, beatIndex === 0)
+      }
+    }
+
+    // Disparo inmediato del primer pulso al iniciar
+    playTick(currentBIdx)
+    setActiveMeasureIndex(currentMIdx)
+    setCurrentBeatIndex(currentBIdx)
+
+    let expectedTime = performance.now() + beatIntervalMs
+
+    const step = () => {
+      if (isCancelled) return
+
+      // Avanzar al siguiente pulso
+      currentBIdx += 1
+
+      if (currentBIdx >= beatsPerMeasure) {
+        currentBIdx = 0
+        currentMIdx += 1
+
+        if (currentMIdx >= measureCount) {
+          currentMIdx = 0
+          const curSecId = activeSectionIdRef.current
+          const curPass = sectionPassMapRef.current[curSecId] || 0
+
+          if (curPass < totalPasses - 1) {
+            // Siguiente vuelta dentro de la misma sección (ej. Vuelta 1 -> Vuelta 2)
+            const nextPass = curPass + 1
+            setSectionPassMap((prev) => ({
+              ...prev,
+              [curSecId]: nextPass,
+            }))
+          } else {
+            // Se completaron todas las vueltas -> Pasar a la siguiente sección
+            const curSecIdx = sectionsRef.current.findIndex((s) => s.id === curSecId)
+            if (curSecIdx !== -1 && curSecIdx < sectionsRef.current.length - 1) {
+              const nextSec = sectionsRef.current[curSecIdx + 1]
+              setSectionPassMap((prev) => ({
+                ...prev,
+                [nextSec.id]: 0,
+              }))
+              setActiveSectionId(nextSec.id)
+              scrollToSection(nextSec.id)
+
+              // Actualizar parámetros para la nueva sección
+              const newParams = getSectionParams(nextSec.id)
+              beatsPerMeasure = newParams.beatsPerMeasure
+              beatIntervalMs = newParams.beatIntervalMs
+              measureCount = newParams.measureCount
+              totalPasses = newParams.totalPasses
+            } else {
+              // Fin de la canción
+              setIsPlaying(false)
+              setActiveMeasureIndex(null)
+              setCurrentBeatIndex(null)
+              return
+            }
+          }
         }
       }
-    }, passDurationMs)
+
+      // Reproducir sonido del pulso
+      playTick(currentBIdx)
+
+      // Actualizar UI reactiva
+      setActiveMeasureIndex(currentMIdx)
+      setCurrentBeatIndex(currentBIdx)
+
+      // Programar siguiente paso con compensación de deriva de tiempo (drift compensation)
+      const drift = performance.now() - expectedTime
+      expectedTime += beatIntervalMs
+      const nextDelay = Math.max(0, beatIntervalMs - drift)
+      timerId = setTimeout(step, nextDelay)
+    }
+
+    timerId = setTimeout(step, beatIntervalMs)
 
     return () => {
-      if (sectionTimerRef.current) {
-        clearTimeout(sectionTimerRef.current)
-        sectionTimerRef.current = null
-      }
+      isCancelled = true
+      if (timerId) clearTimeout(timerId)
     }
-  }, [
-    isPlaying,
-    activeSectionId,
-    sections,
-    sectionPassMap,
-    getSectionTotalPasses,
-    getSinglePassDurationMs,
-    scrollToSection,
-  ])
-
-  // Metrónomo auditivo opcional sincronizado con la sección activa
-  useEffect(() => {
-    if (metronomeIntervalRef.current) {
-      clearInterval(metronomeIntervalRef.current)
-      metronomeIntervalRef.current = null
-    }
-
-    if (!isPlaying || !isMetronomeOn) return
-
-    const currentSection = sections.find((s) => s.id === activeSectionId) || sections[0]
-    const secTempo = currentSection?.tempoOverride || tempo || 120
-    const secTimeSig = currentSection?.timeSignature || timeSignature || '4/4'
-    const beatsPerMeasure = getBeatsPerMeasure(secTimeSig)
-    const beatIntervalMs = (60 / secTempo) * 1000
-
-    const ctx = getAudioContext()
-    let beatInMeasure = 0
-
-    if (ctx) {
-      playTickSound(ctx, ctx.currentTime, beatInMeasure === 0)
-    }
-
-    metronomeIntervalRef.current = setInterval(() => {
-      beatInMeasure = (beatInMeasure + 1) % beatsPerMeasure
-      if (ctx) {
-        playTickSound(ctx, ctx.currentTime, beatInMeasure === 0)
-      }
-    }, beatIntervalMs)
-
-    return () => {
-      if (metronomeIntervalRef.current) {
-        clearInterval(metronomeIntervalRef.current)
-        metronomeIntervalRef.current = null
-      }
-    }
-  }, [isPlaying, isMetronomeOn, activeSectionId, sections, tempo, timeSignature])
+  }, [isPlaying, scrollToSection])
 
   // WakeLock: Mantener la pantalla encendida en el dispositivo móvil durante la interpretación
   const wakeLockRef = useRef<any>(null)
@@ -630,9 +721,16 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       const foundSection = sections.find((s) => s.measures.some((m) => m.id === clickedMeasure.id))
       if (foundSection) {
         setActiveSectionId(foundSection.id)
+        if (isPlaying) {
+          const mIdx = foundSection.measures.findIndex((m) => m.id === clickedMeasure.id)
+          if (mIdx !== -1) {
+            setActiveMeasureIndex(mIdx)
+            setCurrentBeatIndex(0)
+          }
+        }
       }
     },
-    [sections]
+    [sections, isPlaying]
   )
 
   // Atajos de Teclado y Pedal Bluetooth:
@@ -974,6 +1072,20 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
             <button
               type="button"
+              onClick={() => setIsMetronomeOn((prev) => !prev)}
+              className={cn(
+                'px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer select-none shrink-0',
+                isMetronomeOn
+                  ? 'bg-slate-900 text-amber-400 border-amber-500/50 shadow-xs'
+                  : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-slate-300'
+              )}
+              title={isMetronomeOn ? 'Silenciar metrónomo' : 'Activar sonido de metrónomo'}
+            >
+              <span>{isMetronomeOn ? '🔊' : '🔇'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setViewMode((prev) => (prev === 'stage' ? 'wide' : 'stage'))}
               className={cn(
                 'px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
@@ -1255,10 +1367,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               globalTempo={tempo}
               viewMode={viewMode}
               isPlaying={isPlaying}
-              activeMeasureId={null}
+              activeMeasureId={isSectionActive && isPlaying ? activeMeasureId : null}
+              currentBeatIndex={isSectionActive && isPlaying ? currentBeatIndex : null}
               measureDurationMs={0}
-              currentRepeat={1}
-              totalRepeats={section.repeatCount || 1}
+              currentRepeat={isSectionActive ? (sectionPassMap[section.id] || 0) + 1 : 1}
+              totalRepeats={getSectionTotalPasses(section)}
               currentPassIndex={sectionPassMap[section.id] || 0}
               totalPasses={getSectionTotalPasses(section)}
               onAdvancePass={handleAdvancePass}

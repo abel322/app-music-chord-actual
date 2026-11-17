@@ -73,18 +73,22 @@ export function playTickSound(ctx: AudioContext, time: number, isAccent: boolean
     // Evitar programar en tiempos negativos o pasados si el reloj avanzó
     const playTime = Math.max(time, ctx.currentTime)
 
-    // Frecuencia: 1600 Hz para el acento (tiempo 1), 1000 Hz para pulsos normales
-    osc.frequency.setValueAtTime(isAccent ? 1600 : 1000, playTime)
+    // Tiempo 1 (beatIndex === 0): Tono agudo acentuado (1200 Hz, envolvente percussive de 35 ms, ganancia 0.45)
+    // Tiempos 2, 3, 4... (beatIndex > 0): Tono medio (850 Hz, envolvente percussive de 30 ms, ganancia 0.25)
+    const freq = isAccent ? 1200 : 850
+    const peakGain = isAccent ? 0.45 : 0.25
+    const duration = isAccent ? 0.035 : 0.030
 
-    // Envolvente rápida percusiva (ataque inmediato de 1ms, caída limpia de 35ms)
-    gain.gain.setValueAtTime(isAccent ? 0.9 : 0.6, playTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, playTime + 0.04)
+    osc.frequency.setValueAtTime(freq, playTime)
+
+    gain.gain.setValueAtTime(peakGain, playTime)
+    gain.gain.exponentialRampToValueAtTime(0.0001, playTime + duration)
 
     osc.connect(gain)
     gain.connect(ctx.destination)
 
     osc.start(playTime)
-    osc.stop(playTime + 0.045)
+    osc.stop(playTime + duration + 0.005)
   } catch {
     // Silencioso si ocurre algún error en la capa de audio del sistema
   }

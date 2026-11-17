@@ -36,6 +36,7 @@ export interface SectionCardProps {
   viewMode?: 'stage' | 'wide'
   isPlaying?: boolean
   activeMeasureId?: string | null
+  currentBeatIndex?: number | null
   measureDurationMs?: number
   currentRepeat?: number
   totalRepeats?: number
@@ -80,6 +81,7 @@ export function SectionCard({
   viewMode = 'stage',
   isPlaying = false,
   activeMeasureId = null,
+  currentBeatIndex = null,
   measureDurationMs,
   currentRepeat,
   totalRepeats,
@@ -1233,7 +1235,8 @@ export function SectionCard({
                 diatonicChords={sectionDiatonicChords}
                 viewMode={viewMode}
                 isEditing={isEditing}
-                activeMeasureId={null}
+                activeMeasureId={isCurrentlyPlayingSection ? activeMeasureId : null}
+                currentBeatIndex={isCurrentlyPlayingSection ? currentBeatIndex : null}
                 isPlaying={isPlaying}
                 measureDurationMs={measureDurationMs}
                 sectionName={section.label}
