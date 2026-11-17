@@ -243,16 +243,59 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     }
   }, [sections, activeSectionId])
 
-  // Desplazamiento suave con scroll-mt-14 hacia la sección objetivo
-  const scrollToSection = useCallback((secId: string) => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        const el = document.getElementById(`section-${secId}`)
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-      }, 50)
-    })
+  // Desplazamiento suave centrado hacia la sección objetivo (Anterior Arriba • Actual en el Centro • Siguiente Abajo)
+  const scrollAnimRef = useRef<number | null>(null)
+
+  const smoothScrollToCenter = useCallback((el: HTMLElement, duration = 650) => {
+    if (scrollAnimRef.current) {
+      cancelAnimationFrame(scrollAnimRef.current)
+      scrollAnimRef.current = null
+    }
+
+    const rect = el.getBoundingClientRect()
+    const targetY = window.scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2)
+    const startY = window.scrollY
+    const diff = Math.max(0, targetY) - startY
+    const startTime = performance.now()
+
+    function step(currentTime: number) {
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      // Curva suave easeInOutCubic (no brusca)
+      const ease =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2
+      window.scrollTo(0, startY + diff * ease)
+      if (progress < 1) {
+        scrollAnimRef.current = requestAnimationFrame(step)
+      } else {
+        scrollAnimRef.current = null
+      }
+    }
+    scrollAnimRef.current = requestAnimationFrame(step)
+  }, [])
+
+  const scrollToSection = useCallback(
+    (secId: string) => {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(`section-${secId}`)
+          if (el) {
+            smoothScrollToCenter(el, 650)
+          }
+        }, 50)
+      })
+    },
+    [smoothScrollToCenter]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (scrollAnimRef.current) {
+        cancelAnimationFrame(scrollAnimRef.current)
+      }
+    }
   }, [])
 
   // Estado de Reproducción de Escenario
@@ -313,6 +356,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     setIsPlaying((prev) => {
       const nextPlaying = !prev
       if (nextPlaying) {
+        setIsControlsDrawerOpen(false)
         const secId = activeSectionId || sections[0]?.id
         if (secId) {
           setActiveSectionId(secId)
@@ -764,7 +808,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   }
 
   return (
-    <div className="w-full max-w-full min-h-screen max-w-7xl mx-auto pb-28 sm:pb-36">
+    <div className="w-full max-w-full min-h-screen max-w-7xl mx-auto pb-36">
       {/* 1. Cabecera Superior Ultra-Compacta de 1 Sola Línea (44px máx) */}
       <header className="sticky top-0 z-50 h-11 px-2.5 sm:px-4 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 flex items-center justify-between gap-2 text-white shadow-sm">
         {/* Izquierda: Botón ← + Título truncado + Badge compacto Tono/BPM */}
@@ -778,7 +822,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </Link>
 
           <span
-            className="text-xs sm:text-sm font-bold text-white truncate max-w-[140px] sm:max-w-[300px]"
+            className="text-xs sm:text-sm font-bold text-white truncate max-w-[110px] sm:max-w-[260px]"
             title={song.title}
           >
             {song.title}
@@ -789,8 +833,28 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           </span>
         </div>
 
-        {/* Derecha: Toggle Escenario / Amplio + Toggle Controles */}
+        {/* Derecha: Botón Táctil Iniciar/Pausar + Toggle Escenario / Amplio + Toggle Controles */}
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (!isPlaying) {
+                setIsControlsDrawerOpen(false)
+              }
+              handleTogglePlay()
+            }}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer select-none shadow-xs shrink-0 active:scale-95',
+              isPlaying
+                ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500 shadow-rose-950/50 animate-pulse'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-emerald-950/50'
+            )}
+            title={isPlaying ? 'Pausar reproducción en vivo (Espacio)' : 'Iniciar reproducción en vivo (Espacio)'}
+          >
+            <span>{isPlaying ? '⏸' : '▶'}</span>
+            <span className="font-extrabold">{isPlaying ? 'Pausar' : 'Iniciar'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setViewMode((prev) => (prev === 'stage' ? 'wide' : 'stage'))}
@@ -1053,7 +1117,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       )}
 
       {/* Lista de Secciones con sus Compases */}
-      <div className="space-y-4 pt-2">
+      <div className="space-y-4 pt-16 pb-36">
         {sections.map((section, sIdx) => {
           const isSectionActive = section.id === activeSectionId
           const nextSec = sections[sIdx + 1]

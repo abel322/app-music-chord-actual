@@ -131,229 +131,263 @@ export function SectionCard({
     >
       {/* 2. Cabecera de Sección Adhesiva (Sticky Section Header Contextual) */}
       <div className={cn(
-        "sticky top-11 z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md py-1.5 px-3 border-b rounded-t-2xl flex items-center justify-between gap-2.5 text-white shadow-sm flex-wrap transition-colors",
+        "sticky top-11 z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-b rounded-t-2xl flex items-center justify-between text-white shadow-sm transition-all",
+        isPlaying ? "py-1 px-2.5 min-h-[28px] gap-2" : "py-1.5 px-3 flex-wrap gap-2.5",
         isThisSectionActive ? "border-cyan-500/40" : "border-slate-800/80"
       )}>
-        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-          {/* Botón Acordeón Colapsar / Expandir */}
-          <button
-            type="button"
-            onClick={() => onToggleCollapse(section.id)}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-            title={isCollapsed ? 'Desplegar compases de esta sección' : 'Plegar compases de esta sección'}
-            aria-label={isCollapsed ? 'Desplegar sección' : 'Plegar sección'}
-          >
-            {isCollapsed ? (
-              <ChevronDown className="w-4 h-4 text-purple-400" />
-            ) : (
-              <ChevronUp className="w-4 h-4 text-slate-300" />
-            )}
-          </button>
+        {isPlaying ? (
+          /* MODO EN REPRODUCCIÓN: Barra superior miniaturizada a 1 sola línea delgada (py-1 px-2.5 min-h-[28px]) */
+          <>
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+              <div className="w-5 h-5 rounded bg-primary-500/20 border border-primary-500/40 flex items-center justify-center text-primary-300 font-bold text-[9px] uppercase shrink-0">
+                {getSectionBadge(section.type, section.label)}
+              </div>
 
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary-500/20 border border-primary-500/40 flex items-center justify-center text-primary-300 font-bold text-xs uppercase shrink-0">
-            {getSectionBadge(section.type, section.label)}
-          </div>
+              <h2 className="text-xs font-bold text-white truncate max-w-[130px] sm:max-w-[240px]">
+                {section.label}
+              </h2>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={section.label}
-                  onChange={(e) => onUpdateLabel?.(section.id, e.target.value)}
-                  className="font-black text-base sm:text-lg text-white bg-slate-800/80 border border-slate-700/80 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1.5 -ml-1 leading-tight max-w-[130px] sm:max-w-[200px]"
-                />
-              ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-black text-base sm:text-lg text-white leading-tight truncate">
-                    {section.label}
-                  </h2>
-                  {isThisSectionActive && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shadow-sm animate-pulse shrink-0">
-                      ● EN CURSO
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Badge de modulación en modo lectura */}
-              {!isEditing && onUpdateSectionKey && (
-                <div>
-                  <SectionKeyControl
-                    section={section}
-                    globalKey={globalKey}
-                    isEditing={false}
-                    onUpdateSectionKey={onUpdateSectionKey}
-                  />
-                </div>
+              {isThisSectionActive && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shadow-sm shrink-0">
+                  ● EN CURSO
+                </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-              <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap">
-                {section.measures.length} compases • {section.timeSignature || globalTimeSignature}
-              </span>
-
-              {/* Monitor / Badge de Vueltas en Reproducción Activa */}
-              {isThisSectionActive && isPlaying && effectiveTotalRepeats > 1 ? (
+            {/* Selector de repeticiones reemplazado por badge estático pequeño (1x o 8x) */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isThisSectionActive && effectiveTotalRepeats > 1 ? (
                 effectiveCurrentRepeat === effectiveTotalRepeats ? (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-400 text-slate-950 rounded-full text-xs font-black shadow-md animate-pulse shrink-0">
-                    <span>⚠️ ÚLTIMA VUELTA</span>
-                    {effectiveNextSectionName && (
-                      <span className="bg-amber-300 px-1.5 py-0.2 rounded text-[10px] font-black">
-                        → Viene {effectiveNextSectionName}
-                      </span>
-                    )}
-                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-400 text-slate-950 rounded-md text-[10px] font-black shadow-xs animate-pulse">
+                    ⚠️ ÚLTIMA VUELTA {effectiveNextSectionName ? `→ ${effectiveNextSectionName}` : ''}
+                  </span>
                 ) : (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-purple-700 text-white rounded-full text-xs font-bold shadow-md shrink-0">
-                    <span>🔁 Vuelta {effectiveCurrentRepeat}/{effectiveTotalRepeats}</span>
-                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-700 text-white rounded-md text-[10px] font-bold shadow-xs">
+                    🔁 {effectiveCurrentRepeat}/{effectiveTotalRepeats}
+                  </span>
                 )
               ) : (
-                <div>
-                  <SectionRepeatControl
-                    repeatCount={section.repeatCount}
-                    measuresCount={section.measures.length}
-                    isEditing={isEditing}
-                    onUpdateRepeatCount={(count) => onUpdateRepeatCount?.(section.id, count)}
-                  />
-                </div>
-              )}
-
-              {/* Badge visible de tempo personalizado solo en modo lectura para evitar duplicidad */}
-              {!isEditing && section.tempoOverride && (
-                <div>
-                  <SectionTempoControl
-                    sectionId={section.id}
-                    tempoOverride={section.tempoOverride}
-                    globalTempo={globalTempo}
-                    isEditing={false}
-                  />
-                </div>
+                <span
+                  className={cn(
+                    'px-1.5 py-0.2 rounded text-[10px] font-mono font-bold select-none',
+                    effectiveTotalRepeats > 1
+                      ? 'bg-purple-950/80 text-purple-300 border border-purple-800/70'
+                      : 'bg-slate-800 text-slate-400 border border-slate-700/60'
+                  )}
+                  title={`Repeticiones: ${effectiveTotalRepeats}x`}
+                >
+                  {effectiveTotalRepeats}x
+                </span>
               )}
             </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          /* MODO PAUSADO / NORMAL: Cabecera completa con controles de edición, letra y selector de repeticiones */
+          <>
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+              {/* Botón Acordeón Colapsar / Expandir */}
+              <button
+                type="button"
+                onClick={() => onToggleCollapse(section.id)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                title={isCollapsed ? 'Desplegar compases de esta sección' : 'Plegar compases de esta sección'}
+                aria-label={isCollapsed ? 'Desplegar sección' : 'Plegar sección'}
+              >
+                {isCollapsed ? (
+                  <ChevronDown className="w-4 h-4 text-purple-400" />
+                ) : (
+                  <ChevronUp className="w-4 h-4 text-slate-300" />
+                )}
+              </button>
 
-        {/* Acciones de administración de sección en la cabecera (Reordenar / Duplicar / Eliminar) */}
-        {isEditing && (
-          <div className="flex items-center gap-1 shrink-0 justify-end">
-            {isAdmin && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onMoveUp?.(index)}
-                  disabled={index === 0}
-                  className={cn(
-                    'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer',
-                    index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary-500/20 border border-primary-500/40 flex items-center justify-center text-primary-300 font-bold text-xs uppercase shrink-0">
+                {getSectionBadge(section.type, section.label)}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={section.label}
+                      onChange={(e) => onUpdateLabel?.(section.id, e.target.value)}
+                      className="font-black text-base sm:text-lg text-white bg-slate-800/80 border border-slate-700/80 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1.5 -ml-1 leading-tight max-w-[130px] sm:max-w-[200px]"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-black text-base sm:text-lg text-white leading-tight truncate">
+                        {section.label}
+                      </h2>
+                      {isThisSectionActive && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-400 text-slate-950 shadow-sm animate-pulse shrink-0">
+                          ● EN CURSO
+                        </span>
+                      )}
+                    </div>
                   )}
-                  title="Mover sección arriba (↑)"
-                  aria-label="Mover sección arriba"
-                >
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => onMoveDown?.(index)}
-                  disabled={index === totalSections - 1}
-                  className={cn(
-                    'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer',
-                    index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                  {/* Badge de modulación en modo lectura */}
+                  {!isEditing && onUpdateSectionKey && (
+                    <div>
+                      <SectionKeyControl
+                        section={section}
+                        globalKey={globalKey}
+                        isEditing={false}
+                        onUpdateSectionKey={onUpdateSectionKey}
+                      />
+                    </div>
                   )}
-                  title="Mover sección abajo (↓)"
-                  aria-label="Mover sección abajo"
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              </>
-            )}
+                </div>
 
-            {/* Duplicar Sección */}
-            {isAdmin && onDuplicate && (
-              <button
-                type="button"
-                onClick={() => onDuplicate(section.id)}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer"
-                title="Duplicar sección"
-                aria-label="Duplicar sección"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-            )}
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                  <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                    {section.measures.length} compases • {section.timeSignature || globalTimeSignature}
+                  </span>
 
-            {/* Eliminar Sección */}
-            {isAdmin && onRemove && (
-              <button
-                type="button"
-                onClick={() => onRemove(section.id)}
-                className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors border border-slate-700 cursor-pointer"
-                title="Eliminar sección"
-                aria-label="Eliminar sección"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
+                  <div>
+                    <SectionRepeatControl
+                      repeatCount={section.repeatCount}
+                      measuresCount={section.measures.length}
+                      isEditing={isEditing}
+                      onUpdateRepeatCount={(count) => onUpdateRepeatCount?.(section.id, count)}
+                    />
+                  </div>
 
-        {/* Botones discretos en modo lectura */}
-        {!isEditing && (
-          <div className="flex items-center gap-2 shrink-0 justify-end flex-wrap">
-            {hasLyrics && (
-              <button
-                type="button"
-                onClick={() => setIsLyricsOpen((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-950/60 text-purple-300 border border-purple-800/80 hover:bg-purple-900/60 transition-colors shrink-0 cursor-pointer"
-                title="Ver letra lírica de esta sección"
-              >
-                <span>📝 Letra</span>
-                <span className="text-[10px] font-bold">({lineCount})</span>
-              </button>
-            )}
+                  {/* Badge visible de tempo personalizado solo en modo lectura para evitar duplicidad */}
+                  {!isEditing && section.tempoOverride && (
+                    <div>
+                      <SectionTempoControl
+                        sectionId={section.id}
+                        tempoOverride={section.tempoOverride}
+                        globalTempo={globalTempo}
+                        isEditing={false}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
-            {isAdmin && (onMoveUp || onMoveDown) && (
-              <div className="flex items-center gap-1 shrink-0">
-                {onMoveUp && (
+            {/* Acciones de administración de sección en la cabecera (Reordenar / Duplicar / Eliminar) */}
+            {isEditing && (
+              <div className="flex items-center gap-1 shrink-0 justify-end">
+                {isAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onMoveUp?.(index)}
+                      disabled={index === 0}
+                      className={cn(
+                        'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer',
+                        index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                      )}
+                      title="Mover sección arriba (↑)"
+                      aria-label="Mover sección arriba"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onMoveDown?.(index)}
+                      disabled={index === totalSections - 1}
+                      className={cn(
+                        'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer',
+                        index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                      )}
+                      title="Mover sección abajo (↓)"
+                      aria-label="Mover sección abajo"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+
+                {/* Duplicar Sección */}
+                {isAdmin && onDuplicate && (
                   <button
                     type="button"
-                    onClick={() => onMoveUp(index)}
-                    disabled={index === 0}
-                    className={cn(
-                      'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700',
-                      index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
-                    )}
-                    title="Mover sección arriba (↑)"
-                    aria-label="Mover sección arriba"
+                    onClick={() => onDuplicate(section.id)}
+                    className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                    title="Duplicar sección"
+                    aria-label="Duplicar sección"
                   >
-                    <ArrowUp className="w-3.5 h-3.5" />
+                    <Copy className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {onMoveDown && (
+
+                {/* Eliminar Sección */}
+                {isAdmin && onRemove && (
                   <button
                     type="button"
-                    onClick={() => onMoveDown(index)}
-                    disabled={index === totalSections - 1}
-                    className={cn(
-                      'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700',
-                      index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
-                    )}
-                    title="Mover sección abajo (↓)"
-                    aria-label="Mover sección abajo"
+                    onClick={() => onRemove(section.id)}
+                    className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-950/40 rounded-lg transition-colors border border-slate-700 cursor-pointer"
+                    title="Eliminar sección"
+                    aria-label="Eliminar sección"
                   >
-                    <ArrowDown className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
             )}
-          </div>
+
+            {/* Botones discretos en modo lectura */}
+            {!isEditing && (
+              <div className="flex items-center gap-2 shrink-0 justify-end flex-wrap">
+                {hasLyrics && (
+                  <button
+                    type="button"
+                    onClick={() => setIsLyricsOpen((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-950/60 text-purple-300 border border-purple-800/80 hover:bg-purple-900/60 transition-colors shrink-0 cursor-pointer"
+                    title="Ver letra lírica de esta sección"
+                  >
+                    <span>📝 Letra</span>
+                    <span className="text-[10px] font-bold">({lineCount})</span>
+                  </button>
+                )}
+
+                {isAdmin && (onMoveUp || onMoveDown) && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onMoveUp && (
+                      <button
+                        type="button"
+                        onClick={() => onMoveUp(index)}
+                        disabled={index === 0}
+                        className={cn(
+                          'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700',
+                          index === 0 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                        )}
+                        title="Mover sección arriba (↑)"
+                        aria-label="Mover sección arriba"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {onMoveDown && (
+                      <button
+                        type="button"
+                        onClick={() => onMoveDown(index)}
+                        disabled={index === totalSections - 1}
+                        className={cn(
+                          'p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700',
+                          index === totalSections - 1 && 'opacity-30 cursor-not-allowed pointer-events-none'
+                        )}
+                        title="Mover sección abajo (↓)"
+                        aria-label="Mover sección abajo"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {/* Cuerpo de la Sección */}
-      <div className="p-3 sm:p-5 space-y-3">
+      <div className={cn(isPlaying ? "p-2 sm:p-3 space-y-1.5" : "p-3 sm:p-5 space-y-3")}>
         {/* Barra de Herramientas de Edición de Sección (Visible solo en Modo Edición / Admin) */}
         {isEditing && (
           <div className="w-full bg-slate-900/40 dark:bg-slate-950/40 rounded-xl p-2.5 my-2 border border-slate-800/80 space-y-2">
@@ -437,7 +471,7 @@ export function SectionCard({
           </div>
         )}
         {/* Área Desplegable de Letra de la Sección (Single Source of Truth) */}
-        {isLyricsOpen && (
+        {!isPlaying && isLyricsOpen && (
           <div className="pt-2 pb-1 border-b border-slate-100 dark:border-slate-800/80 animate-in fade-in space-y-2">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">

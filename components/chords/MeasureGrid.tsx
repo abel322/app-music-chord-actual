@@ -504,41 +504,43 @@ export function MeasureGrid({
         onDragCancel={handleDragCancel}
       >
         <SortableContext items={measures.map((m) => m.id)} strategy={rectSortingStrategy}>
-          <div className="space-y-6 w-full max-w-full">
+          <div className={cn("w-full max-w-full", isPlaying ? "space-y-2" : "space-y-6")}>
             {rows.map((rowMeasures, rowIdx) => {
               const startIdx = rowIdx * rowChunk
               const hasBracket = rowMeasures.some((m) => cadenceBrackets[m.id])
               return (
                 <div key={rowIdx} className="space-y-1 relative group/row">
-                  {/* Encabezado sutil de línea / sistema musical */}
-                  <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-slate-500 dark:text-slate-400 text-[10px] tracking-wider uppercase">
-                        Línea {rowIdx + 1}
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
-                        (C.{startIdx + 1} – C.{startIdx + rowMeasures.length})
-                      </span>
-                    </div>
+                  {/* Encabezado sutil de línea / sistema musical (Oculto cuando isPlaying === true) */}
+                  {!isPlaying && (
+                    <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-500 dark:text-slate-400 text-[10px] tracking-wider uppercase">
+                          Línea {rowIdx + 1}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                          (C.{startIdx + 1} – C.{startIdx + rowMeasures.length})
+                        </span>
+                      </div>
 
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => handleDuplicateRow(rowIdx)}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 transition-all opacity-80 hover:opacity-100 cursor-pointer shadow-2xs"
-                        title={`Duplicar estos ${rowMeasures.length} compases (C.${startIdx + 1}–C.${startIdx + rowMeasures.length})`}
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span className="truncate">Duplicar <span className="hidden sm:inline">estos </span>{rowMeasures.length} compases</span>
-                      </button>
-                    )}
-                  </div>
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateRow(rowIdx)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800 transition-all opacity-80 hover:opacity-100 cursor-pointer shadow-2xs"
+                          title={`Duplicar estos ${rowMeasures.length} compases (C.${startIdx + 1}–C.${startIdx + rowMeasures.length})`}
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span className="truncate">Duplicar <span className="hidden sm:inline">estos </span>{rowMeasures.length} compases</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Grid de compases de esta línea */}
                   <div className={cn(
                     'grid w-full max-w-full pb-1',
                     isStage ? 'grid-cols-4 md:grid-cols-8 gap-1.5 sm:gap-2' : 'grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5',
-                    hasBracket ? 'pt-7 sm:pt-8 gap-y-8 sm:gap-y-9' : isStage ? 'pt-1 gap-y-1.5 sm:gap-y-2' : 'pt-5 gap-y-7'
+                    hasBracket ? 'pt-7 sm:pt-8 gap-y-8 sm:gap-y-9' : isStage ? (isPlaying ? 'pt-0 gap-y-1 sm:gap-y-1.5' : 'pt-1 gap-y-1.5 sm:gap-y-2') : 'pt-5 gap-y-7'
                   )}>
                     {rowMeasures.map((measure, mIdx) => {
                       const globalIndex = startIdx + mIdx
