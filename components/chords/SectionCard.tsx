@@ -160,6 +160,7 @@ export function SectionCard({
   const effectiveCurrentRepeat = isThisSectionActive ? effectiveCurrentPassIndex + 1 : 1
   const effectiveTotalRepeats = calculatedTotalPasses
   const effectiveNextSectionName = nextSectionName
+  const effectiveIsCollapsed = isPlaying ? false : isCollapsed
 
   const blockSummary = useMemo(() => {
     const totalMeasures = section.measures.length * calculatedTotalPasses
@@ -233,7 +234,11 @@ export function SectionCard({
   return (
     <div
       id={`section-${section.id}`}
-      onClick={() => onSectionFocus?.(section.id)}
+      onClick={(e) => {
+        const target = e.target as HTMLElement
+        if (target.closest('input, textarea, select, button')) return
+        onSectionFocus?.(section.id)
+      }}
       className={cn(
         'rounded-2xl transition-all scroll-mt-20 relative',
         isThisSectionActive
@@ -307,10 +312,10 @@ export function SectionCard({
                 type="button"
                 onClick={() => onToggleCollapse(section.id)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-                title={isCollapsed ? 'Desplegar compases de esta sección' : 'Plegar compases de esta sección'}
-                aria-label={isCollapsed ? 'Desplegar sección' : 'Plegar sección'}
+                title={effectiveIsCollapsed ? 'Desplegar compases de esta sección' : 'Plegar compases de esta sección'}
+                aria-label={effectiveIsCollapsed ? 'Desplegar sección' : 'Plegar sección'}
               >
-                {isCollapsed ? (
+                {effectiveIsCollapsed ? (
                   <ChevronDown className="w-4 h-4 text-purple-400" />
                 ) : (
                   <ChevronUp className="w-4 h-4 text-slate-300" />
@@ -526,11 +531,11 @@ export function SectionCard({
       </div>
 
       {/* Franja compacta de referencia de letra (Siempre visible si hay letra, sin opacar compases) */}
-      {!isCollapsed && hasAnyLyrics && (
-        <div className="px-2.5 py-1.5 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2.5">
+      {!effectiveIsCollapsed && hasAnyLyrics && (
+        <div className="px-2.5 py-1.5 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-2.5">
           {/* Selector táctil de vueltas si la sección tiene más de 1 vuelta de letra definida */}
           {effectiveLyricPasses.length > 1 && (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1 shrink-0 mt-0.5">
               {effectiveLyricPasses.map((p, pIdx) => {
                 const isActive = pIdx === activePassIndexInCycle
                 return (
@@ -563,13 +568,13 @@ export function SectionCard({
             </div>
           )}
 
-          {/* Letra de la vuelta activa */}
+          {/* Letra de la vuelta activa - Multilínea completa sin truncar */}
           {activePassLyrics.trim() ? (
-            <div className="text-[11px] sm:text-xs leading-snug text-cyan-100/90 italic line-clamp-2 truncate flex-1 min-w-0">
+            <div className="text-xs sm:text-sm leading-snug text-cyan-100/95 italic whitespace-normal break-words flex-1 min-w-0">
               {activePassLyrics.trim()}
             </div>
           ) : (
-            <div className="text-[11px] text-slate-500 italic">
+            <div className="text-[11px] sm:text-xs text-slate-500 italic">
               (Sin letra para esta vuelta)
             </div>
           )}
@@ -811,7 +816,7 @@ export function SectionCard({
         )}
 
         {/* Vista Colapsada vs Vista Expandida */}
-        {isCollapsed ? (
+        {effectiveIsCollapsed ? (
           /* Línea Resumen Compacta en Acordeón */
           <div className="pt-1 flex items-center justify-between gap-3 text-xs flex-wrap">
             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">

@@ -357,6 +357,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       const nextPlaying = !prev
       if (nextPlaying) {
         setIsControlsDrawerOpen(false)
+        setCollapsedSections({}) // Mantener todas las secciones desplegadas durante la secuencia
         const secId = activeSectionId || sections[0]?.id
         if (secId) {
           setActiveSectionId(secId)
@@ -603,15 +604,15 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     }
   }, [isPlaying, requestWakeLock, releaseWakeLock])
 
-  // Clic sobre compás: enfocar la sección completa (sin resaltado individual de celdas)
+  // Clic sobre compás: enfocar la sección completa sin auto-scroll molesto durante la edición
   const handleMeasureClick = useCallback(
     (clickedMeasure: Measure) => {
       const foundSection = sections.find((s) => s.measures.some((m) => m.id === clickedMeasure.id))
       if (foundSection) {
-        handleSelectSectionJump(foundSection.id)
+        setActiveSectionId(foundSection.id)
       }
     },
-    [sections, handleSelectSectionJump]
+    [sections]
   )
 
   // Atajos de Teclado y Pedal Bluetooth:
@@ -1228,7 +1229,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               totalSections={sections.length}
               isAdmin={isAdmin}
               isEditing={effectiveIsEditing}
-              isCollapsed={!!collapsedSections[section.id]}
+              isCollapsed={isPlaying ? false : !!collapsedSections[section.id]}
               globalKey={currentKey}
               globalTimeSignature={timeSignature}
               globalTempo={tempo}
@@ -1245,7 +1246,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               onUpdateLyricPasses={handleUpdateLyricPasses}
               nextSectionName={nextSecName}
               isSectionActive={isSectionActive}
-              onSectionFocus={(secId) => handleSelectSectionJump(secId)}
+              onSectionFocus={(secId) => setActiveSectionId(secId)}
               onToggleCollapse={handleToggleCollapse}
               onUpdateLabel={(secId, newLabel) => {
                 setSections((prev) =>
