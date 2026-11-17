@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -8,8 +8,9 @@ import {
   ArrowDown,
   Copy,
   Trash2,
+  Plus,
 } from 'lucide-react'
-import { SectionMeasures, Measure } from '@/types/measure'
+import { SectionMeasures, Measure, SectionLyricPass } from '@/types/measure'
 import { getSectionBadge, getSectionChordsPreview } from '@/lib/measure-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,11 @@ export interface SectionCardProps {
   measureDurationMs?: number
   currentRepeat?: number
   totalRepeats?: number
+  currentPassIndex?: number
+  totalPasses?: number
+  onAdvancePass?: (sectionId: string) => void
+  onSelectPass?: (sectionId: string, passIndex: number) => void
+  onUpdateLyricPasses?: (sectionId: string, passes: SectionLyricPass[], repeatCycles?: number) => void
   nextSectionName?: string | null
   isSectionActive?: boolean
   onToggleCollapse: (sectionId: string) => void
@@ -75,6 +81,11 @@ export function SectionCard({
   measureDurationMs,
   currentRepeat,
   totalRepeats,
+  currentPassIndex,
+  totalPasses,
+  onAdvancePass,
+  onSelectPass,
+  onUpdateLyricPasses,
   nextSectionName,
   isSectionActive,
   onToggleCollapse,
@@ -97,6 +108,7 @@ export function SectionCard({
   onRemoveMeasure,
 }: SectionCardProps) {
   const [isLyricsOpen, setIsLyricsOpen] = useState(false)
+  const [activeEditPassIdx, setActiveEditPassIdx] = useState(0)
 
   const effectiveKey = section.keySignature || globalKey
   const sectionDiatonicChords = React.useMemo(() => {
@@ -108,15 +120,115 @@ export function SectionCard({
     }
   }, [effectiveKey])
 
-  const hasLyrics = !!(section.lyrics && section.lyrics.trim().length > 0)
-  const lineCount = hasLyrics ? section.lyrics!.trim().split('\n').filter(Boolean).length : 0
+  // Normalizar vueltas de letra (SectionLyricPass[])
+  const effectiveLyricPasses: SectionLyricPass[] = useMemo(() => {
+    if (section.lyricPasses && section.lyricPasses.length > 0) {
+      return section.lyricPasses
+    }
+    if (section.lyrics && section.lyrics.trim().length > 0) {
+      return [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics.trim() }]
+    }
+    return []
+  }, [section.lyricPasses, section.lyrics])
+
+  const passesCount = Math.max(1, effectiveLyricPasses.length)
+  const cyclesCount = Math.max(
+    1,
+    section.repeatCycles ||
+      (effectiveLyricPasses.length > 1
+        ? Math.max(1, Math.round((section.repeatCount || 1) / passesCount))
+        : section.repeatCount || 1)
+  )
+  const calculatedTotalPasses = totalPasses ?? passesCount * cyclesCount
+  const effectiveCurrentPassIndex = currentPassIndex ?? 0
+  const activePassIndexInCycle =
+    effectiveLyricPasses.length > 0
+      ? effectiveCurrentPassIndex % effectiveLyricPasses.length
+      : 0
+  const activePassLyrics =
+    effectiveLyricPasses[activePassIndexInCycle]?.lyrics ?? section.lyrics ?? ''
+  const hasAnyLyrics =
+    effectiveLyricPasses.some((p) => p.lyrics.trim().length > 0) ||
+    !!(section.lyrics && section.lyrics.trim().length > 0)
+  const lineCount = hasAnyLyrics
+    ? activePassLyrics.trim().split('\n').filter(Boolean).length || 1
+    : 0
 
   const isThisSectionActive =
     isSectionActive ??
     (isPlaying && Boolean(activeMeasureId && section.measures.some((m) => m.id === activeMeasureId)))
-  const effectiveCurrentRepeat = isThisSectionActive ? (currentRepeat ?? 1) : 1
-  const effectiveTotalRepeats = totalRepeats ?? section.repeatCount ?? 1
+  const effectiveCurrentRepeat = isThisSectionActive ? effectiveCurrentPassIndex + 1 : 1
+  const effectiveTotalRepeats = calculatedTotalPasses
   const effectiveNextSectionName = nextSectionName
+
+  const blockSummary = useMemo(() => {
+    const totalMeasures = section.measures.length * calculatedTotalPasses
+    if (passesCount <= 1) {
+      return `Repetir ${cyclesCount}x • ${cyclesCount} ${cyclesCount === 1 ? 'vuelta' : 'vueltas'} (${totalMeasures} compases)`
+    }
+    const cycleLetters = effectiveLyricPasses
+      .map((_, i) => String.fromCharCode(65 + i))
+      .join('→')
+    return `Ciclo ${cycleLetters} × ${cyclesCount}x • ${calculatedTotalPasses} vueltas (${totalMeasures} compases)`
+  }, [passesCount, cyclesCount, calculatedTotalPasses, section.measures.length, effectiveLyricPasses])
+
+  const handleUpdateCurrentPassLyrics = (newLyrics: string) => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    currentPasses[targetIdx] = {
+      ...currentPasses[targetIdx],
+      lyrics: newLyrics,
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+    if (targetIdx === 0) {
+      onUpdateLyrics?.(section.id, newLyrics)
+    }
+  }
+
+  const handleAddLyricPass = () => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const nextNumber = currentPasses.length + 1
+    const newPass: SectionLyricPass = {
+      id: `pass-${Date.now()}-${nextNumber}`,
+      label: `Vuelta ${nextNumber}`,
+      lyrics: '',
+    }
+    const nextPasses = [...currentPasses, newPass]
+    onUpdateLyricPasses?.(section.id, nextPasses, cyclesCount)
+    setActiveEditPassIdx(nextPasses.length - 1)
+  }
+
+  const handleRemoveLyricPass = (passIdxToRemove: number) => {
+    if (effectiveLyricPasses.length <= 1) return
+    const filtered = effectiveLyricPasses.filter((_, idx) => idx !== passIdxToRemove)
+    const renamed = filtered.map((p, idx) => ({
+      ...p,
+      label: `Vuelta ${idx + 1}`,
+    }))
+    onUpdateLyricPasses?.(section.id, renamed, cyclesCount)
+    setActiveEditPassIdx((prev) => Math.max(0, Math.min(prev, renamed.length - 1)))
+    if (renamed[0]) {
+      onUpdateLyrics?.(section.id, renamed[0].lyrics)
+    }
+  }
+
+  const handleSelectCycle = (newCycles: number) => {
+    const passes: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? effectiveLyricPasses
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+    onUpdateLyricPasses?.(section.id, passes, newCycles)
+    onUpdateRepeatCount?.(section.id, passes.length * newCycles)
+  }
 
   return (
     <div
@@ -154,29 +266,34 @@ export function SectionCard({
               )}
             </div>
 
-            {/* Selector de repeticiones reemplazado por badge estático pequeño (1x o 8x) */}
+            {/* Selector de repeticiones reemplazado por badge estático pequeño o contador grande de vuelta */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {isThisSectionActive && effectiveTotalRepeats > 1 ? (
-                effectiveCurrentRepeat === effectiveTotalRepeats ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-400 text-slate-950 rounded-md text-[10px] font-black shadow-xs animate-pulse">
-                    ⚠️ ÚLTIMA VUELTA {effectiveNextSectionName ? `→ ${effectiveNextSectionName}` : ''}
+              {calculatedTotalPasses > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => onAdvancePass?.(section.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-mono font-black text-xs shadow-xs cursor-pointer select-none active:scale-95 transition-all',
+                    effectiveCurrentPassIndex === calculatedTotalPasses - 1
+                      ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-300 animate-pulse'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white'
+                  )}
+                  title="Toca para avanzar a la siguiente vuelta"
+                >
+                  <span>{effectiveCurrentPassIndex === calculatedTotalPasses - 1 ? '⚠️ VUELTA' : 'VUELTA'}</span>
+                  <span className="text-sm font-black">
+                    {effectiveCurrentPassIndex + 1}/{calculatedTotalPasses}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-700 text-white rounded-md text-[10px] font-bold shadow-xs">
-                    🔁 {effectiveCurrentRepeat}/{effectiveTotalRepeats}
-                  </span>
-                )
+                  {effectiveCurrentPassIndex === calculatedTotalPasses - 1 && effectiveNextSectionName && (
+                    <span className="text-[10px] opacity-90 hidden sm:inline">→ {effectiveNextSectionName}</span>
+                  )}
+                </button>
               ) : (
                 <span
-                  className={cn(
-                    'px-1.5 py-0.2 rounded text-[10px] font-mono font-bold select-none',
-                    effectiveTotalRepeats > 1
-                      ? 'bg-purple-950/80 text-purple-300 border border-purple-800/70'
-                      : 'bg-slate-800 text-slate-400 border border-slate-700/60'
-                  )}
-                  title={`Repeticiones: ${effectiveTotalRepeats}x`}
+                  className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold select-none bg-slate-800 text-slate-400 border border-slate-700/60"
+                  title="1 vuelta"
                 >
-                  {effectiveTotalRepeats}x
+                  1x
                 </span>
               )}
             </div>
@@ -246,10 +363,10 @@ export function SectionCard({
 
                   <div>
                     <SectionRepeatControl
-                      repeatCount={section.repeatCount}
+                      repeatCount={section.repeatCycles || section.repeatCount}
                       measuresCount={section.measures.length}
                       isEditing={isEditing}
-                      onUpdateRepeatCount={(count) => onUpdateRepeatCount?.(section.id, count)}
+                      onUpdateRepeatCount={(count) => handleSelectCycle(count)}
                     />
                   </div>
 
@@ -334,15 +451,37 @@ export function SectionCard({
             {/* Botones discretos en modo lectura */}
             {!isEditing && (
               <div className="flex items-center gap-2 shrink-0 justify-end flex-wrap">
-                {hasLyrics && (
+                {/* Badge grande interactivo VUELTA X / Total en modo normal si hay más de 1 vuelta */}
+                {calculatedTotalPasses > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onAdvancePass?.(section.id)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono font-bold text-xs transition-transform active:scale-95 cursor-pointer shadow-xs border',
+                      effectiveCurrentPassIndex === calculatedTotalPasses - 1
+                        ? 'bg-amber-400 text-slate-950 border-amber-300 font-black'
+                        : 'bg-purple-900/80 hover:bg-purple-800 text-purple-200 border-purple-700/80'
+                    )}
+                    title="Clic para avanzar a la siguiente vuelta"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300">Vuelta</span>
+                    <span className="text-sm font-extrabold">{effectiveCurrentPassIndex + 1}</span>
+                    <span className="text-purple-400">/</span>
+                    <span className="text-xs text-purple-300">{calculatedTotalPasses}</span>
+                  </button>
+                )}
+
+                {hasAnyLyrics && (
                   <button
                     type="button"
                     onClick={() => setIsLyricsOpen((prev) => !prev)}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-950/60 text-purple-300 border border-purple-800/80 hover:bg-purple-900/60 transition-colors shrink-0 cursor-pointer"
-                    title="Ver letra lírica de esta sección"
+                    title="Ver o editar vueltas de letra lírica de esta sección"
                   >
                     <span>📝 Letra</span>
-                    <span className="text-[10px] font-bold">({lineCount})</span>
+                    <span className="text-[10px] font-bold">
+                      ({effectiveLyricPasses.length > 1 ? `${effectiveLyricPasses.length} vueltas` : lineCount})
+                    </span>
                   </button>
                 )}
 
@@ -387,9 +526,53 @@ export function SectionCard({
       </div>
 
       {/* Franja compacta de referencia de letra (Siempre visible si hay letra, sin opacar compases) */}
-      {!isCollapsed && section.lyrics?.trim() && (
-        <div className="px-2.5 py-1 bg-slate-900/85 border-b border-slate-800 text-[11px] sm:text-xs leading-snug text-cyan-100/90 italic line-clamp-2">
-          {section.lyrics.trim()}
+      {!isCollapsed && hasAnyLyrics && (
+        <div className="px-2.5 py-1.5 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2.5">
+          {/* Selector táctil de vueltas si la sección tiene más de 1 vuelta de letra definida */}
+          {effectiveLyricPasses.length > 1 && (
+            <div className="flex items-center gap-1 shrink-0">
+              {effectiveLyricPasses.map((p, pIdx) => {
+                const isActive = pIdx === activePassIndexInCycle
+                return (
+                  <button
+                    key={p.id || pIdx}
+                    type="button"
+                    onClick={() => onSelectPass?.(section.id, pIdx)}
+                    className={cn(
+                      'px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer border select-none',
+                      isActive
+                        ? 'bg-cyan-400 text-slate-950 border-cyan-300 font-black shadow-xs'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    )}
+                    title={`Mostrar letra de ${p.label}`}
+                  >
+                    {p.label || `Vuelta ${pIdx + 1}`}
+                  </button>
+                )
+              })}
+              {calculatedTotalPasses > 1 && (
+                <button
+                  type="button"
+                  onClick={() => onAdvancePass?.(section.id)}
+                  className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer select-none"
+                  title="Avanzar a la siguiente vuelta"
+                >
+                  Sig. →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Letra de la vuelta activa */}
+          {activePassLyrics.trim() ? (
+            <div className="text-[11px] sm:text-xs leading-snug text-cyan-100/90 italic line-clamp-2 truncate flex-1 min-w-0">
+              {activePassLyrics.trim()}
+            </div>
+          ) : (
+            <div className="text-[11px] text-slate-500 italic">
+              (Sin letra para esta vuelta)
+            </div>
+          )}
         </div>
       )}
 
@@ -461,39 +644,33 @@ export function SectionCard({
                 onClick={() => setIsLyricsOpen((prev) => !prev)}
                 className={cn(
                   'col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer w-full sm:w-auto',
-                  hasLyrics
+                  hasAnyLyrics
                     ? 'bg-purple-950/50 border-purple-500/50 text-purple-300'
                     : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700'
                 )}
-                title={hasLyrics ? 'Ver o editar letra lírica de esta sección' : 'Añadir letra lírica a esta sección'}
+                title={hasAnyLyrics ? 'Ver o editar vueltas de letra de esta sección' : 'Añadir vueltas de letra a esta sección'}
               >
                 <span>📝 Letra de la sección</span>
-                {hasLyrics && (
+                {hasAnyLyrics && (
                   <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-900 text-purple-200">
-                    {lineCount}
+                    {effectiveLyricPasses.length > 1 ? `${effectiveLyricPasses.length} vueltas` : lineCount}
                   </span>
                 )}
               </button>
             </div>
           </div>
         )}
-        {/* Área Desplegable de Letra de la Sección (Single Source of Truth) */}
+        {/* Área Desplegable de Letra de la Sección con Soporte para Múltiples Vueltas y Ciclos */}
         {!isPlaying && isLyricsOpen && (
-          <div className="pt-2 pb-1 border-b border-slate-100 dark:border-slate-800/80 animate-in fade-in space-y-2">
+          <div className="pt-2 pb-2 border-b border-slate-100 dark:border-slate-800/80 animate-in fade-in space-y-2.5">
             <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <span>📝 Letra de {section.label}</span>
+                  <span>📝 Vueltas de Letra de {section.label}</span>
                 </span>
-                {hasLyrics ? (
-                  <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400">
-                    • {lineCount} {lineCount === 1 ? 'verso' : 'versos'}
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-slate-400 italic">
-                    (Sección actualmente considerada instrumental)
-                  </span>
-                )}
+                <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400">
+                  • {effectiveLyricPasses.length} {effectiveLyricPasses.length === 1 ? 'vuelta configurada' : 'vueltas configuradas'}
+                </span>
               </div>
               <button
                 type="button"
@@ -504,19 +681,130 @@ export function SectionCard({
               </button>
             </div>
 
+            {/* Pestañas de selección de Vuelta (Vuelta 1, Vuelta 2...) y Botón Añadir Vuelta */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {effectiveLyricPasses.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={handleAddLyricPass}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-primary-600 text-white hover:bg-primary-500 cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Añadir Vuelta 1</span>
+                </button>
+              ) : (
+                <>
+                  {effectiveLyricPasses.map((pass, pIdx) => {
+                    const isSelected = pIdx === activeEditPassIdx
+                    return (
+                      <div key={pass.id || pIdx} className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveEditPassIdx(pIdx)
+                            onSelectPass?.(section.id, pIdx)
+                          }}
+                          className={cn(
+                            'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5',
+                            isSelected
+                              ? 'bg-purple-600 text-white border-purple-500 shadow-xs'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          )}
+                        >
+                          <span>{pass.label || `Vuelta ${pIdx + 1}`}</span>
+                          {pass.lyrics?.trim() && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                          )}
+                        </button>
+
+                        {/* Botón eliminar vuelta adicional (no permitir eliminar la 1ra vuelta si es la única) */}
+                        {isEditing && effectiveLyricPasses.length > 1 && pIdx === activeEditPassIdx && pIdx > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLyricPass(pIdx)}
+                            className="ml-1 p-1 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-950/30 transition-colors cursor-pointer"
+                            title={`Eliminar ${pass.label}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Botón para añadir una nueva vuelta de letra */}
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={handleAddLyricPass}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-purple-600 dark:text-purple-300 border border-dashed border-purple-400/50 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors cursor-pointer flex items-center gap-1"
+                      title="Añadir una vuelta de letra adicional para la misma armonía (ej: Vuelta 2)"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Añadir Vuelta de Letra (Vuelta {effectiveLyricPasses.length + 1})</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Selector de Ciclos de Repetición y Resumen del Bloque */}
+            <div className="p-2.5 bg-slate-100/80 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                  Ciclos de Repetición:
+                </span>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 6, 8].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => handleSelectCycle(c)}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-xs font-mono font-bold transition-all cursor-pointer border',
+                        cyclesCount === c
+                          ? 'bg-purple-600 text-white border-purple-500 shadow-xs'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      )}
+                    >
+                      {c}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Resumen exacto del bloque */}
+              <div className="text-[11px] font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                {blockSummary}
+              </div>
+            </div>
+
+            {/* Editor de la letra de la vuelta activa */}
             {isEditing ? (
-              <textarea
-                value={section.lyrics || ''}
-                onChange={(e) => onUpdateLyrics?.(section.id, e.target.value)}
-                placeholder="Escribe o pega aquí la letra para esta sección (ej. versos del coro)..."
-                rows={Math.max(3, Math.min(10, (section.lyrics || '').split('\n').length + 1))}
-                className="w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
-              />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-0.5">
+                  <span>
+                    Editando letra para: <strong className="text-purple-400">{effectiveLyricPasses[activeEditPassIdx]?.label || `Vuelta ${activeEditPassIdx + 1}`}</strong> ({section.measures.length} compases de armonía)
+                  </span>
+                </div>
+                <textarea
+                  value={effectiveLyricPasses[activeEditPassIdx]?.lyrics || ''}
+                  onChange={(e) => handleUpdateCurrentPassLyrics(e.target.value)}
+                  placeholder={`Escribe aquí la letra para ${effectiveLyricPasses[activeEditPassIdx]?.label || 'esta vuelta'}...`}
+                  rows={Math.max(3, Math.min(8, (effectiveLyricPasses[activeEditPassIdx]?.lyrics || '').split('\n').length + 1))}
+                  className="w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
+                />
+              </div>
             ) : (
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm font-sans leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line">
-                {section.lyrics?.trim() || (
-                  <span className="italic text-slate-400">Sin letra asignada (Sección instrumental)</span>
-                )}
+              <div className="space-y-1">
+                <div className="text-[11px] text-slate-400 px-0.5">
+                  Letra de: <strong className="text-purple-400">{effectiveLyricPasses[activeEditPassIdx]?.label || `Vuelta ${activeEditPassIdx + 1}`}</strong>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm font-sans leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line">
+                  {effectiveLyricPasses[activeEditPassIdx]?.lyrics?.trim() || (
+                    <span className="italic text-slate-400">Sin letra asignada para esta vuelta</span>
+                  )}
+                </div>
               </div>
             )}
           </div>

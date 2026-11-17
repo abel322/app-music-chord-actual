@@ -800,6 +800,14 @@ export function ensureSectionMeasures(
       measures: normalizedMeasures,
       guideLyrics: rawSection.guideLyrics || '',
       lyrics: rawSection.lyrics || '',
+      lyricPasses: Array.isArray(rawSection.lyricPasses)
+        ? rawSection.lyricPasses.map((p: any, pIdx: number) => ({
+            id: p.id || `pass-${pIdx + 1}`,
+            label: p.label || `Vuelta ${pIdx + 1}`,
+            lyrics: p.lyrics || '',
+          }))
+        : undefined,
+      repeatCycles: rawSection.repeatCycles ? Math.max(1, Number(rawSection.repeatCycles)) : undefined,
       lines: rawSection.lines,
       repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
       tempoOverride: rawSection.tempoOverride !== undefined ? (rawSection.tempoOverride ? Number(rawSection.tempoOverride) : null) : null,
@@ -846,6 +854,14 @@ export function ensureSectionMeasures(
     measures,
     guideLyrics: guideLines.join('\n'),
     lyrics: rawSection.lyrics || '',
+    lyricPasses: Array.isArray(rawSection.lyricPasses)
+      ? rawSection.lyricPasses.map((p: any, pIdx: number) => ({
+          id: p.id || `pass-${pIdx + 1}`,
+          label: p.label || `Vuelta ${pIdx + 1}`,
+          lyrics: p.lyrics || '',
+        }))
+      : undefined,
+    repeatCycles: rawSection.repeatCycles ? Math.max(1, Number(rawSection.repeatCycles)) : undefined,
     lines: rawSection.lines,
     repeatCount: rawSection.repeatCount ? Math.max(1, Math.min(64, Number(rawSection.repeatCount))) : 1,
     tempoOverride: rawSection.tempoOverride !== undefined ? (rawSection.tempoOverride ? Number(rawSection.tempoOverride) : null) : null,
@@ -1138,6 +1154,8 @@ export function cloneSectionMeasures(
     instruments: section.instruments ? [...section.instruments] : [],
     guideLyrics: section.guideLyrics || '',
     lyrics: section.lyrics || '',
+    lyricPasses: section.lyricPasses ? section.lyricPasses.map((p) => ({ ...p })) : undefined,
+    repeatCycles: section.repeatCycles,
     measures: clonedMeasures,
     lines: section.lines ? JSON.parse(JSON.stringify(section.lines)) : undefined,
   }
@@ -1182,8 +1200,10 @@ export function buildFullLyricsText(sections: SectionMeasures[]): string {
     .map((sec) => {
       const repeats = sec.repeatCount && sec.repeatCount > 1 ? ` ${sec.repeatCount}x` : ''
       const header = `[${sec.label}${repeats}]`
-      const text = (sec.lyrics || '').trim()
-      return text ? `${header}\n${text}` : header
+      const passes = sec.lyricPasses && sec.lyricPasses.length > 0
+        ? sec.lyricPasses.map((p) => (p.lyrics || '').trim()).filter(Boolean).join('\n\n')
+        : (sec.lyrics || '').trim()
+      return passes ? `${header}\n${passes}` : header
     })
     .join('\n\n')
 }

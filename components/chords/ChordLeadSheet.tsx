@@ -370,6 +370,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   // Reiniciar a la primera sección
   const handleRestart = useCallback(() => {
     setIsPlaying(false)
+    setSectionPassMap({})
     if (sections.length > 0) {
       const firstId = sections[0].id
       setActiveSectionId(firstId)
@@ -377,20 +378,83 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     }
   }, [sections, scrollToSection])
 
-  // Cálculo de duración precisa de una sección en milisegundos
-  const getSectionDurationMs = useCallback(
+  // Estado de vuelta activa para cada sección (Vuelta 1, Vuelta 2... hasta totalPasses)
+  const [sectionPassMap, setSectionPassMap] = useState<Record<string, number>>({})
+
+  // Cálculo de total de vueltas de una sección (passes de letra × ciclos de repetición)
+  const getSectionTotalPasses = useCallback((sec: SectionMeasures) => {
+    const passesCount = Math.max(1, sec.lyricPasses?.length || 1)
+    const cyclesCount = Math.max(1, sec.repeatCycles || sec.repeatCount || 1)
+    return passesCount * cyclesCount
+  }, [])
+
+  // Duración de una sola vuelta (de sec.measures.length compases) en milisegundos
+  const getSinglePassDurationMs = useCallback(
     (sec: SectionMeasures) => {
       const secTempo = sec.tempoOverride || tempo || 120
       const secTimeSig = sec.timeSignature || timeSignature || '4/4'
       const beatsPerMeasure = getBeatsPerMeasure(secTimeSig)
       const measureCount = sec.measures.length > 0 ? sec.measures.length : 4
-      const repeats = Math.max(1, sec.repeatCount || 1)
-      return (measureCount * repeats * beatsPerMeasure * 60 * 1000) / secTempo
+      return (measureCount * beatsPerMeasure * 60 * 1000) / secTempo
     },
     [tempo, timeSignature]
   )
 
-  // Temporizador de avance automático de sección cuando isPlaying está activo
+  // Avanzar manualmente a la siguiente vuelta de una sección
+  const handleAdvancePass = useCallback(
+    (sectionId: string) => {
+      setSectionPassMap((prev) => {
+        const sec = sections.find((s) => s.id === sectionId)
+        if (!sec) return prev
+        const totalPasses = getSectionTotalPasses(sec)
+        const current = prev[sectionId] || 0
+        const next = (current + 1) % totalPasses
+        return { ...prev, [sectionId]: next }
+      })
+    },
+    [sections, getSectionTotalPasses]
+  )
+
+  // Seleccionar una vuelta específica (ej. al pulsar la píldora [ Vuelta 1 ] o [ Vuelta 2 ])
+  const handleSelectPass = useCallback(
+    (sectionId: string, passIdx: number) => {
+      setSectionPassMap((prev) => {
+        const sec = sections.find((s) => s.id === sectionId)
+        if (!sec) return prev
+        const passesCount = Math.max(1, sec.lyricPasses?.length || 1)
+        const totalPasses = getSectionTotalPasses(sec)
+        const current = prev[sectionId] || 0
+        const currentCycle = Math.floor(current / passesCount)
+        const targetPass = (currentCycle * passesCount + passIdx) % totalPasses
+        return { ...prev, [sectionId]: targetPass }
+      })
+    },
+    [sections, getSectionTotalPasses]
+  )
+
+  // Actualizar vueltas de letra y ciclos de una sección
+  const handleUpdateLyricPasses = useCallback(
+    (sectionId: string, passes: import('@/types/measure').SectionLyricPass[], repeatCycles?: number) => {
+      setSections((prev) =>
+        prev.map((sec) => {
+          if (sec.id !== sectionId) return sec
+          const cycles = repeatCycles ?? sec.repeatCycles ?? sec.repeatCount ?? 1
+          const passesCount = Math.max(1, passes.length)
+          const totalPasses = passesCount * cycles
+          return {
+            ...sec,
+            lyricPasses: passes,
+            repeatCycles: cycles,
+            repeatCount: totalPasses,
+            lyrics: passes[0]?.lyrics || sec.lyrics || '',
+          }
+        })
+      )
+    },
+    []
+  )
+
+  // Temporizador de avance automático de vuelta y sección cuando isPlaying está activo
   useEffect(() => {
     if (sectionTimerRef.current) {
       clearTimeout(sectionTimerRef.current)
@@ -409,18 +473,34 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       return prev
     })
 
-    const durationMs = getSectionDurationMs(currentSection)
+    const totalPasses = getSectionTotalPasses(currentSection)
+    const currentPass = sectionPassMap[currentSection.id] || 0
+    const passDurationMs = getSinglePassDurationMs(currentSection)
 
     sectionTimerRef.current = setTimeout(() => {
-      const currentIdx = sections.findIndex((s) => s.id === currentSection.id)
-      if (currentIdx !== -1 && currentIdx < sections.length - 1) {
-        const nextSec = sections[currentIdx + 1]
-        setActiveSectionId(nextSec.id)
-        scrollToSection(nextSec.id)
+      if (currentPass < totalPasses - 1) {
+        // Avanzar a la siguiente vuelta de esta misma sección (ej. Vuelta 1 -> Vuelta 2)
+        setSectionPassMap((prev) => ({
+          ...prev,
+          [currentSection.id]: currentPass + 1,
+        }))
       } else {
-        setIsPlaying(false)
+        // Se completaron todas las vueltas de la sección: avanzar a la siguiente sección
+        const currentIdx = sections.findIndex((s) => s.id === currentSection.id)
+        if (currentIdx !== -1 && currentIdx < sections.length - 1) {
+          const nextSec = sections[currentIdx + 1]
+          setSectionPassMap((prev) => ({
+            ...prev,
+            [nextSec.id]: 0,
+          }))
+          setActiveSectionId(nextSec.id)
+          scrollToSection(nextSec.id)
+        } else {
+          // Última sección finalizada
+          setIsPlaying(false)
+        }
       }
-    }, durationMs)
+    }, passDurationMs)
 
     return () => {
       if (sectionTimerRef.current) {
@@ -428,7 +508,15 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         sectionTimerRef.current = null
       }
     }
-  }, [isPlaying, activeSectionId, sections, getSectionDurationMs, scrollToSection])
+  }, [
+    isPlaying,
+    activeSectionId,
+    sections,
+    sectionPassMap,
+    getSectionTotalPasses,
+    getSinglePassDurationMs,
+    scrollToSection,
+  ])
 
   // Metrónomo auditivo opcional sincronizado con la sección activa
   useEffect(() => {
@@ -1150,6 +1238,11 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               measureDurationMs={0}
               currentRepeat={1}
               totalRepeats={section.repeatCount || 1}
+              currentPassIndex={sectionPassMap[section.id] || 0}
+              totalPasses={getSectionTotalPasses(section)}
+              onAdvancePass={handleAdvancePass}
+              onSelectPass={handleSelectPass}
+              onUpdateLyricPasses={handleUpdateLyricPasses}
               nextSectionName={nextSecName}
               isSectionActive={isSectionActive}
               onSectionFocus={(secId) => handleSelectSectionJump(secId)}

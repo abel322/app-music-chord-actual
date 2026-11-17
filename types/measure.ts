@@ -87,6 +87,12 @@ export interface Measure {
   guideLyric?: string // Letra guía rítmica sutil debajo del compás
 }
 
+export interface SectionLyricPass {
+  id: string
+  label: string // Ej: "Vuelta 1", "Vuelta 2"
+  lyrics: string // Letra correspondiente a esta vuelta de N compases
+}
+
 /**
  * Sección completa compuesta por compases ordenados
  */
@@ -103,6 +109,8 @@ export interface SectionMeasures {
   lyrics?: string // Texto o estrofas líricas de esta sección específica (Single Source of Truth)
   lines?: any[]
   repeatCount?: number // Cantidad de repeticiones de la sección (por defecto 1, ej. 2, 3, 4, 8)
+  lyricPasses?: SectionLyricPass[] // Múltiples vueltas de letra sobre la misma armonía (Vuelta 1, Vuelta 2...)
+  repeatCycles?: number // Número de ciclos completos de repetición (ej. 1, 2, 3, 4...)
   tempoOverride?: number | null // BPM específico para esta sección. Si es null/undefined, hereda song.tempo
   drumGroove?: import('./drum').DrumGrooveData | null // Patrón o groove de batería asignado a esta sección
 }
