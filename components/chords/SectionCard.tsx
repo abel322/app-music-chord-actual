@@ -123,7 +123,7 @@ export function SectionCard({
       id={`section-${section.id}`}
       onClick={() => onSectionFocus?.(section.id)}
       className={cn(
-        'rounded-2xl transition-all scroll-mt-14 relative',
+        'rounded-2xl transition-all scroll-mt-20 relative',
         isThisSectionActive
           ? 'ring-2 ring-cyan-400 border-2 border-cyan-400/80 bg-slate-900/95 shadow-[0_0_25px_rgba(34,211,238,0.15)]'
           : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm'
@@ -131,7 +131,7 @@ export function SectionCard({
     >
       {/* 2. Cabecera de Sección Adhesiva (Sticky Section Header Contextual) */}
       <div className={cn(
-        "sticky top-11 z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-b rounded-t-2xl flex items-center justify-between text-white shadow-sm transition-all",
+        "sticky top-[76px] z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-b rounded-t-2xl flex items-center justify-between text-white shadow-sm transition-all",
         isPlaying ? "py-1 px-2.5 min-h-[28px] gap-2" : "py-1.5 px-3 flex-wrap gap-2.5",
         isThisSectionActive ? "border-cyan-500/40" : "border-slate-800/80"
       )}>
@@ -143,7 +143,7 @@ export function SectionCard({
                 {getSectionBadge(section.type, section.label)}
               </div>
 
-              <h2 className="text-xs font-bold text-white truncate max-w-[130px] sm:max-w-[240px]">
+              <h2 className="text-xs font-bold text-white truncate max-w-[130px] sm:max-w-[240px] uppercase">
                 {section.label}
               </h2>
 
@@ -210,12 +210,12 @@ export function SectionCard({
                     <input
                       type="text"
                       value={section.label}
-                      onChange={(e) => onUpdateLabel?.(section.id, e.target.value)}
-                      className="font-black text-base sm:text-lg text-white bg-slate-800/80 border border-slate-700/80 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1.5 -ml-1 leading-tight max-w-[130px] sm:max-w-[200px]"
+                      onChange={(e) => onUpdateLabel?.(section.id, e.target.value.toUpperCase())}
+                      className="font-black text-base sm:text-lg text-white bg-slate-800/80 border border-slate-700/80 focus:outline-none focus:ring-1 focus:ring-primary-500 rounded px-1.5 -ml-1 leading-tight max-w-[130px] sm:max-w-[200px] uppercase"
                     />
                   ) : (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="font-black text-base sm:text-lg text-white leading-tight truncate">
+                      <h2 className="font-black text-base sm:text-lg text-white leading-tight truncate uppercase">
                         {section.label}
                       </h2>
                       {isThisSectionActive && (
@@ -385,6 +385,13 @@ export function SectionCard({
           </>
         )}
       </div>
+
+      {/* Franja compacta de referencia de letra (Siempre visible si hay letra, sin opacar compases) */}
+      {!isCollapsed && section.lyrics?.trim() && (
+        <div className="px-2.5 py-1 bg-slate-900/85 border-b border-slate-800 text-[11px] sm:text-xs leading-snug text-cyan-100/90 italic line-clamp-2">
+          {section.lyrics.trim()}
+        </div>
+      )}
 
       {/* Cuerpo de la Sección */}
       <div className={cn(isPlaying ? "p-2 sm:p-3 space-y-1.5" : "p-3 sm:p-5 space-y-3")}>

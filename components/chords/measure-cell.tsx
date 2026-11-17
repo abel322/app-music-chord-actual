@@ -55,6 +55,16 @@ export interface MeasureCellProps {
   onToggleSelect?: (measureId: string, event?: React.MouseEvent) => void
 }
 
+const getDividedChordFontClass = (chordName: string): string => {
+  if (chordName.length >= 6) {
+    return 'text-[9.5px] sm:text-xs tracking-tighter'
+  }
+  if (chordName.length >= 4) {
+    return 'text-[10.5px] sm:text-xs tracking-tight'
+  }
+  return 'text-xs sm:text-sm'
+}
+
 export function MeasureCell({
   measure,
   timeSignature,
@@ -470,11 +480,14 @@ export function MeasureCell({
         /* VISTA ESCENARIO (COMPACTA 58px) */
         <div className="flex-1 flex flex-col justify-center min-w-0 py-0.5">
           {division === 'half' || (slots.length === 2 && slots[0]?.chord && slots[1]?.chord) ? (
-            /* Compás Dividido (2 Acordes lado a lado con división y barras /) */
+            /* Compás Dividido (2 Acordes lado a lado con división y barras /) - Sin truncate agresivo y con font dinámico */
             <div className="grid grid-cols-2 divide-x divide-slate-300 dark:divide-slate-700/80 items-center text-center py-0.5 w-full">
               <div className="flex flex-col items-center justify-center px-0.5 min-w-0">
                 <span
-                  className="font-mono font-extrabold text-[11px] text-slate-900 dark:text-white truncate max-w-full leading-tight"
+                  className={cn(
+                    "font-mono font-extrabold text-slate-900 dark:text-white whitespace-nowrap leading-tight",
+                    getDividedChordFontClass(slots[0]?.chord || '/')
+                  )}
                   title={slots[0]?.chord || '/'}
                 >
                   {slots[0]?.chord || '/'}
@@ -485,7 +498,10 @@ export function MeasureCell({
               </div>
               <div className="flex flex-col items-center justify-center px-0.5 min-w-0">
                 <span
-                  className="font-mono font-extrabold text-[11px] text-slate-900 dark:text-white truncate max-w-full leading-tight"
+                  className={cn(
+                    "font-mono font-extrabold text-slate-900 dark:text-white whitespace-nowrap leading-tight",
+                    getDividedChordFontClass(slots[1]?.chord || '/')
+                  )}
                   title={slots[1]?.chord || '/'}
                 >
                   {slots[1]?.chord || '/'}
@@ -498,16 +514,29 @@ export function MeasureCell({
           ) : slots.length >= 3 && slots.some((s) => s.chord) ? (
             /* Compás con 3 o más acordes */
             <div className={cn("grid gap-0.5 w-full items-center text-center py-0.5", slots.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
-              {slots.slice(0, 4).map((s, idx) => (
-                <div key={idx} className="flex flex-col items-center justify-center px-0.5 min-w-0">
-                  <span className="font-mono font-extrabold text-[10px] text-slate-900 dark:text-white truncate max-w-full leading-tight">
-                    {s.chord || '/'}
-                  </span>
-                  <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 leading-none mt-0.5">
-                    /
-                  </span>
-                </div>
-              ))}
+              {slots.slice(0, 4).map((s, idx) => {
+                const chordStr = s.chord || '/'
+                return (
+                  <div key={idx} className="flex flex-col items-center justify-center px-0.5 min-w-0">
+                    <span
+                      className={cn(
+                        "font-mono font-extrabold text-slate-900 dark:text-white whitespace-nowrap leading-tight",
+                        chordStr.length >= 6
+                          ? "text-[8.5px] sm:text-[9.5px] tracking-tighter"
+                          : chordStr.length >= 4
+                          ? "text-[9.5px] sm:text-[10.5px] tracking-tight"
+                          : "text-[10px] sm:text-xs"
+                      )}
+                      title={chordStr}
+                    >
+                      {chordStr}
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 leading-none mt-0.5">
+                      /
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           ) : (
             /* 1 Acorde o Compás Vacío: Centrado con barras de pulso completas */
@@ -515,7 +544,12 @@ export function MeasureCell({
               {primaryChord ? (
                 <>
                   <span
-                    className="font-mono font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white truncate max-w-full leading-tight"
+                    className={cn(
+                      "font-mono font-extrabold text-slate-900 dark:text-white leading-tight",
+                      primaryChord.length >= 8
+                        ? "text-[11px] sm:text-xs tracking-tight"
+                        : "text-xs sm:text-sm"
+                    )}
                     title={primaryChord}
                   >
                     {primaryChord}

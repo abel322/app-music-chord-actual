@@ -135,7 +135,7 @@ export function SectionQuickNav({
                 </span>
 
                 {/* Nombre de la sección */}
-                <span className="truncate max-w-[85px] sm:max-w-none">{sectionDisplayName}</span>
+                <span className="truncate max-w-[85px] sm:max-w-none uppercase">{sectionDisplayName}</span>
 
                 {/* Multiplicador si tiene repetición */}
                 {section.repeatCount && section.repeatCount > 1 ? (

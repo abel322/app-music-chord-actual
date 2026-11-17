@@ -212,7 +212,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         {
           id: `sec-intro-${Date.now()}`,
           type: 'intro',
-          label: 'Intro',
+          label: 'INTRO',
           timeSignature: song.timeSignature || '4/4',
           instruments: [],
           measures: generateMeasures(4, 1, song.timeSignature || '4/4', [song.key || 'C']),
@@ -220,7 +220,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         {
           id: `sec-verse-${Date.now()}`,
           type: 'verse',
-          label: 'Estrofa 1',
+          label: 'ESTROFA 1',
           timeSignature: song.timeSignature || '4/4',
           instruments: [],
           measures: generateMeasures(4, 5, song.timeSignature || '4/4', [song.key || 'C']),
@@ -689,14 +689,14 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   // Agregar una nueva sección completa (Intro, Estrofa, Coro, etc.)
   const handleAddSection = (type: string) => {
-    const defaultName = getSectionDefaultName(type)
+    const defaultName = getSectionDefaultName(type).toUpperCase()
     const countSameType = sections.filter((s) => {
       if (type === 'interlude' || type === 'instrumental') {
         return s.type === 'interlude' || s.type === 'instrumental'
       }
       return s.type === type
     }).length
-    const label = `${defaultName} ${countSameType + 1}`
+    const label = `${defaultName} ${countSameType + 1}`.toUpperCase()
 
     // Determinar siguiente número de compás
     const allMeasuresCount = sections.reduce((acc, s) => acc + s.measures.length, 0)
@@ -809,91 +809,100 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
 
   return (
     <div className="w-full max-w-full min-h-screen max-w-7xl mx-auto pb-36">
-      {/* 1. Cabecera Superior Ultra-Compacta de 1 Sola Línea (44px máx) */}
-      <header className="sticky top-0 z-50 h-11 px-2.5 sm:px-4 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 flex items-center justify-between gap-2 text-white shadow-sm">
-        {/* Izquierda: Botón ← + Título truncado + Badge compacto Tono/BPM */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
-          <Link
-            href="/dashboard/songs/chords"
-            className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Volver a lista de canciones"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+      {/* 1. Cabecera Superior Sticky en 2 Filas (Título Visible Arriba + Barra de Transporte Compacta) */}
+      <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-sm text-white">
+        {/* Fila 1 (Título de Canción): Barra limpia h-9 con botón ← y título completo siempre visible */}
+        <div className="h-9 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-950">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Link
+              href="/dashboard/songs/chords"
+              className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Volver a lista de canciones"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
 
-          <span
-            className="text-xs sm:text-sm font-bold text-white truncate max-w-[110px] sm:max-w-[260px]"
-            title={song.title}
-          >
-            {song.title}
-          </span>
+            <h1
+              className="text-sm sm:text-base font-extrabold text-white truncate"
+              title={song.title}
+            >
+              {song.title}
+            </h1>
+            {song.artist && (
+              <span className="hidden sm:inline text-xs text-slate-400 truncate">
+                • {song.artist}
+              </span>
+            )}
+          </div>
+        </div>
 
+        {/* Fila 2 (Barra de Transporte Compacta): Tono/BPM + Botón Iniciar/Pausar + Toggle Escenario + Engranaje */}
+        <div className="h-10 px-2.5 sm:px-3 flex items-center justify-between gap-1.5 bg-slate-950/90">
           <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
             {currentKey} • {tempo} BPM
           </span>
-        </div>
 
-        {/* Derecha: Botón Táctil Iniciar/Pausar + Toggle Escenario / Amplio + Toggle Controles */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              if (!isPlaying) {
-                setIsControlsDrawerOpen(false)
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (!isPlaying) {
+                  setIsControlsDrawerOpen(false)
+                }
+                handleTogglePlay()
+              }}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer select-none shadow-xs shrink-0 active:scale-95',
+                isPlaying
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500 shadow-rose-950/50 animate-pulse'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-emerald-950/50'
+              )}
+              title={isPlaying ? 'Pausar reproducción en vivo (Espacio)' : 'Iniciar reproducción en vivo (Espacio)'}
+            >
+              <span>{isPlaying ? '⏸' : '▶'}</span>
+              <span className="font-extrabold">{isPlaying ? 'Pausar' : 'Iniciar'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode((prev) => (prev === 'stage' ? 'wide' : 'stage'))}
+              className={cn(
+                'px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
+                viewMode === 'stage'
+                  ? 'bg-slate-900 text-cyan-400 border-cyan-500/50 shadow-xs'
+                  : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
+              )}
+              title={
+                viewMode === 'stage'
+                  ? 'Vista Escenario (4 compases/fila en móvil). Clic para cambiar a Vista Amplia'
+                  : 'Vista Amplia. Clic para cambiar a Vista Escenario'
               }
-              handleTogglePlay()
-            }}
-            className={cn(
-              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer select-none shadow-xs shrink-0 active:scale-95',
-              isPlaying
-                ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500 shadow-rose-950/50 animate-pulse'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-emerald-950/50'
-            )}
-            title={isPlaying ? 'Pausar reproducción en vivo (Espacio)' : 'Iniciar reproducción en vivo (Espacio)'}
-          >
-            <span>{isPlaying ? '⏸' : '▶'}</span>
-            <span className="font-extrabold">{isPlaying ? 'Pausar' : 'Iniciar'}</span>
-          </button>
+            >
+              <span>{viewMode === 'stage' ? '📱 Escenario' : '🔍 Amplio'}</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode((prev) => (prev === 'stage' ? 'wide' : 'stage'))}
-            className={cn(
-              'px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
-              viewMode === 'stage'
-                ? 'bg-slate-900 text-cyan-400 border-cyan-500/50 shadow-xs'
-                : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
-            )}
-            title={
-              viewMode === 'stage'
-                ? 'Vista Escenario (4 compases/fila en móvil). Clic para cambiar a Vista Amplia'
-                : 'Vista Amplia. Clic para cambiar a Vista Escenario'
-            }
-          >
-            <span>{viewMode === 'stage' ? '📱 Escenario' : '🔍 Amplio'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsControlsDrawerOpen((prev) => !prev)}
-            className={cn(
-              'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
-              isControlsDrawerOpen
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md ring-1 ring-cyan-300'
-                : 'bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800 hover:text-white'
-            )}
-            title="Mostrar / ocultar panel de controles de transporte, tempo, transposición y ensayo"
-          >
-            <span>⚙️</span>
-            <span className="hidden sm:inline">Controles</span>
-            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isControlsDrawerOpen && 'rotate-180')} />
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsControlsDrawerOpen((prev) => !prev)}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 border cursor-pointer',
+                isControlsDrawerOpen
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-md ring-1 ring-cyan-300'
+                  : 'bg-slate-900 text-slate-200 border-slate-800 hover:bg-slate-800 hover:text-white'
+              )}
+              title="Mostrar / ocultar panel de controles de transporte, tempo, transposición y ensayo"
+            >
+              <span>⚙️</span>
+              <span className="hidden sm:inline">Controles</span>
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isControlsDrawerOpen && 'rotate-180')} />
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Panel Desplegable de Controles y Transporte (Colapsado por defecto para 85%+ área de acordes) */}
       {isControlsDrawerOpen && (
-        <div className="sticky top-11 z-40 bg-slate-900/98 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shadow-2xl space-y-3.5 animate-in slide-in-from-top-2 duration-200">
+        <div className="sticky top-[76px] z-40 bg-slate-900/98 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shadow-2xl space-y-3.5 animate-in slide-in-from-top-2 duration-200">
           {/* Fila 1: Botones de Acción (Letras, Batería, YouTube, Edición, Guardar) */}
           <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-800/80">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1147,7 +1156,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               onToggleCollapse={handleToggleCollapse}
               onUpdateLabel={(secId, newLabel) => {
                 setSections((prev) =>
-                  prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s))
+                  prev.map((s) => (s.id === secId ? { ...s, label: newLabel.toUpperCase() } : s))
                 )
               }}
               onUpdateSectionKey={handleUpdateSectionKey}
