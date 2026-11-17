@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Measure, ChordBeat } from '@/types/measure'
+import { Measure, ChordBeat, LyricMeasureSegment } from '@/types/measure'
 import {
   getBeatsPerMeasure,
   duplicateMeasure,
@@ -92,6 +92,7 @@ interface MeasureGridProps {
   currentRepeat?: number
   totalRepeats?: number
   nextSectionName?: string | null
+  lyricSegments?: LyricMeasureSegment[]
   onUpdateMeasures: (updatedMeasures: Measure[]) => void
   onAddMeasures?: (count: number) => void
   onRemoveMeasure?: (measureId: string) => void
@@ -113,6 +114,7 @@ export function MeasureGrid({
   currentRepeat = 1,
   totalRepeats,
   nextSectionName,
+  lyricSegments,
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
@@ -213,7 +215,9 @@ export function MeasureGrid({
 
   // Agrupar compases en bloques (sistemas musicales: 8 en modo stage, 4 en modo wide)
   const isStage = viewMode !== 'wide'
-  const rowChunk = isStage ? 8 : 4
+  const hasLyricSegments = Boolean(lyricSegments && lyricSegments.length > 0)
+  // Si tiene segmentos de letra por compás, agrupamos en 4 compases por fila para que cada bloque alinee con su segmento
+  const rowChunk = hasLyricSegments ? 4 : isStage ? 8 : 4
 
   const rows = useMemo(() => {
     const result: Measure[][] = []
@@ -508,10 +512,34 @@ export function MeasureGrid({
             {rows.map((rowMeasures, rowIdx) => {
               const startIdx = rowIdx * rowChunk
               const hasBracket = rowMeasures.some((m) => cadenceBrackets[m.id])
+              const rowStartMeasure = startIdx + 1
+              const rowEndMeasure = startIdx + rowMeasures.length
+
+              // Segmento de letra para este bloque de compases
+              const matchingSegment = hasLyricSegments
+                ? lyricSegments?.find(
+                    (s) =>
+                      (s.startMeasure <= rowStartMeasure && s.endMeasure >= rowStartMeasure) ||
+                      (s.startMeasure >= rowStartMeasure && s.startMeasure <= rowEndMeasure)
+                  )
+                : null
+
               return (
                 <div key={rowIdx} className="space-y-1 relative group/row">
-                  {/* Encabezado sutil de línea / sistema musical (Oculto cuando isPlaying === true) */}
-                  {!isPlaying && (
+                  {/* Franja de letra asignada a esta línea de compases (ej. C.1 - C.4 o C.5 - C.8) */}
+                  {matchingSegment && matchingSegment.text.trim() && (
+                    <div className="w-full whitespace-normal break-words leading-snug text-xs sm:text-sm text-cyan-100/95 bg-slate-900/85 px-3 py-1.5 rounded-t-lg border-x border-t border-slate-800 italic shadow-xs flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {matchingSegment.text.trim()}
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-cyan-400/80 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded shrink-0 not-italic select-none">
+                        C.{matchingSegment.startMeasure}–{matchingSegment.endMeasure}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Encabezado sutil de línea / sistema musical (Oculto cuando isPlaying === true o si ya tiene franja de letra) */}
+                  {!isPlaying && (!matchingSegment || !matchingSegment.text.trim()) && (
                     <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-slate-500 dark:text-slate-400 text-[10px] tracking-wider uppercase">
@@ -539,7 +567,9 @@ export function MeasureGrid({
                   {/* Grid de compases de esta línea */}
                   <div className={cn(
                     'grid w-full max-w-full pb-1',
-                    isStage ? 'grid-cols-4 md:grid-cols-8 gap-1.5 sm:gap-2' : 'grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5',
+                    hasLyricSegments
+                      ? 'grid-cols-4 gap-1.5 sm:gap-2'
+                      : (isStage ? 'grid-cols-4 md:grid-cols-8 gap-1.5 sm:gap-2' : 'grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5'),
                     hasBracket ? 'pt-7 sm:pt-8 gap-y-8 sm:gap-y-9' : isStage ? (isPlaying ? 'pt-0 gap-y-1 sm:gap-y-1.5' : 'pt-1 gap-y-1.5 sm:gap-y-2') : 'pt-5 gap-y-7'
                   )}>
                     {rowMeasures.map((measure, mIdx) => {

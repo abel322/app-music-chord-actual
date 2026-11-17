@@ -448,6 +448,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
             repeatCycles: cycles,
             repeatCount: totalPasses,
             lyrics: passes[0]?.lyrics || sec.lyrics || '',
+            segments: passes[0]?.segments,
           }
         })
       )

@@ -800,11 +800,27 @@ export function ensureSectionMeasures(
       measures: normalizedMeasures,
       guideLyrics: rawSection.guideLyrics || '',
       lyrics: rawSection.lyrics || '',
+      segments: Array.isArray(rawSection.segments)
+        ? rawSection.segments.map((s: any, sIdx: number) => ({
+            id: s.id || `seg-${sIdx + 1}`,
+            startMeasure: Number(s.startMeasure) || 1,
+            endMeasure: Number(s.endMeasure) || 4,
+            text: s.text || '',
+          }))
+        : undefined,
       lyricPasses: Array.isArray(rawSection.lyricPasses)
         ? rawSection.lyricPasses.map((p: any, pIdx: number) => ({
             id: p.id || `pass-${pIdx + 1}`,
             label: p.label || `Vuelta ${pIdx + 1}`,
             lyrics: p.lyrics || '',
+            segments: Array.isArray(p.segments)
+              ? p.segments.map((s: any, sIdx: number) => ({
+                  id: s.id || `seg-${sIdx + 1}`,
+                  startMeasure: Number(s.startMeasure) || 1,
+                  endMeasure: Number(s.endMeasure) || 4,
+                  text: s.text || '',
+                }))
+              : undefined,
           }))
         : undefined,
       repeatCycles: rawSection.repeatCycles ? Math.max(1, Number(rawSection.repeatCycles)) : undefined,
@@ -854,11 +870,27 @@ export function ensureSectionMeasures(
     measures,
     guideLyrics: guideLines.join('\n'),
     lyrics: rawSection.lyrics || '',
+    segments: Array.isArray(rawSection.segments)
+      ? rawSection.segments.map((s: any, sIdx: number) => ({
+          id: s.id || `seg-${sIdx + 1}`,
+          startMeasure: Number(s.startMeasure) || 1,
+          endMeasure: Number(s.endMeasure) || 4,
+          text: s.text || '',
+        }))
+      : undefined,
     lyricPasses: Array.isArray(rawSection.lyricPasses)
       ? rawSection.lyricPasses.map((p: any, pIdx: number) => ({
           id: p.id || `pass-${pIdx + 1}`,
           label: p.label || `Vuelta ${pIdx + 1}`,
           lyrics: p.lyrics || '',
+          segments: Array.isArray(p.segments)
+            ? p.segments.map((s: any, sIdx: number) => ({
+                id: s.id || `seg-${sIdx + 1}`,
+                startMeasure: Number(s.startMeasure) || 1,
+                endMeasure: Number(s.endMeasure) || 4,
+                text: s.text || '',
+              }))
+            : undefined,
         }))
       : undefined,
     repeatCycles: rawSection.repeatCycles ? Math.max(1, Number(rawSection.repeatCycles)) : undefined,
@@ -1154,7 +1186,13 @@ export function cloneSectionMeasures(
     instruments: section.instruments ? [...section.instruments] : [],
     guideLyrics: section.guideLyrics || '',
     lyrics: section.lyrics || '',
-    lyricPasses: section.lyricPasses ? section.lyricPasses.map((p) => ({ ...p })) : undefined,
+    segments: section.segments ? section.segments.map((s) => ({ ...s })) : undefined,
+    lyricPasses: section.lyricPasses
+      ? section.lyricPasses.map((p) => ({
+          ...p,
+          segments: p.segments ? p.segments.map((s) => ({ ...s })) : undefined,
+        }))
+      : undefined,
     repeatCycles: section.repeatCycles,
     measures: clonedMeasures,
     lines: section.lines ? JSON.parse(JSON.stringify(section.lines)) : undefined,
@@ -1201,8 +1239,18 @@ export function buildFullLyricsText(sections: SectionMeasures[]): string {
       const repeats = sec.repeatCount && sec.repeatCount > 1 ? ` ${sec.repeatCount}x` : ''
       const header = `[${sec.label}${repeats}]`
       const passes = sec.lyricPasses && sec.lyricPasses.length > 0
-        ? sec.lyricPasses.map((p) => (p.lyrics || '').trim()).filter(Boolean).join('\n\n')
-        : (sec.lyrics || '').trim()
+        ? sec.lyricPasses
+            .map((p) => {
+              if (p.segments && p.segments.length > 0) {
+                return p.segments.map((s) => s.text.trim()).filter(Boolean).join('\n')
+              }
+              return (p.lyrics || '').trim()
+            })
+            .filter(Boolean)
+            .join('\n\n')
+        : (sec.segments && sec.segments.length > 0)
+          ? sec.segments.map((s) => s.text.trim()).filter(Boolean).join('\n')
+          : (sec.lyrics || '').trim()
       return passes ? `${header}\n${passes}` : header
     })
     .join('\n\n')

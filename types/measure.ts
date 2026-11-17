@@ -87,10 +87,18 @@ export interface Measure {
   guideLyric?: string // Letra guía rítmica sutil debajo del compás
 }
 
+export interface LyricMeasureSegment {
+  id: string
+  startMeasure: number // 1-based dentro de la sección (ej. 1 para C.1)
+  endMeasure: number   // 1-based dentro de la sección (ej. 4 para C.4)
+  text: string         // Letra que corresponde exactamente a esos compases
+}
+
 export interface SectionLyricPass {
   id: string
   label: string // Ej: "Vuelta 1", "Vuelta 2"
   lyrics: string // Letra correspondiente a esta vuelta de N compases
+  segments?: LyricMeasureSegment[] // Segmentos opcionales vinculados a rangos de compases
 }
 
 /**
@@ -107,6 +115,7 @@ export interface SectionMeasures {
   measures: Measure[]
   guideLyrics?: string
   lyrics?: string // Texto o estrofas líricas de esta sección específica (Single Source of Truth)
+  segments?: LyricMeasureSegment[] // Segmentos de letra por bloque de compases (ej. C.1–C.4, C.5–C.8)
   lines?: any[]
   repeatCount?: number // Cantidad de repeticiones de la sección (por defecto 1, ej. 2, 3, 4, 8)
   lyricPasses?: SectionLyricPass[] // Múltiples vueltas de letra sobre la misma armonía (Vuelta 1, Vuelta 2...)

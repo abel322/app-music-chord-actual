@@ -9,8 +9,10 @@ import {
   Copy,
   Trash2,
   Plus,
+  Scissors,
+  Link2,
 } from 'lucide-react'
-import { SectionMeasures, Measure, SectionLyricPass } from '@/types/measure'
+import { SectionMeasures, Measure, SectionLyricPass, LyricMeasureSegment } from '@/types/measure'
 import { getSectionBadge, getSectionChordsPreview } from '@/lib/measure-utils'
 import { getDiatonicChords } from '@/lib/music-theory'
 import { cn } from '@/lib/utils'
@@ -125,11 +127,18 @@ export function SectionCard({
     if (section.lyricPasses && section.lyricPasses.length > 0) {
       return section.lyricPasses
     }
-    if (section.lyrics && section.lyrics.trim().length > 0) {
-      return [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics.trim() }]
+    if ((section.lyrics && section.lyrics.trim().length > 0) || (section.segments && section.segments.length > 0)) {
+      return [
+        {
+          id: 'pass-1',
+          label: 'Vuelta 1',
+          lyrics: section.lyrics?.trim() || '',
+          segments: section.segments,
+        },
+      ]
     }
     return []
-  }, [section.lyricPasses, section.lyrics])
+  }, [section.lyricPasses, section.lyrics, section.segments])
 
   const passesCount = Math.max(1, effectiveLyricPasses.length)
   const cyclesCount = Math.max(
@@ -147,9 +156,23 @@ export function SectionCard({
       : 0
   const activePassLyrics =
     effectiveLyricPasses[activePassIndexInCycle]?.lyrics ?? section.lyrics ?? ''
+
+  // Segmentos activos para la vuelta en curso (o de la sección)
+  const activePassSegments =
+    effectiveLyricPasses[activePassIndexInCycle]?.segments || section.segments || []
+  const hasActiveSegments =
+    activePassSegments.length > 0 && activePassSegments.some((s) => s.text.trim().length > 0)
+
+  // Segmentos de la vuelta en edición activa
+  const currentEditPass =
+    effectiveLyricPasses[activeEditPassIdx] || effectiveLyricPasses[0] || null
+  const currentEditSegments = currentEditPass?.segments || []
+  const hasEditSegments = currentEditSegments.length > 0
+
   const hasAnyLyrics =
-    effectiveLyricPasses.some((p) => p.lyrics.trim().length > 0) ||
-    !!(section.lyrics && section.lyrics.trim().length > 0)
+    effectiveLyricPasses.some((p) => p.lyrics.trim().length > 0 || (p.segments && p.segments.length > 0)) ||
+    !!(section.lyrics && section.lyrics.trim().length > 0) ||
+    hasActiveSegments
   const lineCount = hasAnyLyrics
     ? activePassLyrics.trim().split('\n').filter(Boolean).length || 1
     : 0
@@ -188,6 +211,175 @@ export function SectionCard({
     onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
     if (targetIdx === 0) {
       onUpdateLyrics?.(section.id, newLyrics)
+    }
+  }
+
+  const handleSplitCurrentPassIntoSegments = () => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    const currentPass = currentPasses[targetIdx]
+    const currentLyrics = currentPass?.lyrics || ''
+    const lines = currentLyrics
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+
+    const totalMeasures = Math.max(4, section.measures.length)
+    const numBlocks = Math.max(1, Math.ceil(totalMeasures / 4))
+    const linesPerBlock = Math.max(1, Math.ceil(lines.length / numBlocks))
+
+    const newSegments: LyricMeasureSegment[] = []
+    for (let i = 0; i < totalMeasures; i += 4) {
+      const start = i + 1
+      const end = Math.min(totalMeasures, i + 4)
+      const blockIdx = Math.floor(i / 4)
+      const blockLines = lines.slice(blockIdx * linesPerBlock, (blockIdx + 1) * linesPerBlock)
+      newSegments.push({
+        id: `seg-${Date.now()}-${blockIdx + 1}`,
+        startMeasure: start,
+        endMeasure: end,
+        text: blockLines.join('\n'),
+      })
+    }
+
+    currentPasses[targetIdx] = {
+      ...currentPass,
+      segments: newSegments,
+      lyrics: newSegments.map((s) => s.text).filter(Boolean).join('\n'),
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+    if (targetIdx === 0) {
+      onUpdateLyrics?.(section.id, currentPasses[0].lyrics)
+    }
+  }
+
+  const handleJoinSegmentsIntoSingleBlock = () => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    const currentPass = currentPasses[targetIdx]
+    const joinedText = currentPass.segments
+      ? currentPass.segments.map((s) => s.text).filter(Boolean).join('\n')
+      : currentPass.lyrics
+
+    currentPasses[targetIdx] = {
+      ...currentPass,
+      segments: undefined,
+      lyrics: joinedText,
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+    if (targetIdx === 0) {
+      onUpdateLyrics?.(section.id, joinedText)
+    }
+  }
+
+  const handleUpdateSegmentText = (segId: string, newText: string) => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    const currentPass = currentPasses[targetIdx]
+    const currentSegments = currentPass.segments || []
+
+    const updatedSegments = currentSegments.map((s) =>
+      s.id === segId ? { ...s, text: newText } : s
+    )
+
+    currentPasses[targetIdx] = {
+      ...currentPass,
+      segments: updatedSegments,
+      lyrics: updatedSegments.map((s) => s.text).filter(Boolean).join('\n'),
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+    if (targetIdx === 0) {
+      onUpdateLyrics?.(section.id, currentPasses[0].lyrics)
+    }
+  }
+
+  const handleUpdateSegmentRange = (segId: string, start: number, end: number) => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    const currentPass = currentPasses[targetIdx]
+    const currentSegments = currentPass.segments || []
+
+    const updatedSegments = currentSegments.map((s) =>
+      s.id === segId ? { ...s, startMeasure: Math.max(1, start), endMeasure: Math.max(start, end) } : s
+    )
+
+    currentPasses[targetIdx] = {
+      ...currentPass,
+      segments: updatedSegments,
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+  }
+
+  const handleAddSegmentBlock = () => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    const currentPass = currentPasses[targetIdx]
+    const currentSegments = currentPass.segments || []
+
+    const lastSeg = currentSegments[currentSegments.length - 1]
+    const nextStart = lastSeg ? lastSeg.endMeasure + 1 : 1
+    const nextEnd = nextStart + 3
+    const newSeg: LyricMeasureSegment = {
+      id: `seg-${Date.now()}-${currentSegments.length + 1}`,
+      startMeasure: nextStart,
+      endMeasure: nextEnd,
+      text: '',
+    }
+
+    const updatedSegments = [...currentSegments, newSeg]
+    currentPasses[targetIdx] = {
+      ...currentPass,
+      segments: updatedSegments,
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+  }
+
+  const handleRemoveSegmentBlock = (segId: string) => {
+    const currentPasses: SectionLyricPass[] =
+      effectiveLyricPasses.length > 0
+        ? [...effectiveLyricPasses]
+        : [{ id: 'pass-1', label: 'Vuelta 1', lyrics: section.lyrics || '' }]
+
+    const targetIdx = Math.max(0, Math.min(activeEditPassIdx, currentPasses.length - 1))
+    const currentPass = currentPasses[targetIdx]
+    const currentSegments = currentPass.segments || []
+    if (currentSegments.length <= 1) return
+
+    const updatedSegments = currentSegments.filter((s) => s.id !== segId)
+    currentPasses[targetIdx] = {
+      ...currentPass,
+      segments: updatedSegments,
+      lyrics: updatedSegments.map((s) => s.text).filter(Boolean).join('\n'),
+    }
+
+    onUpdateLyricPasses?.(section.id, currentPasses, cyclesCount)
+    if (targetIdx === 0) {
+      onUpdateLyrics?.(section.id, currentPasses[0].lyrics)
     }
   }
 
@@ -531,54 +723,95 @@ export function SectionCard({
       </div>
 
       {/* Franja compacta de referencia de letra (Siempre visible si hay letra, sin opacar compases) */}
-      {!effectiveIsCollapsed && hasAnyLyrics && (
-        <div className="px-2.5 py-1.5 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-2.5">
-          {/* Selector táctil de vueltas si la sección tiene más de 1 vuelta de letra definida */}
-          {effectiveLyricPasses.length > 1 && (
-            <div className="flex items-center gap-1 shrink-0 mt-0.5">
-              {effectiveLyricPasses.map((p, pIdx) => {
-                const isActive = pIdx === activePassIndexInCycle
-                return (
+      {!effectiveIsCollapsed && (hasAnyLyrics || hasActiveSegments) && (
+        hasActiveSegments ? (
+          effectiveLyricPasses.length > 1 ? (
+            <div className="px-2.5 py-1 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 shrink-0">
+                {effectiveLyricPasses.map((p, pIdx) => {
+                  const isActive = pIdx === activePassIndexInCycle
+                  return (
+                    <button
+                      key={p.id || pIdx}
+                      type="button"
+                      onClick={() => onSelectPass?.(section.id, pIdx)}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer border select-none',
+                        isActive
+                          ? 'bg-cyan-400 text-slate-950 border-cyan-300 font-black shadow-xs'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                      )}
+                      title={`Mostrar letra de ${p.label}`}
+                    >
+                      {p.label || `Vuelta ${pIdx + 1}`}
+                    </button>
+                  )
+                })}
+                {calculatedTotalPasses > 1 && (
                   <button
-                    key={p.id || pIdx}
                     type="button"
-                    onClick={() => onSelectPass?.(section.id, pIdx)}
-                    className={cn(
-                      'px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer border select-none',
-                      isActive
-                        ? 'bg-cyan-400 text-slate-950 border-cyan-300 font-black shadow-xs'
-                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                    )}
-                    title={`Mostrar letra de ${p.label}`}
+                    onClick={() => onAdvancePass?.(section.id)}
+                    className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer select-none"
+                    title="Avanzar a la siguiente vuelta"
                   >
-                    {p.label || `Vuelta ${pIdx + 1}`}
+                    Sig. →
                   </button>
-                )
-              })}
-              {calculatedTotalPasses > 1 && (
-                <button
-                  type="button"
-                  onClick={() => onAdvancePass?.(section.id)}
-                  className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer select-none"
-                  title="Avanzar a la siguiente vuelta"
-                >
-                  Sig. →
-                </button>
-              )}
+                )}
+              </div>
+              <span className="text-[11px] font-mono text-cyan-400/80 italic hidden sm:inline">
+                Letra dividida por compases (ver abajo)
+              </span>
             </div>
-          )}
+          ) : null
+        ) : (
+          <div className="px-2.5 py-1.5 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-2.5">
+            {/* Selector táctil de vueltas si la sección tiene más de 1 vuelta de letra definida */}
+            {effectiveLyricPasses.length > 1 && (
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                {effectiveLyricPasses.map((p, pIdx) => {
+                  const isActive = pIdx === activePassIndexInCycle
+                  return (
+                    <button
+                      key={p.id || pIdx}
+                      type="button"
+                      onClick={() => onSelectPass?.(section.id, pIdx)}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer border select-none',
+                        isActive
+                          ? 'bg-cyan-400 text-slate-950 border-cyan-300 font-black shadow-xs'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                      )}
+                      title={`Mostrar letra de ${p.label}`}
+                    >
+                      {p.label || `Vuelta ${pIdx + 1}`}
+                    </button>
+                  )
+                })}
+                {calculatedTotalPasses > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onAdvancePass?.(section.id)}
+                    className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer select-none"
+                    title="Avanzar a la siguiente vuelta"
+                  >
+                    Sig. →
+                  </button>
+                )}
+              </div>
+            )}
 
-          {/* Letra de la vuelta activa - Multilínea completa sin truncar */}
-          {activePassLyrics.trim() ? (
-            <div className="text-xs sm:text-sm leading-snug text-cyan-100/95 italic whitespace-normal break-words flex-1 min-w-0">
-              {activePassLyrics.trim()}
-            </div>
-          ) : (
-            <div className="text-[11px] sm:text-xs text-slate-500 italic">
-              (Sin letra para esta vuelta)
-            </div>
-          )}
-        </div>
+            {/* Letra de la vuelta activa - Multilínea completa sin truncar */}
+            {activePassLyrics.trim() ? (
+              <div className="text-xs sm:text-sm leading-snug text-cyan-100/95 italic whitespace-normal break-words flex-1 min-w-0">
+                {activePassLyrics.trim()}
+              </div>
+            ) : (
+              <div className="text-[11px] sm:text-xs text-slate-500 italic">
+                (Sin letra para esta vuelta)
+              </div>
+            )}
+          </div>
+        )
       )}
 
       {/* Cuerpo de la Sección */}
@@ -786,31 +1019,167 @@ export function SectionCard({
 
             {/* Editor de la letra de la vuelta activa */}
             {isEditing ? (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-400 px-0.5">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-0.5 flex-wrap gap-1.5">
                   <span>
                     Editando letra para: <strong className="text-purple-400">{effectiveLyricPasses[activeEditPassIdx]?.label || `Vuelta ${activeEditPassIdx + 1}`}</strong> ({section.measures.length} compases de armonía)
                   </span>
-                </div>
-                <textarea
-                  value={effectiveLyricPasses[activeEditPassIdx]?.lyrics || ''}
-                  onChange={(e) => handleUpdateCurrentPassLyrics(e.target.value)}
-                  placeholder={`Escribe aquí la letra para ${effectiveLyricPasses[activeEditPassIdx]?.label || 'esta vuelta'}...`}
-                  rows={Math.max(3, Math.min(8, (effectiveLyricPasses[activeEditPassIdx]?.lyrics || '').split('\n').length + 1))}
-                  className="w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
-                />
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="text-[11px] text-slate-400 px-0.5">
-                  Letra de: <strong className="text-purple-400">{effectiveLyricPasses[activeEditPassIdx]?.label || `Vuelta ${activeEditPassIdx + 1}`}</strong>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm font-sans leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line">
-                  {effectiveLyricPasses[activeEditPassIdx]?.lyrics?.trim() || (
-                    <span className="italic text-slate-400">Sin letra asignada para esta vuelta</span>
+
+                  {/* Acciones para Dividir por Líneas de Compases o Unir */}
+                  {hasEditSegments ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleAddSegmentBlock}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border border-purple-700/70 transition-colors cursor-pointer"
+                        title="Añadir otro bloque de compases a esta sección"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ Añadir Bloque</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleJoinSegmentsIntoSingleBlock}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+                        title="Unir todos los bloques de compases en un solo campo de letra general"
+                      >
+                        <Link2 className="w-3 h-3" />
+                        <span>Unir en un solo bloque</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSplitCurrentPassIntoSegments}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-200 border border-cyan-700/80 transition-all cursor-pointer shadow-xs active:scale-95"
+                      title="Dividir automáticamente la letra en bloques (ej. Compases 1-4, 5-8...)"
+                    >
+                      <Scissors className="w-3.5 h-3.5 text-cyan-300" />
+                      <span>✂️ Dividir Letra por Líneas de Compases (cada 4 compases)</span>
+                    </button>
                   )}
                 </div>
+
+                {hasEditSegments ? (
+                  /* Formulario de edición por segmentos / bloques de compases */
+                  <div className="space-y-2 pt-1">
+                    {currentEditSegments.map((seg, sIdx) => (
+                      <div
+                        key={seg.id || sIdx}
+                        className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700/80 space-y-1.5 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+                            <span className="w-5 h-5 rounded-md bg-purple-600/20 text-purple-400 text-[10px] font-black flex items-center justify-center border border-purple-500/30">
+                              {sIdx + 1}
+                            </span>
+                            <span className="text-[11px]">Compases</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={section.measures.length}
+                              value={seg.startMeasure}
+                              onChange={(e) =>
+                                handleUpdateSegmentRange(
+                                  seg.id,
+                                  parseInt(e.target.value, 10) || 1,
+                                  seg.endMeasure
+                                )
+                              }
+                              className="w-11 px-1 py-0.5 text-center font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            />
+                            <span className="text-slate-400">–</span>
+                            <input
+                              type="number"
+                              min={seg.startMeasure}
+                              max={section.measures.length + 16}
+                              value={seg.endMeasure}
+                              onChange={(e) =>
+                                handleUpdateSegmentRange(
+                                  seg.id,
+                                  seg.startMeasure,
+                                  parseInt(e.target.value, 10) || seg.startMeasure
+                                )
+                              }
+                              className="w-11 px-1 py-0.5 text-center font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            />
+                          </div>
+
+                          {currentEditSegments.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSegmentBlock(seg.id)}
+                              className="p-1 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-950/30 transition-colors cursor-pointer"
+                              title="Eliminar este bloque de compases"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <textarea
+                          value={seg.text}
+                          onChange={(e) => handleUpdateSegmentText(seg.id, e.target.value)}
+                          placeholder={`Escribe aquí la letra para los compases ${seg.startMeasure} a ${seg.endMeasure} (ej. versos de esta línea)...`}
+                          rows={Math.max(2, Math.min(5, (seg.text || '').split('\n').length + 1))}
+                          className="w-full bg-white dark:bg-slate-900/80 rounded-lg p-2.5 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* Formulario de bloque único general */
+                  <textarea
+                    value={effectiveLyricPasses[activeEditPassIdx]?.lyrics || ''}
+                    onChange={(e) => handleUpdateCurrentPassLyrics(e.target.value)}
+                    placeholder={`Escribe aquí la letra para ${effectiveLyricPasses[activeEditPassIdx]?.label || 'esta vuelta'}...`}
+                    rows={Math.max(3, Math.min(8, (effectiveLyricPasses[activeEditPassIdx]?.lyrics || '').split('\n').length + 1))}
+                    className="w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none font-sans leading-relaxed text-slate-900 dark:text-slate-100 placeholder:text-slate-400 resize-y transition-all"
+                  />
+                )}
               </div>
+            ) : (
+              /* Modo visualización no edición */
+              hasEditSegments ? (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-slate-400 px-0.5 flex items-center justify-between">
+                    <span>
+                      Letra de: <strong className="text-purple-400">{effectiveLyricPasses[activeEditPassIdx]?.label || `Vuelta ${activeEditPassIdx + 1}`}</strong>
+                    </span>
+                    <span className="text-cyan-400 font-mono text-[10px] font-bold bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.2 rounded">
+                      Dividida por líneas de compases
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {currentEditSegments.map((seg, sIdx) => (
+                      <div
+                        key={seg.id || sIdx}
+                        className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700 space-y-1"
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400">
+                          <span>Compases {seg.startMeasure} – {seg.endMeasure}</span>
+                        </div>
+                        <div className="text-xs sm:text-sm font-sans leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line">
+                          {seg.text?.trim() || (
+                            <span className="italic text-slate-400">Sin letra asignada para estos compases</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="text-[11px] text-slate-400 px-0.5">
+                    Letra de: <strong className="text-purple-400">{effectiveLyricPasses[activeEditPassIdx]?.label || `Vuelta ${activeEditPassIdx + 1}`}</strong>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-sm font-sans leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-line">
+                    {effectiveLyricPasses[activeEditPassIdx]?.lyrics?.trim() || (
+                      <span className="italic text-slate-400">Sin letra asignada para esta vuelta</span>
+                    )}
+                  </div>
+                </div>
+              )
             )}
           </div>
         )}
@@ -872,6 +1241,7 @@ export function SectionCard({
                 currentRepeat={effectiveCurrentRepeat}
                 totalRepeats={effectiveTotalRepeats}
                 nextSectionName={effectiveNextSectionName}
+                lyricSegments={activePassSegments}
                 onMeasureClick={(clickedMeasure) => onMeasureClick?.(clickedMeasure)}
                 onUpdateMeasures={(updatedMeasures) => onUpdateMeasures(section.id, updatedMeasures)}
                 onAddMeasures={(count) => onAddMeasures(section.id, count)}
