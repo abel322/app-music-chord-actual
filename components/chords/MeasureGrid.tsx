@@ -213,11 +213,10 @@ export function MeasureGrid({
     onUpdateMeasures(duplicatedList)
   }
 
-  // Agrupar compases en bloques (sistemas musicales: 8 en modo stage, 4 en modo wide)
-  const isStage = viewMode !== 'wide'
+  // Agrupar compases en bloques (sistemas musicales: 4 compases por bloque de forma uniforme)
+  const isWide = viewMode === 'wide'
   const hasLyricSegments = Boolean(lyricSegments && lyricSegments.length > 0)
-  // Si tiene segmentos de letra por compás, agrupamos en 4 compases por fila para que cada bloque alinee con su segmento
-  const rowChunk = hasLyricSegments ? 4 : isStage ? 8 : 4
+  const rowChunk = 4
 
   const rows = useMemo(() => {
     const result: Measure[][] = []
@@ -403,7 +402,7 @@ export function MeasureGrid({
   // Calcular corchetes flotantes superiores de cadencias MANUALES con geometría y wrap precisos
   const cadenceBrackets = useMemo(() => {
     const map: Record<string, CadenceBracketInfo> = {}
-    const desktopCols = viewMode === 'wide' ? 4 : 8
+    const desktopCols = viewMode === 'wide' ? 2 : 4
     const mobileCols = viewMode === 'wide' ? 2 : 4
 
     for (let i = 0; i < measures.length; i++) {
@@ -567,10 +566,14 @@ export function MeasureGrid({
                   {/* Grid de compases de esta línea */}
                   <div className={cn(
                     'grid w-full max-w-full pb-1',
-                    hasLyricSegments
-                      ? 'grid-cols-4 gap-1.5 sm:gap-2'
-                      : (isStage ? 'grid-cols-4 md:grid-cols-8 gap-1.5 sm:gap-2' : 'grid-cols-2 md:grid-cols-4 gap-x-2.5 sm:gap-x-3.5'),
-                    hasBracket ? 'pt-7 sm:pt-8 gap-y-8 sm:gap-y-9' : isStage ? (isPlaying ? 'pt-0 gap-y-1 sm:gap-y-1.5' : 'pt-1 gap-y-1.5 sm:gap-y-2') : 'pt-5 gap-y-7'
+                    isWide ? 'grid-cols-2 gap-2' : 'grid-cols-4 gap-1.5',
+                    hasBracket
+                      ? 'pt-7 sm:pt-8 gap-y-8 sm:gap-y-9'
+                      : isWide
+                        ? 'pt-0.5 gap-y-2'
+                        : isPlaying
+                          ? 'pt-0 gap-y-1 sm:gap-y-1.5'
+                          : 'pt-1 gap-y-1.5 sm:gap-y-2'
                   )}>
                     {rowMeasures.map((measure, mIdx) => {
                       const globalIndex = startIdx + mIdx

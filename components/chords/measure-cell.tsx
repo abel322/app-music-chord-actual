@@ -153,7 +153,7 @@ export function MeasureCell({
       className={cn(
         'group relative flex flex-col justify-between select-none overflow-visible transition-all duration-200',
         viewMode === 'wide'
-          ? 'rounded-xl border min-h-[72px] sm:min-h-[96px] py-2 px-2.5 sm:py-4 sm:px-4 scroll-mt-32'
+          ? 'rounded-xl border min-h-[64px] py-1.5 px-2.5 scroll-mt-24'
           : 'rounded-lg border min-h-[58px] p-1.5 scroll-mt-20',
         isSelectedForBatch
           ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/50 ring-2 ring-purple-500/60 shadow-md'
@@ -568,7 +568,7 @@ export function MeasureCell({
         </div>
       ) : (
         /* VISTA AMPLIA COMPLETA */
-        <div className="flex-1 flex flex-col justify-center my-1 min-w-0">
+        <div className="flex-1 flex flex-col justify-center py-0.5 min-w-0">
           {division === 'whole' ? (
           /* Caso Redonda / Métrica Completa: Acorde Centrado y Marcas de Pulso Agrupadas */
           <div className="flex flex-col items-center justify-center min-w-0">

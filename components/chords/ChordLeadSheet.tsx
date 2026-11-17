@@ -298,6 +298,25 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
     }
   }, [])
 
+  // Re-centrar suavemente la sección activa al alternar 'stage' (4 col) <-> 'wide' (2 col)
+  const isFirstRenderViewMode = useRef(true)
+  useEffect(() => {
+    if (isFirstRenderViewMode.current) {
+      isFirstRenderViewMode.current = false
+      return
+    }
+    if (!activeSectionId) return
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`section-${activeSectionId}`)
+      if (el) {
+        smoothScrollToCenter(el, 350)
+      }
+    }, 60)
+
+    return () => clearTimeout(timer)
+  }, [viewMode, activeSectionId, smoothScrollToCenter])
+
   // Estado de Reproducción de Escenario
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMetronomeOn, setIsMetronomeOn] = useState(false)
