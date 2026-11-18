@@ -1350,6 +1350,7 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
       <div className="space-y-4 pt-16 pb-36">
         {sections.map((section, sIdx) => {
           const isSectionActive = section.id === activeSectionId
+          const isCurrentlyPlayingSection = Boolean(isPlaying && isSectionActive)
           const nextSec = sections[sIdx + 1]
           const nextSecName = nextSec ? nextSec.label : null
 
@@ -1367,8 +1368,8 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               globalTempo={tempo}
               viewMode={viewMode}
               isPlaying={isPlaying}
-              activeMeasureId={isSectionActive && isPlaying ? activeMeasureId : null}
-              currentBeatIndex={isSectionActive && isPlaying ? currentBeatIndex : null}
+              activeMeasureId={isCurrentlyPlayingSection ? activeMeasureId : null}
+              currentBeatIndex={isCurrentlyPlayingSection ? currentBeatIndex : null}
               measureDurationMs={0}
               currentRepeat={isSectionActive ? (sectionPassMap[section.id] || 0) + 1 : 1}
               totalRepeats={getSectionTotalPasses(section)}

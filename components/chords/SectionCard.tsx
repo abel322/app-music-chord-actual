@@ -182,6 +182,7 @@ export function SectionCard({
   const isThisSectionActive =
     isSectionActive ??
     (isPlaying && Boolean(activeMeasureId && section.measures.some((m) => m.id === activeMeasureId)))
+  const isCurrentlyPlayingSection = Boolean(isThisSectionActive && isPlaying)
   const effectiveCurrentRepeat = isThisSectionActive ? effectiveCurrentPassIndex + 1 : 1
   const effectiveTotalRepeats = calculatedTotalPasses
   const effectiveNextSectionName = nextSectionName
