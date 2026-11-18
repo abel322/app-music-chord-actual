@@ -73,8 +73,24 @@ interface SongData {
   youtubeUrl?: string | null
 }
 
+export interface RepertoireContextSong {
+  songId: string
+  order: number
+  title: string
+  artist: string | null
+  key: string | null
+}
+
+export interface RepertoireContextData {
+  id: string
+  name: string
+  color: string
+  songs: RepertoireContextSong[]
+}
+
 interface ChordLeadSheetProps {
   song: SongData
+  repertoireContext?: RepertoireContextData | null
 }
 
 const SECTION_OPTIONS = [
@@ -90,7 +106,7 @@ const SECTION_OPTIONS = [
 
 const ALL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
+export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps) {
   const router = useRouter()
   const { isAdmin } = useAuth()
   const [currentKey, setCurrentKey] = useState(song.key || 'C')
@@ -98,6 +114,28 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
   const [tempo, setTempo] = useState<number>(song.tempo || 120)
   const [tempoInput, setTempoInput] = useState<string>(song?.tempo?.toString() || '120')
   const tempoDebounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Contexto de Repertorio para Continuidad en Concierto
+  const currentSongIndexInRepertoire = useMemo(() => {
+    if (!repertoireContext || !repertoireContext.songs) return -1
+    return repertoireContext.songs.findIndex((s) => s.songId === song.id)
+  }, [repertoireContext, song.id])
+
+  const prevRepertoireSong = useMemo(() => {
+    if (!repertoireContext || currentSongIndexInRepertoire <= 0) return null
+    return repertoireContext.songs[currentSongIndexInRepertoire - 1] || null
+  }, [repertoireContext, currentSongIndexInRepertoire])
+
+  const nextRepertoireSong = useMemo(() => {
+    if (
+      !repertoireContext ||
+      currentSongIndexInRepertoire === -1 ||
+      currentSongIndexInRepertoire >= repertoireContext.songs.length - 1
+    ) {
+      return null
+    }
+    return repertoireContext.songs[currentSongIndexInRepertoire + 1] || null
+  }, [repertoireContext, currentSongIndexInRepertoire])
 
   // Sincronizar si el tempo de la canción cambia externamente
   useEffect(() => {
@@ -1022,9 +1060,17 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
         <div className="h-9 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-950">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <Link
-              href="/dashboard/songs/chords"
+              href={
+                repertoireContext
+                  ? `/dashboard/songs/chords?repertoireId=${repertoireContext.id}`
+                  : '/dashboard/songs/chords'
+              }
               className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              title="Volver a lista de canciones"
+              title={
+                repertoireContext
+                  ? `Volver al repertorio: ${repertoireContext.name}`
+                  : 'Volver a lista de canciones'
+              }
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -1041,6 +1087,20 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
               </span>
             )}
           </div>
+
+          {/* Insignia de Repertorio en Vivo si se navega dentro de una carpeta */}
+          {repertoireContext && (
+            <Link
+              href={`/dashboard/songs/chords?repertoireId=${repertoireContext.id}`}
+              className="shrink-0 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-600/50 hover:text-white transition-colors truncate max-w-[150px] sm:max-w-xs flex items-center gap-1"
+              title={`Repertorio: ${repertoireContext.name} (${currentSongIndexInRepertoire >= 0 ? currentSongIndexInRepertoire + 1 : 1}/${repertoireContext.songs.length})`}
+            >
+              <span className="truncate">📂 {repertoireContext.name}</span>
+              <span className="font-mono text-indigo-200 shrink-0">
+                • {currentSongIndexInRepertoire >= 0 ? currentSongIndexInRepertoire + 1 : 1}/{repertoireContext.songs.length}
+              </span>
+            </Link>
+          )}
         </div>
 
         {/* Fila 2 (Barra de Transporte Compacta): Tono/BPM + Botón Iniciar/Pausar + Toggle Escenario + Engranaje */}
@@ -1414,6 +1474,79 @@ export function ChordLeadSheet({ song }: ChordLeadSheetProps) {
           )
         })}
       </div>
+
+      {/* 4. Continuidad de Repertorio / Setlist para Concierto en Vivo */}
+      {repertoireContext && (
+        <div className="mt-8 mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 shadow-xl">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs sm:text-sm font-bold text-indigo-300 flex items-center gap-1.5">
+              <span>📂 Repertorio:</span>
+              <strong className="text-white">{repertoireContext.name}</strong>
+            </span>
+            <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">
+              {currentSongIndexInRepertoire >= 0 ? currentSongIndexInRepertoire + 1 : 1} / {repertoireContext.songs.length}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            {prevRepertoireSong ? (
+              <Link
+                href={`/dashboard/songs/chords/${prevRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
+                className="px-3.5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors shrink-0"
+                title={`Canción anterior: ${prevRepertoireSong.title}`}
+              >
+                <span>⏮️</span>
+                <span className="hidden sm:inline truncate max-w-[140px]">{prevRepertoireSong.title}</span>
+                <span className="sm:hidden">Anterior</span>
+              </Link>
+            ) : (
+              <div className="px-3 py-3 rounded-xl bg-slate-900/60 border border-slate-800/60 text-slate-500 text-xs font-semibold shrink-0">
+                ⏮️ Primera
+              </div>
+            )}
+
+            {nextRepertoireSong ? (
+              <Link
+                href={`/dashboard/songs/chords/${nextRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
+                className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 border border-emerald-400/40 transition-transform active:scale-98 animate-pulse hover:animate-none"
+              >
+                <span>⏭️ Siguiente Canción:</span>
+                <span className="underline decoration-emerald-200 underline-offset-2 truncate max-w-[220px] sm:max-w-md">
+                  {nextRepertoireSong.title}
+                </span>
+                <span className="text-lg">➔</span>
+              </Link>
+            ) : (
+              <div className="flex-1 py-3.5 px-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-center flex items-center justify-center gap-2">
+                <span className="text-amber-400 text-xs sm:text-sm font-bold">
+                  🏁 Fin del Repertorio ({repertoireContext.name})
+                </span>
+                <Link
+                  href={`/dashboard/songs/chords?repertoireId=${repertoireContext.id}`}
+                  className="text-xs text-indigo-300 hover:text-white underline ml-1 font-semibold"
+                >
+                  Volver a Lista
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Botón Flotante Siguiente Canción del Repertorio (Encima de la barra inferior) */}
+      {repertoireContext && nextRepertoireSong && (
+        <div className="fixed bottom-14 sm:bottom-16 right-3 sm:right-6 z-40">
+          <Link
+            href={`/dashboard/songs/chords/${nextRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
+            className="px-3.5 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-xl shadow-black/60 border border-emerald-400/50 backdrop-blur-md transition-all active:scale-95"
+            title={`Pasar a la siguiente canción: ${nextRepertoireSong.title}`}
+          >
+            <span>⏭️ Siguiente:</span>
+            <span className="max-w-[130px] sm:max-w-[200px] truncate">{nextRepertoireSong.title}</span>
+            <span>➔</span>
+          </Link>
+        </div>
+      )}
 
       {/* Agregar Nueva Sección en Modo Edición */}
       {effectiveIsEditing && (
