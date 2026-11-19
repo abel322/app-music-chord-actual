@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isServerAdmin, getAdminUserId } from '@/lib/admin-auth'
+import { ensureRepertoiresTables } from '@/lib/db/ensureRepertoiresTables'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
+    await ensureRepertoiresTables()
+
     const repertoires = await prisma.repertoire.findMany({
       orderBy: { updatedAt: 'desc' },
       include: {
@@ -70,6 +73,8 @@ export async function POST(req: NextRequest) {
     if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'El nombre del repertorio es obligatorio' }, { status: 400 })
     }
+
+    await ensureRepertoiresTables()
 
     const repertoire = await prisma.repertoire.create({
       data: {

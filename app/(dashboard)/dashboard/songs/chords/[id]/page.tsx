@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { ChordLeadSheet } from '@/components/chords/ChordLeadSheet'
+import { ensureRepertoiresTables } from '@/lib/db/ensureRepertoiresTables'
 
 interface SongChordsDetailPageProps {
   params: {
@@ -44,6 +45,7 @@ export default async function SongChordsDetailPage({ params, searchParams }: Son
   const repertoireId = searchParams?.repertoireId
   if (repertoireId) {
     try {
+      await ensureRepertoiresTables()
       const rep = await prisma.repertoire.findUnique({
         where: { id: repertoireId },
         include: {

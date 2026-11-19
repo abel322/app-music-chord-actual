@@ -27,3 +27,19 @@ export interface RepertoireData {
   createdAt?: string
   updatedAt?: string
 }
+
+export interface RepertoireContextSong {
+  songId: string
+  order: number
+  title: string
+  artist: string | null
+  key: string | null
+}
+
+export interface RepertoireContextData {
+  id: string
+  name: string
+  color: string
+  songs: RepertoireContextSong[]
+}
+

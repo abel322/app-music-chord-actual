@@ -17,12 +17,21 @@ import {
   Trash2,
   CheckCircle2,
   Youtube,
-  Play
+  Play,
+  FolderPlus,
+  Folder,
+  ArrowUp,
+  ArrowDown,
+  Settings
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DeleteSongModal } from '@/components/songs/DeleteSongModal'
+import { CreateRepertoireModal } from '@/components/repertoires/CreateRepertoireModal'
+import { ManageRepertoireModal } from '@/components/repertoires/ManageRepertoireModal'
+import { SongRepertoireModal } from '@/components/repertoires/SongRepertoireModal'
 import { getYouTubeThumbnailUrl } from '@/lib/youtube'
 import { useAuth } from '@/lib/context/auth-context'
+import { RepertoireData } from '@/types/repertoire'
 
 interface SerializedSong {
   id: string
@@ -45,6 +54,7 @@ interface SerializedSong {
 
 interface LyricsClientProps {
   initialSongs: SerializedSong[]
+  initialRepertoires?: RepertoireData[]
 }
 
 /**
@@ -107,18 +117,37 @@ function extractLyricsSnippet(song: SerializedSong): { text: string; hasLyrics: 
   }
 }
 
-export function LyricsClient({ initialSongs }: LyricsClientProps) {
+export function LyricsClient({ initialSongs, initialRepertoires = [] }: LyricsClientProps) {
   const router = useRouter()
   const { isAdmin } = useAuth()
   const [songs, setSongs] = useState<SerializedSong[]>(initialSongs)
+  const [repertoires, setRepertoires] = useState<RepertoireData[]>(initialRepertoires)
+  const [selectedRepertoireId, setSelectedRepertoireId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'with-lyrics' | 'instrumental'>('all')
   const [songToDelete, setSongToDelete] = useState<SerializedSong | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
+  // Modales de Repertorios
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [repertoireToManage, setRepertoireToManage] = useState<RepertoireData | null>(null)
+  const [songToAssign, setSongToAssign] = useState<SerializedSong | null>(null)
+
   useEffect(() => {
     setSongs(initialSongs)
   }, [initialSongs])
+
+  useEffect(() => {
+    if (initialRepertoires) {
+      setRepertoires(initialRepertoires)
+    }
+  }, [initialRepertoires])
+
+  // Repertorio actualmente seleccionado
+  const selectedRepertoire = useMemo(() => {
+    if (!selectedRepertoireId) return null
+    return repertoires.find((r) => r.id === selectedRepertoireId) || null
+  }, [repertoires, selectedRepertoireId])
 
   const processedSongs = useMemo(() => {
     return songs.map((song) => {
@@ -130,8 +159,28 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
     })
   }, [songs])
 
+  // Filtrado y ordenamiento de canciones respetando el orden del repertorio
   const filteredSongs = useMemo(() => {
-    return processedSongs.filter((song) => {
+    let list: (ReturnType<typeof processedSongs[0]> & { repertoireOrder?: number })[] = []
+
+    if (selectedRepertoire) {
+      const songOrderMap = new Map<string, number>()
+      selectedRepertoire.songs.forEach((rs) => {
+        songOrderMap.set(rs.songId, rs.order)
+      })
+
+      list = processedSongs
+        .filter((song) => songOrderMap.has(song.id))
+        .map((song) => ({
+          ...song,
+          repertoireOrder: songOrderMap.get(song.id) ?? 0,
+        }))
+        .sort((a, b) => (a.repertoireOrder ?? 0) - (b.repertoireOrder ?? 0))
+    } else {
+      list = [...processedSongs]
+    }
+
+    return list.filter((song) => {
       const q = searchQuery.toLowerCase()
       const matchesSearch =
         song.title.toLowerCase().includes(q) ||
@@ -147,11 +196,95 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
 
       return matchesSearch && matchesFilter
     })
-  }, [processedSongs, searchQuery, filterType])
+  }, [processedSongs, selectedRepertoire, searchQuery, filterType])
+
+  // Reordenar canción dentro de la carpeta activa con ↑ / ↓
+  const handleMoveSongInRepertoire = async (songId: string, direction: 'up' | 'down') => {
+    if (!selectedRepertoire) return
+    const currentSongs = [...selectedRepertoire.songs]
+    const currentIdx = currentSongs.findIndex((s) => s.songId === songId)
+    if (currentIdx === -1) return
+    const targetIdx = direction === 'up' ? currentIdx - 1 : currentIdx + 1
+    if (targetIdx < 0 || targetIdx >= currentSongs.length) return
+
+    const temp = currentSongs[currentIdx]
+    currentSongs[currentIdx] = currentSongs[targetIdx]
+    currentSongs[targetIdx] = temp
+
+    const reordered = currentSongs.map((item, idx) => ({ ...item, order: idx }))
+    const updatedRepertoire = { ...selectedRepertoire, songs: reordered }
+
+    setRepertoires((prev) =>
+      prev.map((r) => (r.id === selectedRepertoire.id ? updatedRepertoire : r))
+    )
+
+    try {
+      await fetch(`/api/repertoires/${selectedRepertoire.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderedSongIds: reordered.map((s) => s.songId),
+        }),
+      })
+    } catch (err) {
+      console.error('Error reordering repertoire songs in lyrics:', err)
+    }
+  }
+
+  // Asignar o desasignar canción de un repertorio
+  const handleToggleSongInRepertoire = async (
+    repertoireId: string,
+    songId: string,
+    action: 'add' | 'remove'
+  ) => {
+    try {
+      const res = await fetch(`/api/repertoires/${repertoireId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          action === 'add' ? { addSongId: songId } : { removeSongId: songId }
+        ),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.repertoire) {
+          setRepertoires((prev) =>
+            prev.map((r) => (r.id === repertoireId ? data.repertoire : r))
+          )
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling song in repertoire:', err)
+    }
+  }
+
+  const handleRepertoireCreated = (newRep: RepertoireData) => {
+    setRepertoires((prev) => [newRep, ...prev])
+    setSelectedRepertoireId(newRep.id)
+    setToastMessage(`Carpeta «${newRep.name}» creada correctamente`)
+    setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  const handleRepertoireUpdated = (updatedRep: RepertoireData) => {
+    setRepertoires((prev) =>
+      prev.map((r) => (r.id === updatedRep.id ? updatedRep : r))
+    )
+    setToastMessage(`Carpeta «${updatedRep.name}» actualizada`)
+    setTimeout(() => setToastMessage(null), 3500)
+  }
+
+  const handleRepertoireDeleted = (deletedId: string) => {
+    setRepertoires((prev) => prev.filter((r) => r.id !== deletedId))
+    if (selectedRepertoireId === deletedId) {
+      setSelectedRepertoireId(null)
+    }
+    setToastMessage('Carpeta eliminada del repertorio')
+    setTimeout(() => setToastMessage(null), 3500)
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Header con Tabs y Botón de Creación */}
+      {/* Header con Tabs y Botones de Creación */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200 dark:border-gray-800">
         <div>
           <div className="flex items-center gap-3">
@@ -163,11 +296,11 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
             </span>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Visualización y gestión de canciones con foco en texto, versos y contenido lírico.
+            Visualización y gestión de canciones con foco en texto, versos y carpetas de repertorio en vivo.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
           {/* Switcher de Vistas: Acordes vs Letras */}
           <div className="flex p-1 bg-gray-100 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
             <Link
@@ -186,7 +319,20 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
             </Link>
           </div>
 
-          {/* Botón "+ Nueva Canción" solo visible para el Administrador */}
+          {/* Botón "+ Carpeta" */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-900/20 border border-indigo-500 cursor-pointer transition-all active:scale-95"
+              title="Crear nueva carpeta de repertorio"
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span>+ Carpeta</span>
+            </button>
+          )}
+
+          {/* Botón "+ Nueva Canción" */}
           {isAdmin && (
             <Link href="/dashboard/songs/new">
               <Button variant="gradient" className="shadow-md shadow-primary-900/20">
@@ -198,7 +344,87 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
         </div>
       </div>
 
-      {/* Barra de Filtros y Búsqueda */}
+      {/* Fila 1 de Filtros: Selector Horizontal de Carpetas / Repertorios (Setlists) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Folder className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Repertorios / Carpetas:</span>
+          </span>
+          {selectedRepertoire && isAdmin && (
+            <button
+              type="button"
+              onClick={() => setRepertoireToManage(selectedRepertoire)}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Gestionar {selectedRepertoire.name}</span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-none">
+          {/* Opción 'Todas' */}
+          <button
+            type="button"
+            onClick={() => setSelectedRepertoireId(null)}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none ${
+              selectedRepertoireId === null
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-950 shadow-md ring-2 ring-slate-800 dark:ring-slate-200'
+                : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span>📚 Todas</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                selectedRepertoireId === null
+                  ? 'bg-slate-800 text-slate-200 dark:bg-slate-200 dark:text-slate-900'
+                  : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              {songs.length}
+            </span>
+          </button>
+
+          {/* Carpetas Creadas */}
+          {repertoires.map((rep) => {
+            const isSelected = selectedRepertoireId === rep.id
+            return (
+              <div key={rep.id} className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRepertoireId(rep.id)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none cursor-pointer ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/30 ring-2 ring-indigo-400'
+                      : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>📂</span>
+                  <span className="truncate max-w-[140px]">{rep.name}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      isSelected
+                        ? 'bg-indigo-700 text-indigo-100'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    {rep.songs.length}
+                  </span>
+                </button>
+              </div>
+            )
+          })}
+
+          {repertoires.length === 0 && (
+            <span className="text-xs text-gray-400 italic py-1 px-2">
+              No hay carpetas creadas. Crea una con &quot;+ Carpeta&quot;.
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Fila 2: Filtros de Búsqueda y Estado */}
       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -219,7 +445,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
           <button
             type="button"
             onClick={() => setFilterType('all')}
-            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 ${
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 cursor-pointer ${
               filterType === 'all'
                 ? 'bg-primary-600 text-white shadow-sm'
                 : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -230,7 +456,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
           <button
             type="button"
             onClick={() => setFilterType('with-lyrics')}
-            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 ${
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 cursor-pointer ${
               filterType === 'with-lyrics'
                 ? 'bg-primary-600 text-white shadow-sm'
                 : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -241,7 +467,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
           <button
             type="button"
             onClick={() => setFilterType('instrumental')}
-            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 ${
+            className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 cursor-pointer ${
               filterType === 'instrumental'
                 ? 'bg-primary-600 text-white shadow-sm'
                 : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -255,12 +481,21 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
       {/* Resumen de Conteo */}
       <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-1">
         <span>
-          Mostrando <strong className="text-gray-800 dark:text-gray-200">{filteredSongs.length}</strong> de {initialSongs.length} canciones
+          {selectedRepertoire ? (
+            <span>
+              Carpeta <strong className="text-indigo-600 dark:text-indigo-400">{selectedRepertoire.name}</strong>: Mostrando{' '}
+              <strong className="text-gray-800 dark:text-gray-200">{filteredSongs.length}</strong> canciones en orden de concierto
+            </span>
+          ) : (
+            <span>
+              Mostrando <strong className="text-gray-800 dark:text-gray-200">{filteredSongs.length}</strong> de {songs.length} canciones
+            </span>
+          )}
         </span>
         {filterType !== 'all' && (
           <button
             onClick={() => setFilterType('all')}
-            className="text-primary-600 dark:text-primary-400 hover:underline"
+            className="text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
           >
             Ver todas
           </button>
@@ -277,11 +512,11 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
             No se encontraron letras
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-            {initialSongs.length === 0
+            {songs.length === 0
               ? 'Aún no hay canciones registradas en la biblioteca.'
               : 'No hay canciones que coincidan con el texto de búsqueda o el filtro seleccionado.'}
           </p>
-          {initialSongs.length === 0 ? (
+          {songs.length === 0 ? (
             isAdmin && (
               <Link href="/dashboard/songs/new">
                 <Button variant="gradient">
@@ -296,6 +531,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
               onClick={() => {
                 setSearchQuery('')
                 setFilterType('all')
+                setSelectedRepertoireId(null)
               }}
             >
               Restablecer Filtros
@@ -304,8 +540,11 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredSongs.map((song) => {
+          {filteredSongs.map((song, songIndex) => {
             const thumbnailUrl = getYouTubeThumbnailUrl(song.youtubeUrl)
+            const lyricsUrl = selectedRepertoireId
+              ? `/dashboard/songs/lyrics/${song.id}?repertoireId=${selectedRepertoireId}`
+              : `/dashboard/songs/lyrics/${song.id}`
 
             return (
               <div
@@ -313,6 +552,39 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
                 className="group relative bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-xl hover:border-purple-500/50 dark:hover:border-purple-500/40 transition-all duration-300 flex flex-col justify-between"
               >
                 <div>
+                  {/* Badge de Orden si estamos dentro de un Repertorio */}
+                  {selectedRepertoire && (
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-indigo-100 dark:border-indigo-950/60">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80">
+                        #{songIndex + 1} en Concierto
+                      </span>
+
+                      {/* Botones de subir / bajar orden táctiles */}
+                      {isAdmin && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSongInRepertoire(song.id, 'up')}
+                            disabled={songIndex === 0}
+                            className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-300 transition-colors"
+                            title="Subir de posición en el concierto"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSongInRepertoire(song.id, 'down')}
+                            disabled={songIndex === filteredSongs.length - 1}
+                            className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-700 dark:text-slate-300 transition-colors"
+                            title="Bajar de posición en el concierto"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Miniatura de Video de YouTube (si tiene enlace válido) */}
                   {thumbnailUrl && (
                     <a
@@ -398,11 +670,24 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
                   </div>
                 </div>
 
-                {/* Botón de Acción a Editor y Eliminación Condicional */}
-                <div className="pt-2 border-t border-gray-100 dark:border-slate-800/60 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-400">
-                    {song.genre || (song.snippet.hasLyrics ? 'Con lírica' : 'Instrumental')}
-                  </span>
+                {/* Barra Inferior de Acciones: Asignar a Repertorio + Ver Letra + Eliminar */}
+                <div className="pt-3 border-t border-gray-100 dark:border-slate-800/60 flex items-center justify-between gap-2">
+                  {/* Botón rápido "+ Repertorio" */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setSongToAssign(song)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/60 transition-colors cursor-pointer"
+                    title="Añadir o retirar de carpetas / repertorios"
+                  >
+                    <Folder className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span className="hidden sm:inline">+</span>
+                    <span>Repertorio</span>
+                  </button>
+
                   <div className="flex items-center gap-1.5">
                     {/* Botón de eliminar solo disponible para el Administrador */}
                     {isAdmin && (
@@ -413,7 +698,7 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
                           e.preventDefault()
                           setSongToDelete(song)
                         }}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800/50"
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-800/50 cursor-pointer"
                         title="Eliminar canción"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -421,8 +706,8 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
                     )}
 
                     <Link
-                      href={`/dashboard/songs/lyrics/${song.id}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200/60 dark:border-purple-800/50 transition-colors"
+                      href={lyricsUrl}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200/60 dark:border-purple-800/50 transition-colors"
                     >
                       <span>Ver Letra</span>
                       <ExternalLink className="w-3 h-3" />
@@ -433,6 +718,38 @@ export function LyricsClient({ initialSongs }: LyricsClientProps) {
             )
           })}
         </div>
+      )}
+
+      {/* Modal de Crear Nueva Carpeta */}
+      <CreateRepertoireModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        allSongs={songs}
+        onRepertoireCreated={handleRepertoireCreated}
+      />
+
+      {/* Modal de Gestionar Carpeta Activa */}
+      {repertoireToManage && (
+        <ManageRepertoireModal
+          isOpen={!!repertoireToManage}
+          onClose={() => setRepertoireToManage(null)}
+          repertoire={repertoireToManage}
+          allSongs={songs}
+          onRepertoireUpdated={handleRepertoireUpdated}
+          onRepertoireDeleted={handleRepertoireDeleted}
+        />
+      )}
+
+      {/* Modal de Asignar Canción a Repertorios */}
+      {songToAssign && (
+        <SongRepertoireModal
+          isOpen={!!songToAssign}
+          onClose={() => setSongToAssign(null)}
+          song={songToAssign}
+          repertoires={repertoires}
+          onToggleSongInRepertoire={handleToggleSongInRepertoire}
+          onOpenCreateRepertoire={() => setIsCreateModalOpen(true)}
+        />
       )}
 
       {/* Modal de Confirmación de Eliminación */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isServerAdmin } from '@/lib/admin-auth'
+import { ensureRepertoiresTables } from '@/lib/db/ensureRepertoiresTables'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    await ensureRepertoiresTables()
+
     const repertoire = await prisma.repertoire.findUnique({
       where: { id: params.id },
       include: {
@@ -68,6 +71,8 @@ export async function PATCH(
     const body = await req.json()
     const { name, description, color, eventDate, addSongId, removeSongId, orderedSongIds } = body
     const repertoireId = params.id
+
+    await ensureRepertoiresTables()
 
     const existing = await prisma.repertoire.findUnique({
       where: { id: repertoireId },
@@ -176,6 +181,8 @@ export async function DELETE(
         { status: 403 }
       )
     }
+
+    await ensureRepertoiresTables()
 
     await prisma.repertoire.delete({
       where: { id: params.id },

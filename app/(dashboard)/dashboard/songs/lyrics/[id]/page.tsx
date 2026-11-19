@@ -1,10 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { LyricsEditor } from '@/components/lyrics/LyricsEditor'
+import { ensureRepertoiresTables } from '@/lib/db/ensureRepertoiresTables'
 
 interface SongLyricsDetailPageProps {
   params: {
     id: string
+  }
+  searchParams?: {
+    repertoireId?: string
   }
 }
 
@@ -26,7 +30,7 @@ export async function generateMetadata({ params }: SongLyricsDetailPageProps) {
   }
 }
 
-export default async function SongLyricsDetailPage({ params }: SongLyricsDetailPageProps) {
+export default async function SongLyricsDetailPage({ params, searchParams }: SongLyricsDetailPageProps) {
   const song = await prisma.song.findUnique({
     where: {
       id: params.id,
@@ -37,6 +41,49 @@ export default async function SongLyricsDetailPage({ params }: SongLyricsDetailP
     notFound()
   }
 
+  let repertoireContext = null
+  const repertoireId = searchParams?.repertoireId
+  if (repertoireId) {
+    try {
+      await ensureRepertoiresTables()
+      const rep = await prisma.repertoire.findUnique({
+        where: { id: repertoireId },
+        include: {
+          songs: {
+            orderBy: { order: 'asc' },
+            include: {
+              song: {
+                select: {
+                  id: true,
+                  title: true,
+                  artist: true,
+                  key: true,
+                },
+              },
+            },
+          },
+        },
+      })
+
+      if (rep) {
+        repertoireContext = {
+          id: rep.id,
+          name: rep.name,
+          color: rep.color,
+          songs: rep.songs.map((rs) => ({
+            songId: rs.songId,
+            order: rs.order,
+            title: rs.song.title,
+            artist: rs.song.artist,
+            key: rs.song.key,
+          })),
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching repertoire context in lyrics detail:', err)
+    }
+  }
+
   // Serializar fechas para Client Component
   const serializedSong = {
     ...song,
@@ -44,5 +91,5 @@ export default async function SongLyricsDetailPage({ params }: SongLyricsDetailP
     updatedAt: song.updatedAt instanceof Date ? song.updatedAt.toISOString() : (song.updatedAt || new Date().toISOString()),
   }
 
-  return <LyricsEditor song={serializedSong} />
+  return <LyricsEditor song={serializedSong} repertoireContext={repertoireContext} />
 }

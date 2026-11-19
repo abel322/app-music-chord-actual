@@ -39,6 +39,7 @@ import {
 } from '@/lib/measure-utils'
 import { SectionMeasures } from '@/types/measure'
 import { SectionTempoControl, getTempoDescriptor } from '@/components/chords/SectionTempoControl'
+import { RepertoireContextData } from '@/types/repertoire'
 
 interface SongData {
   id: string
@@ -54,6 +55,7 @@ interface SongData {
 
 interface LyricsEditorProps {
   song: SongData
+  repertoireContext?: RepertoireContextData | null
 }
 
 const STRUCTURE_TAGS = [
@@ -111,9 +113,31 @@ export function parseSectionTag(rawInside: string): { cleanName: string; repeats
   }
 }
 
-export function LyricsEditor({ song }: LyricsEditorProps) {
+export function LyricsEditor({ song, repertoireContext }: LyricsEditorProps) {
   const router = useRouter()
   const { isAdmin } = useAuth()
+
+  // Contexto de Repertorio para Continuidad en Concierto
+  const currentSongIndexInRepertoire = useMemo(() => {
+    if (!repertoireContext || !repertoireContext.songs) return -1
+    return repertoireContext.songs.findIndex((s) => s.songId === song.id)
+  }, [repertoireContext, song.id])
+
+  const prevRepertoireSong = useMemo(() => {
+    if (!repertoireContext || currentSongIndexInRepertoire <= 0) return null
+    return repertoireContext.songs[currentSongIndexInRepertoire - 1] || null
+  }, [repertoireContext, currentSongIndexInRepertoire])
+
+  const nextRepertoireSong = useMemo(() => {
+    if (
+      !repertoireContext ||
+      currentSongIndexInRepertoire === -1 ||
+      currentSongIndexInRepertoire >= repertoireContext.songs.length - 1
+    ) {
+      return null
+    }
+    return repertoireContext.songs[currentSongIndexInRepertoire + 1] || null
+  }, [repertoireContext, currentSongIndexInRepertoire])
 
   // 1. Single Source of Truth: Inicializar y migrar secciones directamente de song.sections
   const initialSections = useMemo<SectionMeasures[]>(() => {
@@ -714,7 +738,13 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
       {/* Header Superior */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/songs/lyrics">
+          <Link
+            href={
+              repertoireContext
+                ? `/dashboard/songs/lyrics?repertoireId=${repertoireContext.id}`
+                : '/dashboard/songs/lyrics'
+            }
+          >
             <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-300">
               <ArrowLeft className="w-4 h-4 mr-1.5" />
               <span>Volver a Letras</span>
@@ -722,11 +752,23 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
           </Link>
           <div className="h-4 w-px bg-slate-200 dark:bg-slate-800" />
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2 flex-wrap">
               <span>{song.title}</span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                 Visor de Letras (Teleprompter)
               </span>
+              {repertoireContext && (
+                <Link
+                  href={`/dashboard/songs/lyrics?repertoireId=${repertoireContext.id}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 transition-colors"
+                  title={`Repertorio: ${repertoireContext.name}`}
+                >
+                  <span>📂 {repertoireContext.name}</span>
+                  <span className="font-mono">
+                    • {currentSongIndexInRepertoire >= 0 ? currentSongIndexInRepertoire + 1 : 1}/{repertoireContext.songs.length}
+                  </span>
+                </Link>
+              )}
             </h1>
             <p className="text-xs text-slate-500">{song.artist || 'Artista no especificado'}</p>
           </div>
@@ -735,7 +777,13 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
         {/* Acciones del Header */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Enlace directo a la vista de Acordes */}
-          <Link href={`/dashboard/songs/chords/${song.id}`}>
+          <Link
+            href={
+              repertoireContext
+                ? `/dashboard/songs/chords/${song.id}?repertoireId=${repertoireContext.id}`
+                : `/dashboard/songs/chords/${song.id}`
+            }
+          >
             <Button variant="outline" size="sm" className="gap-1.5 text-xs text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800/60">
               <Music className="w-3.5 h-3.5" />
               <span>Ver Acordes</span>
@@ -1512,6 +1560,79 @@ export function LyricsEditor({ song }: LyricsEditorProps) {
           </div>
         )}
       </div>
+
+      {/* Continuidad de Repertorio / Setlist para Concierto en Modo Letras */}
+      {repertoireContext && (
+        <div className="mt-8 mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 shadow-xl text-white">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs sm:text-sm font-bold text-indigo-300 flex items-center gap-1.5">
+              <span>📂 Repertorio:</span>
+              <strong className="text-white">{repertoireContext.name}</strong>
+            </span>
+            <span className="text-xs font-mono font-extrabold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">
+              {currentSongIndexInRepertoire >= 0 ? currentSongIndexInRepertoire + 1 : 1} / {repertoireContext.songs.length}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            {prevRepertoireSong ? (
+              <Link
+                href={`/dashboard/songs/lyrics/${prevRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
+                className="px-3.5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors shrink-0"
+                title={`Canción anterior: ${prevRepertoireSong.title}`}
+              >
+                <span>⏮️</span>
+                <span className="hidden sm:inline truncate max-w-[140px]">{prevRepertoireSong.title}</span>
+                <span className="sm:hidden">Anterior</span>
+              </Link>
+            ) : (
+              <div className="px-3 py-3 rounded-xl bg-slate-900/60 border border-slate-800/60 text-slate-500 text-xs font-semibold shrink-0">
+                ⏮️ Primera
+              </div>
+            )}
+
+            {nextRepertoireSong ? (
+              <Link
+                href={`/dashboard/songs/lyrics/${nextRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
+                className="flex-1 py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-purple-950/60 border border-purple-400/40 transition-transform active:scale-98 animate-pulse hover:animate-none"
+              >
+                <span>⏭️ Siguiente Canción:</span>
+                <span className="underline decoration-purple-200 underline-offset-2 truncate max-w-[220px] sm:max-w-md">
+                  {nextRepertoireSong.title}
+                </span>
+                <span className="text-lg">➔</span>
+              </Link>
+            ) : (
+              <div className="flex-1 py-3.5 px-4 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-center flex items-center justify-center gap-2">
+                <span className="text-amber-400 text-xs sm:text-sm font-bold">
+                  🏁 Fin del Repertorio ({repertoireContext.name})
+                </span>
+                <Link
+                  href={`/dashboard/songs/lyrics?repertoireId=${repertoireContext.id}`}
+                  className="text-xs text-indigo-300 hover:text-white underline ml-1 font-semibold"
+                >
+                  Volver a Lista
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Botón Flotante Siguiente Canción del Repertorio (Teleprompter en Vivo) */}
+      {repertoireContext && nextRepertoireSong && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <Link
+            href={`/dashboard/songs/lyrics/${nextRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
+            className="px-4 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-2xl shadow-black/70 border border-purple-400/50 backdrop-blur-md transition-all active:scale-95"
+            title={`Pasar a la siguiente canción: ${nextRepertoireSong.title}`}
+          >
+            <span>⏭️ Siguiente:</span>
+            <span className="max-w-[140px] sm:max-w-[220px] truncate">{nextRepertoireSong.title}</span>
+            <span>➔</span>
+          </Link>
+        </div>
+      )}
 
       {/* Footer Informativo */}
       <div className="flex items-center justify-between text-xs text-slate-400 px-2 flex-wrap gap-2">

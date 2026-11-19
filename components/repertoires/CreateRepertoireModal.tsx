@@ -186,7 +186,12 @@ export function CreateRepertoireModal({
           <div className="pt-2 border-t border-gray-100 dark:border-slate-800">
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                Incluir Canciones ({selectedSongIds.length})
+                INCLUIR CANCIONES ({allSongs.length})
+                {selectedSongIds.length > 0 && (
+                  <span className="normal-case font-normal text-indigo-500 ml-1.5">
+                    ({selectedSongIds.length} marcadas)
+                  </span>
+                )}
               </label>
               {selectedSongIds.length > 0 && (
                 <button

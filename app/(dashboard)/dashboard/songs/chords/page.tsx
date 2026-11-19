@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { ChordsClient } from './chords-client'
+import { ensureRepertoiresTables } from '@/lib/db/ensureRepertoiresTables'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,38 +13,42 @@ export default async function SongsChordsPage() {
   let songs: any[] = []
   let repertoires: any[] = []
 
+  // 1. Cargar canciones de forma independiente (Garantiza que NUNCA quede en 0 de 0)
   try {
-    const [fetchedSongs, fetchedRepertoires] = await Promise.all([
-      prisma.song.findMany({
-        orderBy: { updatedAt: 'desc' },
-      }),
-      prisma.repertoire.findMany({
-        orderBy: { updatedAt: 'desc' },
-        include: {
-          songs: {
-            orderBy: { order: 'asc' },
-            include: {
-              song: {
-                select: {
-                  id: true,
-                  title: true,
-                  artist: true,
-                  key: true,
-                  tempo: true,
-                  timeSignature: true,
-                  youtubeUrl: true,
-                  isFavorite: true,
-                },
+    songs = await prisma.song.findMany({
+      orderBy: { updatedAt: 'desc' },
+    })
+  } catch (e) {
+    console.error('Error fetching songs for chords page:', e)
+  }
+
+  // 2. Cargar repertorios asegurando que las tablas existan en PostgreSQL
+  try {
+    await ensureRepertoiresTables()
+    repertoires = await prisma.repertoire.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        songs: {
+          orderBy: { order: 'asc' },
+          include: {
+            song: {
+              select: {
+                id: true,
+                title: true,
+                artist: true,
+                key: true,
+                tempo: true,
+                timeSignature: true,
+                youtubeUrl: true,
+                isFavorite: true,
               },
             },
           },
         },
-      }),
-    ])
-    songs = fetchedSongs
-    repertoires = fetchedRepertoires
+      },
+    })
   } catch (e) {
-    console.error('Error fetching songs/repertoires for chords page:', e)
+    console.error('Error fetching repertoires for chords page:', e)
   }
 
   // Serializar fechas para el Client Component
