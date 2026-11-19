@@ -51,7 +51,6 @@ interface NavItem {
 
 export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarProps) {
   const pathname = usePathname()
-  const isLeadSheetPage = pathname?.includes('/dashboard/songs/chords/') || pathname?.includes('/dashboard/songs/drums/')
   const [isOpen, setIsOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
 
@@ -92,14 +91,14 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
       {/* Mobile Sidebar Backdrop Overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-all duration-300 animate-in fade-in"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-all duration-300 animate-in fade-in"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar Container (Desktop & Mobile Drawer) */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200 dark:border-gray-800 bg-slate-900 transition-transform duration-300 ease-in-out md:translate-x-0",
+        "fixed inset-y-0 left-0 z-[60] flex w-64 flex-col border-r border-gray-200 dark:border-gray-800 bg-slate-900 transition-transform duration-300 ease-in-out md:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Logo and Mobile Close Button */}
@@ -190,10 +189,7 @@ export function Sidebar({ user: initialUser, isAdmin: initialIsAdmin }: SidebarP
       </aside>
 
       {/* Mobile top bar */}
-      <div className={cn(
-        "md:hidden flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 w-full",
-        isLeadSheetPage ? "relative" : "sticky top-0 z-40"
-      )}>
+      <div className="md:hidden flex items-center justify-between h-14 px-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 w-full sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <Button 
             variant="ghost" 

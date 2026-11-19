@@ -70,7 +70,7 @@ export function SectionQuickNav({
   return (
     <div
       className={cn(
-        'fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-2 py-1.5 sm:py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl select-none',
+        'fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-2 py-1.5 sm:py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl select-none',
         className
       )}
     >

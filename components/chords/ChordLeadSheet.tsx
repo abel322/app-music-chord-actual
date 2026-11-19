@@ -1055,7 +1055,7 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
   return (
     <div className="w-full max-w-full min-h-screen max-w-7xl mx-auto pb-36">
       {/* 1. Cabecera Superior Sticky en 2 Filas (Título Visible Arriba + Barra de Transporte Compacta) */}
-      <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-sm text-white">
+      <header className="sticky top-14 md:top-0 z-20 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-sm text-white">
         {/* Fila 1 (Título de Canción): Barra limpia h-9 con botón ← y título completo siempre visible */}
         <div className="h-9 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-950">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1183,7 +1183,7 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
 
       {/* Panel Desplegable de Controles y Transporte (Colapsado por defecto para 85%+ área de acordes) */}
       {isControlsDrawerOpen && (
-        <div className="sticky top-[76px] z-40 bg-slate-900/98 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shadow-2xl space-y-3.5 animate-in slide-in-from-top-2 duration-200">
+        <div className="sticky top-[132px] md:top-[76px] z-20 bg-slate-900/98 backdrop-blur-md border-b border-slate-800 p-3 sm:p-4 shadow-2xl space-y-3.5 animate-in slide-in-from-top-2 duration-200">
           {/* Fila 1: Botones de Acción (Letras, Batería, YouTube, Edición, Guardar) */}
           <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-800/80">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1535,7 +1535,7 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
 
       {/* Botón Flotante Siguiente Canción del Repertorio (Encima de la barra inferior) */}
       {repertoireContext && nextRepertoireSong && (
-        <div className="fixed bottom-14 sm:bottom-16 right-3 sm:right-6 z-40">
+        <div className="fixed bottom-14 sm:bottom-16 right-3 sm:right-6 z-20">
           <Link
             href={`/dashboard/songs/chords/${nextRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
             className="px-3.5 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-xl shadow-black/60 border border-emerald-400/50 backdrop-blur-md transition-all active:scale-95"

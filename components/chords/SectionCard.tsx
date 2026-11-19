@@ -435,7 +435,7 @@ export function SectionCard({
         onSectionFocus?.(section.id)
       }}
       className={cn(
-        'rounded-2xl transition-all scroll-mt-20 relative',
+        'rounded-2xl transition-all scroll-mt-36 md:scroll-mt-24 relative',
         isThisSectionActive
           ? 'ring-2 ring-cyan-400 border-2 border-cyan-400/80 bg-slate-900/95 shadow-[0_0_25px_rgba(34,211,238,0.15)]'
           : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm'
@@ -443,7 +443,7 @@ export function SectionCard({
     >
       {/* 2. Cabecera de Sección Adhesiva (Sticky Section Header Contextual) */}
       <div className={cn(
-        "sticky top-[76px] z-30 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-b rounded-t-2xl flex items-center justify-between text-white shadow-sm transition-all",
+        "sticky top-[132px] md:top-[76px] z-10 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md border-b rounded-t-2xl flex items-center justify-between text-white shadow-sm transition-all",
         isPlaying ? "py-1 px-2.5 min-h-[28px] gap-2" : "py-1.5 px-3 flex-wrap gap-2.5",
         isThisSectionActive ? "border-cyan-500/40" : "border-slate-800/80"
       )}>

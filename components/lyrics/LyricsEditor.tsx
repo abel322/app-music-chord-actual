@@ -1621,7 +1621,7 @@ export function LyricsEditor({ song, repertoireContext }: LyricsEditorProps) {
 
       {/* Botón Flotante Siguiente Canción del Repertorio (Teleprompter en Vivo) */}
       {repertoireContext && nextRepertoireSong && (
-        <div className="fixed bottom-6 right-6 z-40">
+        <div className="fixed bottom-6 right-6 z-20">
           <Link
             href={`/dashboard/songs/lyrics/${nextRepertoireSong.songId}?repertoireId=${repertoireContext.id}`}
             className="px-4 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-2xl shadow-black/70 border border-purple-400/50 backdrop-blur-md transition-all active:scale-95"
