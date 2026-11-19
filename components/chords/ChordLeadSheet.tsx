@@ -17,6 +17,7 @@ import {
   ArrowUp,
   ArrowDown,
   Check,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Printer,
@@ -105,6 +106,41 @@ const SECTION_OPTIONS = [
 ]
 
 const ALL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+
+/**
+ * Clona profundamente los compases para una sección homónima,
+ * asignando IDs únicos a compases y beats para evitar colisiones en React,
+ * y preservando la letra guía particular del compás si existía en la sección destino.
+ */
+function cloneMeasuresForSection(
+  sourceMeasures: Measure[],
+  targetSectionId: string,
+  targetExistingMeasures?: Measure[]
+): Measure[] {
+  return sourceMeasures.map((m, idx) => {
+    const uniqueMeasureId = `m-${targetSectionId}-${idx + 1}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    const existingGuideLyric = targetExistingMeasures?.[idx]?.guideLyric
+    return {
+      ...m,
+      id: uniqueMeasureId,
+      measureNumber: idx + 1,
+      guideLyric: existingGuideLyric !== undefined ? existingGuideLyric : m.guideLyric,
+      slots: m.slots ? m.slots.map((s) => ({ ...s })) : undefined,
+      beats: Array.isArray(m.beats)
+        ? m.beats.map((b, bIdx) => ({
+            ...b,
+            id: `b-${uniqueMeasureId}-${bIdx + 1}-${Math.random().toString(36).slice(2, 6)}`,
+            subSlots: Array.isArray(b.subSlots)
+              ? b.subSlots.map((ss) => ({
+                  ...ss,
+                  id: `ss-${uniqueMeasureId}-${Math.random().toString(36).slice(2, 6)}`,
+                }))
+              : undefined,
+          }))
+        : [],
+    }
+  })
+}
 
 export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps) {
   const router = useRouter()
@@ -280,6 +316,38 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
       setActiveSectionId(sections[0].id)
     }
   }, [sections, activeSectionId])
+
+  // Conteo de secciones homónimas para detección de duplicados (CORO, ESTROFA, PUENTE...)
+  const sectionNameCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    sections.forEach((s) => {
+      const norm = ((s as any).name || s.label || '').trim().toUpperCase()
+      counts[norm] = (counts[norm] || 0) + 1
+    })
+    return counts
+  }, [sections])
+
+  // Estado de sincronización armónica por sección (por defecto true cuando hay duplicados)
+  const [syncSectionEdits, setSyncSectionEdits] = useState<Record<string, boolean>>({})
+
+  const handleToggleSyncSection = useCallback((sectionId: string) => {
+    setSyncSectionEdits((prev) => ({
+      ...prev,
+      [sectionId]: prev[sectionId] === false ? true : false,
+    }))
+  }, [])
+
+  // Notificaciones Toast flotantes
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const showToast = useCallback((msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setToastMessage(msg)
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null)
+    }, 3000)
+  }, [])
 
   // Desplazamiento suave centrado hacia la sección objetivo (Anterior Arriba • Actual en el Centro • Siguiente Abajo)
   const scrollAnimRef = useRef<number | null>(null)
@@ -835,40 +903,103 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
     setSections((prev) => updateSectionsTimeSignature(prev, newTimeSig))
   }
 
-  // Aplicar progresión a una sección completa
+  // Aplicar progresión a una sección completa (sincronizada si está activa)
   const handleApplyProgression = (sectionId: string, prog: HarmonicProgression | string) => {
-    setSections((prev) =>
-      prev.map((sec) => {
-        if (sec.id !== sectionId) return sec
-        const secKey = sec.keySignature || currentKey
-        const chords = getProgressionChords(prog, secKey)
-        return {
-          ...sec,
-          measures: applyProgressionToMeasures(sec.measures, chords, sec.timeSignature || timeSignature),
+    setSections((prev) => {
+      const targetSec = prev.find((sec) => sec.id === sectionId)
+      if (!targetSec) return prev
+      const secKey = targetSec.keySignature || currentKey
+      const chords = getProgressionChords(prog, secKey)
+      const updatedTargetMeasures = applyProgressionToMeasures(targetSec.measures, chords, targetSec.timeSignature || timeSignature)
+
+      const isSync = syncSectionEdits[sectionId] !== false
+      const targetNormName = ((targetSec as any).name || targetSec.label || '').trim().toUpperCase()
+      const duplicates = prev.filter(
+        (s) => ((s as any).name || s.label || '').trim().toUpperCase() === targetNormName
+      )
+
+      if (!isSync || duplicates.length <= 1) {
+        return prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedTargetMeasures } : sec))
+      }
+
+      return prev.map((sec) => {
+        if (sec.id === sectionId) {
+          return { ...sec, measures: updatedTargetMeasures }
         }
+        if (((sec as any).name || sec.label || '').trim().toUpperCase() === targetNormName) {
+          return {
+            ...sec,
+            measures: cloneMeasuresForSection(updatedTargetMeasures, sec.id, sec.measures),
+          }
+        }
+        return sec
       })
-    )
+    })
   }
 
-  // Marcar e inyectar cadencia armónica en el compás final de la sección
+  // Marcar e inyectar cadencia armónica en el compás final de la sección (sincronizada si está activa)
   const handleApplySectionCadence = (sectionId: string, cad: CadenceDefinition | null) => {
-    setSections((prev) =>
-      prev.map((sec) => {
-        if (sec.id !== sectionId || sec.measures.length === 0) return sec
-        const secKey = sec.keySignature || currentKey
-        return {
-          ...sec,
-          measures: applyCadenceToSectionMeasures(sec.measures, cad, secKey, sec.timeSignature || timeSignature),
+    setSections((prev) => {
+      const targetSec = prev.find((sec) => sec.id === sectionId)
+      if (!targetSec || targetSec.measures.length === 0) return prev
+      const secKey = targetSec.keySignature || currentKey
+      const updatedTargetMeasures = applyCadenceToSectionMeasures(targetSec.measures, cad, secKey, targetSec.timeSignature || timeSignature)
+
+      const isSync = syncSectionEdits[sectionId] !== false
+      const targetNormName = ((targetSec as any).name || targetSec.label || '').trim().toUpperCase()
+      const duplicates = prev.filter(
+        (s) => ((s as any).name || s.label || '').trim().toUpperCase() === targetNormName
+      )
+
+      if (!isSync || duplicates.length <= 1) {
+        return prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedTargetMeasures } : sec))
+      }
+
+      return prev.map((sec) => {
+        if (sec.id === sectionId) {
+          return { ...sec, measures: updatedTargetMeasures }
         }
+        if (((sec as any).name || sec.label || '').trim().toUpperCase() === targetNormName) {
+          return {
+            ...sec,
+            measures: cloneMeasuresForSection(updatedTargetMeasures, sec.id, sec.measures),
+          }
+        }
+        return sec
       })
-    )
+    })
   }
 
-  // Actualizar compases de una sección específica
+  // Actualizar compases de una sección específica (sincronizada con homónimas si está activa)
   const handleUpdateSectionMeasures = (sectionId: string, updatedMeasures: Measure[]) => {
-    setSections((prev) =>
-      prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedMeasures } : sec))
-    )
+    setSections((prev) => {
+      const targetSec = prev.find((sec) => sec.id === sectionId)
+      if (!targetSec) return prev
+
+      const isSync = syncSectionEdits[sectionId] !== false
+      const targetNormName = ((targetSec as any).name || targetSec.label || '').trim().toUpperCase()
+      const duplicates = prev.filter(
+        (s) => ((s as any).name || s.label || '').trim().toUpperCase() === targetNormName
+      )
+
+      if (!isSync || duplicates.length <= 1) {
+        return prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedMeasures } : sec))
+      }
+
+      // Sincronizar todas las secciones homónimas preservando sus letras particulares
+      return prev.map((sec) => {
+        if (sec.id === sectionId) {
+          return { ...sec, measures: updatedMeasures }
+        }
+        if (((sec as any).name || sec.label || '').trim().toUpperCase() === targetNormName) {
+          return {
+            ...sec,
+            measures: cloneMeasuresForSection(updatedMeasures, sec.id, sec.measures),
+          }
+        }
+        return sec
+      })
+    })
   }
 
   // Cambiar Tonalidad Específica de una Sección (con opción de transposición de acordes)
@@ -890,33 +1021,105 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
     )
   }
 
-  // Añadir compases a una sección
+  // Añadir compases a una sección (sincronizada con homónimas si está activa)
   const handleAddMeasuresToSection = (sectionId: string, count: number) => {
-    setSections((prev) =>
-      prev.map((sec) => {
-        if (sec.id !== sectionId) return sec
-        const lastMeasureNumber = sec.measures.length > 0 ? sec.measures[sec.measures.length - 1].measureNumber : 0
-        const newMeasures = generateMeasures(count, lastMeasureNumber + 1, sec.timeSignature || timeSignature)
-        return {
-          ...sec,
-          measures: [...sec.measures, ...newMeasures],
+    setSections((prev) => {
+      const targetSec = prev.find((sec) => sec.id === sectionId)
+      if (!targetSec) return prev
+      const lastMeasureNumber = targetSec.measures.length > 0 ? targetSec.measures[targetSec.measures.length - 1].measureNumber : 0
+      const newMeasures = generateMeasures(count, lastMeasureNumber + 1, targetSec.timeSignature || timeSignature)
+      const updatedTargetMeasures = [...targetSec.measures, ...newMeasures]
+
+      const isSync = syncSectionEdits[sectionId] !== false
+      const targetNormName = ((targetSec as any).name || targetSec.label || '').trim().toUpperCase()
+      const duplicates = prev.filter(
+        (s) => ((s as any).name || s.label || '').trim().toUpperCase() === targetNormName
+      )
+
+      if (!isSync || duplicates.length <= 1) {
+        return prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedTargetMeasures } : sec))
+      }
+
+      return prev.map((sec) => {
+        if (sec.id === sectionId) {
+          return { ...sec, measures: updatedTargetMeasures }
         }
+        if (((sec as any).name || sec.label || '').trim().toUpperCase() === targetNormName) {
+          return {
+            ...sec,
+            measures: cloneMeasuresForSection(updatedTargetMeasures, sec.id, sec.measures),
+          }
+        }
+        return sec
       })
-    )
+    })
   }
 
-  // Eliminar un compás de una sección
+  // Eliminar un compás de una sección (sincronizada con homónimas si está activa)
   const handleRemoveMeasure = (sectionId: string, measureId: string) => {
+    setSections((prev) => {
+      const targetSec = prev.find((sec) => sec.id === sectionId)
+      if (!targetSec) return prev
+      const filtered = targetSec.measures.filter((m) => m.id !== measureId)
+      const updatedTargetMeasures = filtered.map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
+
+      const isSync = syncSectionEdits[sectionId] !== false
+      const targetNormName = ((targetSec as any).name || targetSec.label || '').trim().toUpperCase()
+      const duplicates = prev.filter(
+        (s) => ((s as any).name || s.label || '').trim().toUpperCase() === targetNormName
+      )
+
+      if (!isSync || duplicates.length <= 1) {
+        return prev.map((sec) => (sec.id === sectionId ? { ...sec, measures: updatedTargetMeasures } : sec))
+      }
+
+      return prev.map((sec) => {
+        if (sec.id === sectionId) {
+          return { ...sec, measures: updatedTargetMeasures }
+        }
+        if (((sec as any).name || sec.label || '').trim().toUpperCase() === targetNormName) {
+          return {
+            ...sec,
+            measures: cloneMeasuresForSection(updatedTargetMeasures, sec.id, sec.measures),
+          }
+        }
+        return sec
+      })
+    })
+  }
+
+  // Acción rápida: Copiar armonía de esta sección a todas las demás con el mismo nombre normalizado
+  const handleSyncAllHarmonies = useCallback((sectionId: string) => {
+    const sourceSec = sections.find((s) => s.id === sectionId)
+    if (!sourceSec) return
+
+    const sourceName = ((sourceSec as any).name || sourceSec.label || '').trim().toUpperCase()
+    const matchingSections = sections.filter(
+      (s) => ((s as any).name || s.label || '').trim().toUpperCase() === sourceName
+    )
+
+    if (matchingSections.length <= 1) return
+
     setSections((prev) =>
       prev.map((sec) => {
-        if (sec.id !== sectionId) return sec
-        const filtered = sec.measures.filter((m) => m.id !== measureId)
-        // Renumerar compases
-        const renumbered = filtered.map((m, idx) => ({ ...m, measureNumber: idx + 1 }))
-        return { ...sec, measures: renumbered }
+        if (sec.id === sectionId) return sec
+        if (((sec as any).name || sec.label || '').trim().toUpperCase() === sourceName) {
+          return {
+            ...sec,
+            measures: cloneMeasuresForSection(sourceSec.measures, sec.id, sec.measures),
+          }
+        }
+        return sec
       })
     )
-  }
+
+    setSyncSectionEdits((prev) => ({
+      ...prev,
+      [sectionId]: true,
+    }))
+
+    showToast(`Armonía copiada a todos los ${sourceName} (${matchingSections.length})`)
+  }, [sections, showToast])
 
   // Modificar multiplicador de repeticiones de una sección (1x, 2x, 4x...)
   const handleUpdateSectionRepeatCount = (sectionId: string, count: number) => {
@@ -1413,6 +1616,10 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
           const isCurrentlyPlayingSection = Boolean(isPlaying && isSectionActive)
           const nextSec = sections[sIdx + 1]
           const nextSecName = nextSec ? nextSec.label : null
+          const normName = ((section as any).name || section.label || '').trim().toUpperCase()
+          const matchingSectionsCount = sectionNameCounts[normName] || 1
+          const hasDuplicateSections = matchingSectionsCount > 1
+          const isSyncSection = syncSectionEdits[section.id] !== false
 
           return (
             <SectionCard
@@ -1442,6 +1649,11 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
               isSectionActive={isSectionActive}
               onSectionFocus={(secId) => setActiveSectionId(secId)}
               onToggleCollapse={handleToggleCollapse}
+              hasDuplicateSections={hasDuplicateSections}
+              matchingSectionsCount={matchingSectionsCount}
+              isSyncSection={isSyncSection}
+              onToggleSyncSection={handleToggleSyncSection}
+              onSyncAllHarmonies={handleSyncAllHarmonies}
               onUpdateLabel={(secId, newLabel) => {
                 setSections((prev) =>
                   prev.map((s) => (s.id === secId ? { ...s, label: newLabel.toUpperCase() } : s))
@@ -1590,6 +1802,14 @@ export function ChordLeadSheet({ song, repertoireContext }: ChordLeadSheetProps)
         onClose={() => setIsYouTubeModalOpen(false)}
         onSave={handleSaveYouTubeUrl}
       />
+
+      {/* Notificación Toast Flotante */}
+      {toastMessage && (
+        <div className="fixed bottom-16 sm:bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900/95 backdrop-blur-md text-white shadow-2xl border border-cyan-500/40 text-xs font-bold animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none select-none">
+          <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   )
 }

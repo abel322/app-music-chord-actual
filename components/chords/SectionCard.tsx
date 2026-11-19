@@ -65,6 +65,11 @@ export interface SectionCardProps {
   onUpdateMeasures?: (sectionId: string, measures: Measure[]) => void
   onAddMeasures?: (sectionId: string, count: number) => void
   onRemoveMeasure?: (sectionId: string, measureId: string) => void
+  hasDuplicateSections?: boolean
+  matchingSectionsCount?: number
+  isSyncSection?: boolean
+  onToggleSyncSection?: (sectionId: string) => void
+  onSyncAllHarmonies?: (sectionId: string) => void
   isOverlay?: boolean
 }
 
@@ -110,6 +115,11 @@ export function SectionCard({
   onUpdateMeasures,
   onAddMeasures,
   onRemoveMeasure,
+  hasDuplicateSections = false,
+  matchingSectionsCount = 1,
+  isSyncSection = true,
+  onToggleSyncSection,
+  onSyncAllHarmonies,
 }: SectionCardProps) {
   const [isLyricsOpen, setIsLyricsOpen] = useState(false)
   const [activeEditPassIdx, setActiveEditPassIdx] = useState(0)
@@ -569,6 +579,46 @@ export function SectionCard({
                       onUpdateRepeatCount={(count) => handleSelectCycle(count)}
                     />
                   </div>
+
+                  {/* Selector de Sincronización Armónica para Secciones Repetidas */}
+                  {isEditing && hasDuplicateSections && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggleSyncSection?.(section.id)
+                        }}
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer shadow-xs active:scale-95 select-none',
+                          isSyncSection
+                            ? 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-400 text-cyan-200 shadow-cyan-950/40 ring-1 ring-cyan-400/40'
+                            : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-400 text-amber-200 shadow-amber-950/40 ring-1 ring-amber-400/40'
+                        )}
+                        title={
+                          isSyncSection
+                            ? `🔗 Sincronizado: Los cambios de compases y acordes se aplican a los ${matchingSectionsCount} "${section.label}". Clic para editar solo este.`
+                            : `🔓 Solo este: Los cambios de compases y acordes solo afectan a esta tarjeta. Clic para sincronizar los ${matchingSectionsCount} "${section.label}".`
+                        }
+                      >
+                        <span>{isSyncSection ? '🔗' : '🔓'}</span>
+                        <span>{isSyncSection ? `Sincronizado (${matchingSectionsCount})` : 'Solo este'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSyncAllHarmonies?.(section.id)
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-xs active:scale-95 select-none"
+                        title={`Copiar la estructura de compases y acordes de esta sección hacia las demás tarjetas "${section.label}" (sin tocar sus letras).`}
+                      >
+                        <span>📋</span>
+                        <span className="hidden sm:inline">Igualar todos</span>
+                      </button>
+                    </div>
+                  )}
 
                   {/* Badge visible de tempo personalizado solo en modo lectura para evitar duplicidad */}
                   {!isEditing && section.tempoOverride && (
